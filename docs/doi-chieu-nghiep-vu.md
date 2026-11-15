@@ -19,8 +19,8 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 | Nợ ban đầu khi thêm khách | Nhập được khi tạo khách | `POST /customers` `initialDebt` (ADMIN) |
 | Trùng tên khách | Không cho thêm khách trùng tên | `CustomerController.create` |
 | Thu nợ (ThanhToanNo) | Số tiền trả ≤ số nợ | `DebtService.pay` |
-| Biên lai công nợ | Các lần trả trong chu kỳ hiện tại (sau lần nợ về 0 / lần sửa nợ tay); dòng trả lúc chốt đơn có "Nợ cũ" = nợ trước hóa đơn | `GET /customers/{id}/payment-receipt`, `DebtReceiptPrint.vue` |
-| In hóa đơn (Bill.jrxml) | Gộp dòng tôn cùng SP + số tấm + hệ số + giá + ĐVT → `(4.5 + 4.6) x 2 tấm`; nhóm theo tên SP (giảm dần); dòng nhóm `N tấm x hệ số`; cùng tiêu đề, nhãn, lưu ý | `InvoicePrint.vue`, `shop-info.ts` |
+| Biên lai công nợ (ThanhToanNoReport.jrxml, cùng bố cục) | Các lần trả trong chu kỳ hiện tại (sau lần nợ về 0 / lần sửa nợ tay); dòng trả lúc chốt đơn có "Nợ cũ" = nợ trước hóa đơn | `GET /customers/{id}/payment-receipt`, `DebtReceiptPrint.vue` |
+| In hóa đơn (Bill.jrxml) | Dựng lại nguyên bố cục Jasper: cùng tọa độ (pt), cỡ chữ, đường kẻ, font DejaVu Sans, logo KD, QR chuyển khoản, số dạng `1,234,567`, ngày `dd/MM/yyyy HH:mm:ss`. Gộp dòng tôn cùng SP + số tấm + hệ số + giá + ĐVT → `(4.5 + 4.6) x 2 tấm`; nhóm theo tên SP (giảm dần); ô nào Jasper tính cuối nhóm / đầu nhóm thì giữ đúng như vậy | `InvoicePrint.vue`, `jasper.ts`, `public/invoice/`, `public/fonts/` |
 | Sản phẩm | Bắt buộc tên, đơn vị, giá | `ProductController` |
 | Doanh thu | Tổng thành tiền dòng hàng (không gồm ship, nợ cũ) | `ReportController` |
 | Ngày / Tháng / Năm (+ kỳ trước) | Theo lịch | `/reports/overview` |
@@ -52,5 +52,4 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 
 ## 3. Chưa làm
 
-- Ảnh QR chuyển khoản trên hóa đơn: app cũ lấy từ `D:\NhomSatKiemDien\src\Image\1.jpg`. Đặt ảnh vào `frontend/public/` rồi khai báo trong `shop-info.ts` (`qrImage`).
 - Gửi Zalo, lưu PDF vào `D:/HoaDon`: dùng "In → Lưu thành PDF" của trình duyệt.

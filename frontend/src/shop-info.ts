@@ -17,8 +17,9 @@ export const SHOP = {
       '- Tôn đã cắt không được trả lại.',
       '- Mọi thắc mắc xin quý khách vui lòng liên hệ ngay, quá hai ngày sau khi nhận hàng chúng tôi không chịu trách nhiệm',
     ],
-    /** Anh QR chuyen khoan (app cu: src/Image/1.jpg). Dat file vao frontend/public roi ghi duong dan, vd '/qr.jpg'. */
-    qrImage: null as string | null,
+    /** Logo (app cu: src/Image/download-2-photoroom_agfGo5ka.jpg) nam o /public/invoice/logo.jpg */
+    /** Anh QR chuyen khoan (app cu: src/Image/1.jpg). Doi tai khoan thi thay file /public/invoice/qr.jpg */
+    qrImage: '/invoice/qr.jpg' as string | null,
   },
   debtReceipt: {
     name: 'NHÀ MÁY CÁN TÔN KIỂM DIÊN',

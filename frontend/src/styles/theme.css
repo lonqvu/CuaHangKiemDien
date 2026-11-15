@@ -142,34 +142,18 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   body { background: #fff; }
   body > *:not(.print-root) { display: none !important; }
   .print-root { display: block !important; }
-  @page { margin: 10mm; }
+  @page { size: A4; margin: 0; }
 }
 
-/* Mau in hoa don (Bill.jrxml cu) va bien lai cong no (ThanhToanNoReport.jrxml cu) */
-.print-root .inv { font-family: 'Times New Roman', 'Fira Sans', serif; font-size: 12pt; color: #000; }
-.print-root .shop { text-align: center; line-height: 1.35; }
-.print-root .shop b { font-size: 14pt; }
-.print-root h2 { text-align: center; font-size: 16pt; margin: 10px 0 2px; }
-.print-root .center { text-align: center; margin: 0 0 8px; }
-.print-root table { width: 100%; border-collapse: collapse; }
-.print-root .info td { padding: 2px 4px; font-size: 11.5pt; }
-.print-root .info td:nth-child(odd) { white-space: nowrap; width: 1%; }
-.print-root .items { margin-top: 8px; }
-.print-root .items th, .print-root .items .g td { border: 1px solid #000; padding: 3px 5px; font-size: 11.5pt; }
-.print-root .items .d td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 1px 5px 1px 18px; font-size: 10.5pt; font-style: italic; }
-.print-root .items .d td:first-child { padding: 0; }
-.print-root .sub { font-size: 10.5pt; }
-.print-root .r { text-align: right; white-space: nowrap; }
-.print-root .c { text-align: center; }
-.print-root .bottom { display: flex; gap: 16px; margin-top: 10px; }
-.print-root .left { flex: 1; }
-.print-root .left p { margin: 2px 0; }
-.print-root .qr img { width: 110px; height: 110px; object-fit: contain; }
-.print-root .sum { width: 46%; }
-.print-root .sum td { padding: 2px 4px; }
-.print-root .sum .b td { font-weight: 700; }
-.print-root .notes { margin-top: 10px; font-size: 10.5pt; }
-.print-root .cur { text-align: right; margin: 8px 0; }
-.print-root .signs { display: flex; justify-content: flex-end; text-align: center; height: 90px; padding-right: 40px; }
-.print-root .items td { vertical-align: top; }
-
+/* Mau in hoa don / bien lai: dung lai bo cuc Jasper cua app cu (xem components/jasper.ts) */
+@font-face { font-family: 'DejaVu Sans'; src: url('/fonts/DejaVuSans.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+@font-face { font-family: 'DejaVu Sans'; src: url('/fonts/DejaVuSans-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; }
+@font-face { font-family: 'DejaVu Sans'; src: url('/fonts/DejaVuSans-Oblique.woff2') format('woff2'); font-weight: 400; font-style: italic; }
+.jr-page { position: relative; background: #fff; color: #000; font-family: 'DejaVu Sans', Verdana, sans-serif; box-sizing: content-box; }
+.jr-band { position: relative; }
+.jr-t { position: absolute; display: flex; flex-direction: column; line-height: 1.164; white-space: pre-wrap; overflow-wrap: break-word; box-sizing: border-box; }
+.jr-v { position: absolute; border-left: 1pt solid #000; width: 0 !important; }
+.jr-h { position: absolute; border-top: 1pt solid #000; height: 0 !important; }
+.jr-img { position: absolute; display: block; }
+.jr-box { border: 1pt solid #000; }
+.jr-box3 { border: 1pt solid #000; border-top: none; }
