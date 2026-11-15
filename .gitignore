@@ -1,0 +1,11 @@
+# build
+backend/target/
+frontend/node_modules/
+frontend/dist/
+# env / secrets
+.env
+*.log
+# ide
+.idea/
+.vscode/
+*.iml
