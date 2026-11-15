@@ -39,8 +39,10 @@ public class OrderController {
     }
 
     @GetMapping
-    public List<OrderDto> list(@RequestParam(defaultValue = "PAID") Order.Status status) {
-        return service.list(status).stream().map(this::dto).toList();
+    public List<OrderDto> list(@RequestParam(defaultValue = "PAID") Order.Status status,
+                               @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate from,
+                               @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
+        return service.list(status, from, to).stream().map(this::dto).toList();
     }
 
     @GetMapping("/{id}")

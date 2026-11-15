@@ -37,6 +37,7 @@ const dialog = reactive({ open: false, id: null as number | null })
 const form = reactive({ name: '', categoryId: null as number | null, unit: '', price: 0 })
 const rules: FormRules = {
   name: [{ required: true, message: 'Nhập tên sản phẩm', trigger: 'blur' }],
+  unit: [{ required: true, message: 'Bạn chưa nhập đơn vị cho sản phẩm', trigger: 'blur' }],
   price: [{ required: true, type: 'number', min: 0, message: 'Giá không hợp lệ', trigger: 'blur' }],
 }
 
@@ -105,7 +106,7 @@ onMounted(load)
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Đơn vị tính"><el-input v-model="form.unit" placeholder="m, kg, cây, tấm" /></el-form-item>
+        <el-form-item label="Đơn vị tính" prop="unit"><el-input v-model="form.unit" placeholder="m, kg, cây, tấm" /></el-form-item>
       </div>
       <el-form-item label="Giá bán (₫)" prop="price">
         <el-input-number v-model="form.price" :min="0" :step="1000" :controls="false" style="width: 100%" class="money-input" />

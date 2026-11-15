@@ -1,55 +1,114 @@
 <script setup lang="ts">
-import type { Order } from '../api/types'
-import { dt, num, qty } from '../format'
+import { computed } from 'vue'
+import type { Order, OrderItem } from '../api/types'
+import { num, plain } from '../format'
+import { SHOP } from '../shop-info'
 
-// Thay man "Xuat HD" (JasperReport) cu: in bang trinh duyet, khong can file .jrxml
-defineProps<{ order: Order | null }>()
+/**
+ * Ban in hoa don, dung bo cuc va cach gom dong cua Bill.jrxml cu:
+ * - dong co so tam: gop cac dong cung san pham + so tam + he so + don gia + don vi -> "(4.5 + 4.6) x 2 tam"
+ * - sap xep: ten san pham giam dan, he so, so tam, thu tu nhap
+ * - moi san pham 1 nhom: "N tam x he so", tong SL + don vi, don gia, tong thanh tien
+ */
+const props = defineProps<{ order: Order | null }>()
+
+interface Row { productName: string; unit: string | null; sheets: number; factor: number; price: number; amounts: number[]; sheetsTotal: number; totalQuantity: number; lineTotal: number; firstId: number }
+
+const groups = computed(() => {
+  const o = props.order
+  if (!o) return []
+  const rows: Row[] = []
+  const merged = new Map<string, Row>()
+  for (const i of o.items as OrderItem[]) {
+    const sheets = Number(i.sheets || 0)
+    const base = { productName: i.productName, unit: i.unit, sheets, factor: Number(i.factor || 0), price: Number(i.unitPrice) }
+    if (sheets !== 0) {
+      const key = [i.productId, sheets, base.factor, base.price, i.unit ?? '', i.productName].join('|')
+      const r = merged.get(key)
+      if (r) {
+        r.amounts.push(Number(i.quantity)); r.sheetsTotal += sheets
+        r.totalQuantity += Number(i.totalQuantity); r.lineTotal += Number(i.lineTotal); r.firstId = Math.min(r.firstId, i.id)
+      } else {
+        const n: Row = { ...base, amounts: [Number(i.quantity)], sheetsTotal: sheets, totalQuantity: Number(i.totalQuantity), lineTotal: Number(i.lineTotal), firstId: i.id }
+        merged.set(key, n); rows.push(n)
+      }
+    } else {
+      rows.push({ ...base, amounts: [Number(i.quantity)], sheetsTotal: 0, totalQuantity: Number(i.totalQuantity), lineTotal: Number(i.lineTotal), firstId: i.id })
+    }
+  }
+  rows.forEach((r) => r.amounts.sort((a, b) => a - b))
+  rows.sort((a, b) => b.productName.localeCompare(a.productName, 'vi') || a.factor - b.factor || a.sheets - b.sheets || a.firstId - b.firstId)
+
+  // nhom theo ten san pham (ProductGroup)
+  const out: { name: string; rows: Row[]; sheets: number; factor: number; qty: number; unit: string | null; price: number; total: number }[] = []
+  for (const r of rows) {
+    let g = out[out.length - 1]
+    if (!g || g.name !== r.productName) {
+      g = { name: r.productName, rows: [], sheets: 0, factor: 0, qty: 0, unit: r.unit, price: 0, total: 0 }
+      out.push(g)
+    }
+    g.rows.push(r); g.sheets += r.sheetsTotal; g.qty += r.totalQuantity; g.total += r.lineTotal
+    g.factor = r.factor; g.price = r.price; g.unit = r.unit // Jasper lay gia tri cua dong cuoi nhom
+  }
+  return out
+})
+
+const date = computed(() => (props.order ? new Date(props.order.createdAt).toLocaleDateString('vi-VN') : ''))
+const amountText = (r: Row) => {
+  const list = r.amounts.map((a) => plain(a)).join(' + ')
+  return `${r.amounts.length > 1 ? `(${list})` : list} x ${r.sheets} tấm`
+}
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="order" class="print-root">
       <div class="inv">
-        <h2>ĐẠI LÝ NHÔM SẮT KIỂM DIÊN</h2>
-        <p class="center">HÓA ĐƠN BÁN HÀNG · <b>{{ order.code }}</b></p>
-        <p>Ngày: {{ dt(order.checkedOutAt || order.createdAt) }} &nbsp; Người lập: {{ order.staffName }}</p>
-        <p>Khách hàng: {{ order.customerName || 'Khách lẻ' }}<span v-if="order.customerPhone"> · {{ order.customerPhone }}</span></p>
-        <p v-if="order.customerAddress">Địa chỉ: {{ order.customerAddress }}</p>
-        <table>
-          <thead><tr><th>#</th><th>Mặt hàng</th><th>SL</th><th>Tấm</th><th>Hệ số</th><th>Tổng SL</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
+        <header class="shop">
+          <b>{{ SHOP.invoice.name }}</b>
+          <div v-for="l in SHOP.invoice.lines" :key="l">{{ l }}</div>
+        </header>
+        <h2>HÓA ĐƠN BÁN HÀNG</h2>
+        <p class="center">Số hóa đơn: <b>{{ order.code }}</b> - {{ date }}</p>
+        <table class="info">
+          <tr><td>Khách hàng:</td><td>{{ order.customerName }}</td><td>SĐT:</td><td>{{ order.customerPhone }}</td></tr>
+          <tr><td>Địa Chỉ:</td><td>{{ order.customerAddress }}</td><td>Người bán hàng:</td><td>{{ order.staffName }}</td></tr>
+        </table>
+        <table class="items">
+          <thead><tr><th>STT</th><th>Sản Phẩm</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
           <tbody>
-            <tr v-for="(i, idx) in order.items" :key="i.id">
-              <td>{{ idx + 1 }}</td><td>{{ i.productName }}<span v-if="i.unit"> ({{ i.unit }})</span></td>
-              <td class="r">{{ qty(i.quantity) }}</td><td class="r">{{ i.sheets || '' }}</td><td class="r">{{ i.factor ? qty(i.factor) : '' }}</td>
-              <td class="r">{{ qty(i.totalQuantity) }}</td><td class="r">{{ num(i.unitPrice) }}</td><td class="r">{{ num(i.lineTotal) }}</td>
-            </tr>
+            <template v-for="(g, gi) in groups" :key="g.name">
+              <tr class="g">
+                <td class="c">{{ gi + 1 }}</td>
+                <td>{{ g.name }}<span v-if="g.rows[g.rows.length - 1].sheets !== 0" class="sub">&nbsp; {{ g.sheets }} tấm x {{ plain(g.factor) }}</span></td>
+                <td class="r">{{ plain(g.qty) }} {{ g.unit }}</td>
+                <td class="r">{{ num(g.price) }}</td>
+                <td class="r">{{ num(g.total) }}</td>
+              </tr>
+              <tr v-for="(r, ri) in g.rows.filter((x) => x.sheets !== 0)" :key="ri" class="d">
+                <td></td><td colspan="4">{{ amountText(r) }}</td>
+              </tr>
+            </template>
           </tbody>
         </table>
-        <table class="sum">
-          <tr><td>Tiền hàng</td><td class="r">{{ num(order.itemsTotal) }}</td></tr>
-          <tr v-if="Number(order.shippingFee)"><td>Phí vận chuyển</td><td class="r">{{ num(order.shippingFee) }}</td></tr>
-          <tr v-if="Number(order.previousDebt)"><td>Nợ cũ</td><td class="r">{{ num(order.previousDebt) }}</td></tr>
-          <tr class="b"><td>Tổng phải trả</td><td class="r">{{ num(order.totalPayable) }}</td></tr>
-          <tr><td>Khách trả</td><td class="r">{{ num(order.paidAmount) }}</td></tr>
-          <tr class="b"><td>Còn nợ</td><td class="r">{{ num(order.debtAfter) }}</td></tr>
-        </table>
-        <p v-if="order.note">Ghi chú: {{ order.note }}</p>
-        <div class="sign"><div>Khách hàng<br /><i>(Ký, ghi rõ họ tên)</i></div><div>Người bán<br /><i>(Ký, ghi rõ họ tên)</i></div></div>
+        <div class="bottom">
+          <div class="left">
+            <b>Ghi chú</b>
+            <p>{{ order.note }}</p>
+            <div v-if="SHOP.invoice.qrImage" class="qr"><img :src="SHOP.invoice.qrImage" alt="" /><div>QR chuyển khoản</div></div>
+          </div>
+          <table class="sum">
+            <tr><td>Phí vận chuyển:</td><td class="r">{{ num(order.shippingFee) }}</td></tr>
+            <tr><td>Tổng tiền hóa đơn:</td><td class="r">{{ num(order.itemsTotal) }}</td></tr>
+            <tr><td>Nợ cũ:</td><td class="r">{{ num(order.previousDebt) }}</td></tr>
+            <tr class="b"><td>Tổng:</td><td class="r">{{ num(order.totalPayable) }}</td></tr>
+            <tr><td>Thanh toán:</td><td class="r">{{ num(order.paidAmount) }}</td></tr>
+            <tr class="b"><td>Nợ lại:</td><td class="r">{{ num(order.debtAfter) }}</td></tr>
+          </table>
+        </div>
+        <div class="notes"><b>Lưu ý:</b><div v-for="n in SHOP.invoice.notes" :key="n">{{ n }}</div></div>
       </div>
     </div>
   </Teleport>
 </template>
 
-<style>
-.print-root .inv { font-family: 'Fira Sans', Arial, sans-serif; font-size: 12pt; color: #000; }
-.print-root h2 { text-align: center; font-size: 15pt; margin: 0 0 4px; }
-.print-root p { margin: 2px 0; }
-.print-root .center { text-align: center; margin-bottom: 8px; }
-.print-root table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-.print-root th, .print-root td { border: 1px solid #000; padding: 3px 5px; font-size: 11pt; }
-.print-root .r { text-align: right; font-variant-numeric: tabular-nums; }
-.print-root .sum { width: 50%; margin-left: auto; }
-.print-root .sum td { border: none; border-bottom: 1px dotted #000; }
-.print-root .sum .b td { font-weight: 700; }
-.print-root .sign { display: flex; justify-content: space-around; margin-top: 24px; text-align: center; height: 90px; }
-</style>

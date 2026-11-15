@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Printer, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Order } from '../api/types'
-import { dt, num, qty } from '../format'
+import { dateOnly, dt, num, qty } from '../format'
 import PageHeader from '../components/PageHeader.vue'
 import InvoicePrint from '../components/InvoicePrint.vue'
 
@@ -13,6 +13,7 @@ const status = ref<'PAID' | 'CANCELLED'>('PAID')
 const rows = ref<Order[]>([])
 const q = ref('')
 const loading = ref(false)
+const range = ref<[string, string] | null>(null)
 const detail = ref<Order | null>(null)
 const printing = ref<Order | null>(null)
 
@@ -20,14 +21,18 @@ const filtered = computed(() => {
   const k = q.value.trim().toLowerCase()
   if (!k) return rows.value
   return rows.value.filter((o) =>
-    [o.code, o.customerName, o.customerPhone, o.staffName].some((v) => v?.toLowerCase().includes(k)))
+    [o.code, o.customerName, o.customerPhone, o.customerAddress, o.staffName, o.note].some((v) => v?.toLowerCase().includes(k)))
 })
 const totals = computed(() => filtered.value.reduce(
   (a, o) => ({ goods: a.goods + Number(o.itemsTotal), paid: a.paid + Number(o.paidAmount) }), { goods: 0, paid: 0 }))
 
 async function load() {
   loading.value = true
-  try { rows.value = (await http.get<Order[]>('/orders', { params: { status: status.value } })).data }
+  try {
+    const params: Record<string, string> = { status: status.value }
+    if (range.value) { params.from = range.value[0]; params.to = range.value[1] }
+    rows.value = (await http.get<Order[]>('/orders', { params })).data
+  }
   finally { loading.value = false }
 }
 
@@ -51,31 +56,38 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader title="Hóa đơn" subtitle="100 hóa đơn gần nhất. Hủy hóa đơn sẽ hoàn công nợ, không xóa dữ liệu." />
+  <PageHeader title="Hóa đơn" subtitle="Tất cả hóa đơn đã thanh toán, mới nhất trước. Hủy hóa đơn sẽ hoàn công nợ, không xóa dữ liệu." />
 
   <div class="toolbar">
     <el-radio-group v-model="status" @change="load">
       <el-radio-button value="PAID">Đã thanh toán</el-radio-button>
       <el-radio-button value="CANCELLED">Đã hủy</el-radio-button>
     </el-radio-group>
+    <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" format="DD/MM/YYYY" range-separator="–"
+                    start-placeholder="Từ ngày" end-placeholder="Đến ngày" style="max-width: 280px" @change="load" />
     <el-input v-model="q" :prefix-icon="Search" placeholder="Tìm mã, khách, SĐT, nhân viên" clearable style="max-width: 320px" aria-label="Tìm hóa đơn" />
     <span class="grow" />
     <span class="muted">{{ filtered.length }} hóa đơn · tiền hàng <b class="num">{{ num(totals.goods) }}</b> · đã thu <b class="num tone-money">{{ num(totals.paid) }}</b></span>
   </div>
 
   <div class="panel">
+    <!-- Cot giong bang OrderHistory cu -->
     <el-table v-loading="loading" :data="filtered" empty-text="Không có hóa đơn" row-class-name="clickable" @row-click="(r: Order) => (detail = r)">
-      <el-table-column label="Mã" width="128"><template #default="{ row }"><span class="mono">{{ row.code }}</span></template></el-table-column>
-      <el-table-column label="Lúc chốt" width="140"><template #default="{ row }">{{ dt(row.checkedOutAt) }}</template></el-table-column>
-      <el-table-column label="Khách" min-width="160">
-        <template #default="{ row }">{{ row.customerName || 'Khách lẻ' }} <span class="muted">{{ row.customerPhone }}</span></template>
-      </el-table-column>
-      <el-table-column prop="staffName" label="Nhân viên" width="130" />
+      <el-table-column type="index" label="STT" width="56" />
+      <el-table-column label="Mã HĐ" width="120"><template #default="{ row }"><span class="mono">{{ row.code }}</span></template></el-table-column>
+      <el-table-column label="Ngày" width="96"><template #default="{ row }">{{ dateOnly(row.createdAt) }}</template></el-table-column>
+      <el-table-column prop="staffName" label="Nhân viên" width="120" show-overflow-tooltip />
       <el-table-column label="Tiền hàng" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template></el-table-column>
+      <el-table-column label="Nợ cũ" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.previousDebt) }}</span></template></el-table-column>
+      <el-table-column label="Tổng thanh toán" width="136" align="right"><template #default="{ row }"><span class="num">{{ num(row.totalPayable) }}</span></template></el-table-column>
       <el-table-column label="Khách trả" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template></el-table-column>
-      <el-table-column label="Còn nợ" width="120" align="right">
+      <el-table-column label="Còn lại" width="120" align="right">
         <template #default="{ row }"><span class="num" :class="{ 'tone-debt': Number(row.debtAfter) > 0 }">{{ num(row.debtAfter) }}</span></template>
       </el-table-column>
+      <el-table-column prop="customerName" label="Khách hàng" min-width="150" show-overflow-tooltip />
+      <el-table-column label="SĐT" width="128"><template #default="{ row }"><span class="num">{{ row.customerPhone }}</span></template></el-table-column>
+      <el-table-column prop="customerAddress" label="Địa chỉ" min-width="130" show-overflow-tooltip />
+      <el-table-column prop="note" label="Ghi chú" min-width="120" show-overflow-tooltip />
     </el-table>
   </div>
 
@@ -83,7 +95,7 @@ onMounted(load)
     <template v-if="detail">
       <dl class="meta">
         <div><dt>Trạng thái</dt><dd><el-tag :type="detail.status === 'PAID' ? 'success' : 'info'">{{ detail.status === 'PAID' ? 'Đã thanh toán' : 'Đã hủy' }}</el-tag></dd></div>
-        <div><dt>Lúc chốt</dt><dd>{{ dt(detail.checkedOutAt) }}</dd></div>
+        <div><dt>Ngày lập / chốt</dt><dd>{{ dateOnly(detail.createdAt) }} · {{ dt(detail.checkedOutAt) }}</dd></div>
         <div><dt>Khách</dt><dd>{{ detail.customerName || 'Khách lẻ' }}<br v-if="detail.customerPhone" /><span class="muted">{{ detail.customerPhone }}</span></dd></div>
         <div><dt>Nhân viên</dt><dd>{{ detail.staffName }}</dd></div>
         <div v-if="detail.note"><dt>Ghi chú</dt><dd>{{ detail.note }}</dd></div>
@@ -98,9 +110,9 @@ onMounted(load)
         <div><dt>Tiền hàng</dt><dd class="num">{{ num(detail.itemsTotal) }}</dd></div>
         <div><dt>Phí vận chuyển</dt><dd class="num">{{ num(detail.shippingFee) }}</dd></div>
         <div><dt>Nợ cũ</dt><dd class="num">{{ num(detail.previousDebt) }}</dd></div>
-        <div class="b"><dt>Tổng phải trả</dt><dd class="num">{{ num(detail.totalPayable) }}</dd></div>
+        <div class="b"><dt>Tổng thanh toán</dt><dd class="num">{{ num(detail.totalPayable) }}</dd></div>
         <div><dt>Khách trả</dt><dd class="num tone-money">{{ num(detail.paidAmount) }}</dd></div>
-        <div class="b"><dt>Còn nợ</dt><dd class="num" :class="{ 'tone-debt': Number(detail.debtAfter) > 0 }">{{ num(detail.debtAfter) }}</dd></div>
+        <div class="b"><dt>Còn lại</dt><dd class="num" :class="{ 'tone-debt': Number(detail.debtAfter) > 0 }">{{ num(detail.debtAfter) }}</dd></div>
       </dl>
     </template>
     <template #footer>

@@ -56,8 +56,12 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<Order> list(Order.Status status) {
-        List<Order> list = orders.findTop100ByStatusOrderByIdDesc(status);
+    public List<Order> list(Order.Status status, java.time.LocalDate from, java.time.LocalDate to) {
+        // App cu (OrderHistory) hien tat ca hoa don da thanh toan, moi nhat truoc
+        List<Order> list = orders.search(status,
+                from == null ? java.time.LocalDateTime.of(2000, 1, 1, 0, 0) : from.atStartOfDay(),
+                to == null ? java.time.LocalDateTime.of(9999, 1, 1, 0, 0) : to.plusDays(1).atStartOfDay(),
+                org.springframework.data.domain.PageRequest.of(0, 5000));
         list.forEach(o -> o.getItems().size()); // nap items trong transaction
         return list;
     }
@@ -107,7 +111,7 @@ public class OrderService {
         BigDecimal factor = LineCalculator.normalizeFactor(sheets, r.factor());
         BigDecimal price = r.unitPrice() != null ? r.unitPrice() : p.getPrice();
         if (price.signum() < 0) throw ApiException.badRequest("Don gia khong hop le");
-        BigDecimal totalQty = LineCalculator.totalQuantity(r.quantity(), sheets, factor);
+        BigDecimal rawQty = LineCalculator.totalQuantity(r.quantity(), sheets, factor);
 
         it.setProductId(p.getId());
         it.setProductName(p.getName());
@@ -116,8 +120,8 @@ public class OrderService {
         it.setQuantity(r.quantity());
         it.setSheets(sheets);
         it.setFactor(factor);
-        it.setTotalQuantity(totalQty);
-        it.setLineTotal(LineCalculator.lineTotal(price, totalQty));
+        it.setTotalQuantity(LineCalculator.storedQuantity(rawQty));
+        it.setLineTotal(LineCalculator.lineTotal(price, rawQty));
     }
 
     private void recalc(Order o) {
@@ -150,7 +154,8 @@ public class OrderService {
                     .orElseThrow(() -> ApiException.badRequest("Khach hang khong ton tai"));
             BigDecimal previous = c.getDebt();
             BigDecimal payable = charge.add(previous);
-            if (paid.compareTo(payable) > 0) throw ApiException.badRequest("Khach tra nhieu hon tong phai tra");
+            // Giong PayDialog cu: Con lai = max(0, Tong thanh toan - Khach tra); tra du -> con lai 0, luu nguyen so khach dua
+            BigDecimal remain = payable.subtract(paid).max(BigDecimal.ZERO);
 
             o.setCustomerId(c.getId());
             o.setCustomerName(c.getName());
@@ -159,22 +164,24 @@ public class OrderService {
             o.setPreviousDebt(previous);
             o.setTotalPayable(payable);
             o.setPaidAmount(paid);
-            o.setDebtAfter(payable.subtract(paid));
+            o.setDebtAfter(remain);
 
             debts.apply(c, DebtLedger.Type.ORDER, charge, o.getId(), "Hoa don " + o.getCode());
-            if (paid.signum() > 0) {
-                debts.apply(c, DebtLedger.Type.PAYMENT, paid.negate(), o.getId(), "Thanh toan hoa don " + o.getCode());
+            BigDecimal applied = paid.min(payable); // phan tien thua tra lai khach, khong tru vao no
+            if (applied.signum() > 0) {
+                debts.apply(c, DebtLedger.Type.PAYMENT, applied.negate(), o.getId(), "Thanh toan hoa don " + o.getCode());
             }
         } else {
-            // Khach le: khong ghi no
-            if (paid.compareTo(charge) < 0) throw ApiException.badRequest("Khach le phai tra du tien (chon khach hang de ghi no)");
-            o.setCustomerName(r.customerName());
+            // Khach le (app cu): bat buoc co ten; duoc tra thieu, phan con lai chi ghi tren hoa don, khong vao cong no
+            if (r.customerName() == null || r.customerName().isBlank())
+                throw ApiException.badRequest("Vui long nhap ten khach le hoac chon khach hang");
+            o.setCustomerName(r.customerName().trim());
             o.setCustomerAddress(r.customerAddress());
             o.setCustomerPhone(r.customerPhone());
             o.setPreviousDebt(BigDecimal.ZERO);
             o.setTotalPayable(charge);
-            o.setPaidAmount(charge);
-            o.setDebtAfter(BigDecimal.ZERO);
+            o.setPaidAmount(paid);
+            o.setDebtAfter(charge.subtract(paid).max(BigDecimal.ZERO));
         }
 
         o.setStatus(Order.Status.PAID);
@@ -189,8 +196,7 @@ public class OrderService {
         if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chi huy duoc hoa don da chot");
         if (o.getCustomerId() != null) {
             Customer c = customers.findById(o.getCustomerId()).orElseThrow();
-            BigDecimal charge = o.getItemsTotal().add(o.getShippingFee());
-            BigDecimal netDebtAdded = charge.subtract(o.getPaidAmount()); // phan hoa don nay da lam no tang rong
+            BigDecimal netDebtAdded = o.getDebtAfter().subtract(o.getPreviousDebt()); // hoa don nay lam no thay doi bao nhieu
             debts.apply(c, DebtLedger.Type.ADJUST, netDebtAdded.negate(), o.getId(), "Huy hoa don " + o.getCode());
         }
         o.setStatus(Order.Status.CANCELLED);

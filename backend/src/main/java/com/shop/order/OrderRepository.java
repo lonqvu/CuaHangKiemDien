@@ -2,11 +2,19 @@ package com.shop.order;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
-    List<Order> findTop100ByStatusOrderByIdDesc(Order.Status status);
+    @Query("""
+            select o from SalesOrder o
+            where o.status = :status
+              and o.createdAt >= :from and o.createdAt < :to
+            order by o.createdAt desc, o.id desc
+            """)
+    List<Order> search(@Param("status") Order.Status status, @Param("from") java.time.LocalDateTime from,
+                       @Param("to") java.time.LocalDateTime to, org.springframework.data.domain.Pageable page);
 
     @Query(value = "select nextval('order_code_seq')", nativeQuery = true)
     long nextCode();

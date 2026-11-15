@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 @Table(name = "debt_ledger")
 @Getter @Setter
 public class DebtLedger {
-    public enum Type { ORDER, PAYMENT, ADJUST }
+    /** ORDER: mua hang, PAYMENT: tra no, ADJUST: huy hoa don, MANUAL: nhap no ban dau / sua no tay (nut "Cap nhat" cu). */
+    public enum Type { ORDER, PAYMENT, ADJUST, MANUAL }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

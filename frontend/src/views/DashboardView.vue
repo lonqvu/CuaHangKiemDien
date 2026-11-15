@@ -31,7 +31,7 @@ onMounted(async () => {
   <template v-if="ov">
     <div class="grid4">
       <StatCard label="Doanh thu hôm nay" :value="ov.day.current" :previous="ov.day.previous" previous-label="Hôm qua" />
-      <StatCard label="7 ngày qua" :value="ov.week.current" :previous="ov.week.previous" previous-label="7 ngày trước" />
+      <StatCard label="Tuần này (7 ngày qua)" :value="ov.week.current" :previous="ov.week.previous" previous-label="Tuần trước" />
       <StatCard label="Tháng này" :value="ov.month.current" :previous="ov.month.previous" previous-label="Tháng trước" />
       <StatCard label="Năm nay" :value="ov.year.current" :previous="ov.year.previous" previous-label="Năm trước" />
     </div>
@@ -45,9 +45,9 @@ onMounted(async () => {
       </div>
       <div class="mini-grid">
         <StatCard label="Hóa đơn tháng này" :value="ov.ordersThisMonth" />
-        <StatCard label="Trung bình mỗi hóa đơn" :value="ov.avgOrderThisMonth" />
+        <StatCard label="Giá trị đơn hàng trung bình" :value="ov.avgOrderThisMonth">tổng thanh toán (gồm nợ cũ), tháng này</StatCard>
         <StatCard label="Khách mới tháng này" :value="ov.newCustomersThisMonth" />
-        <StatCard label="Khách quay lại" :value="ov.returningRate" unit="%">trong số khách mua tháng này</StatCard>
+        <StatCard label="Tỷ lệ khách quay lại" :value="ov.returningRate" unit="%">khách mua từ 2 lần / tổng số khách</StatCard>
       </div>
     </div>
   </template>

@@ -21,7 +21,7 @@ public class ProductController {
         this.products = products; this.categories = categories;
     }
 
-    public record ProductRequest(@NotBlank String name, Long categoryId, String unit,
+    public record ProductRequest(@NotBlank String name, Long categoryId, @NotBlank(message = "Ban chua nhap don vi cho san pham") String unit,
                                  @NotNull @DecimalMin("0") BigDecimal price) {}
     public record ProductDto(Long id, String name, Long categoryId, String categoryName, String unit, BigDecimal price) {}
     public record CategoryRequest(@NotBlank String name) {}

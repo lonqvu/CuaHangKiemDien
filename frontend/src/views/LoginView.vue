@@ -54,6 +54,7 @@ async function submit() {
         </el-form-item>
         <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon class="err" />
         <el-button type="primary" size="large" native-type="submit" :loading="loading" class="submit">Đăng nhập</el-button>
+        <router-link to="/change-password" class="change">Đổi mật khẩu</router-link>
       </el-form>
     </main>
   </div>
@@ -76,6 +77,7 @@ h1 { font-size: 26px; }
 .form > p { margin: 4px 0 24px; }
 .err { margin-bottom: 16px; }
 .submit { width: 100%; }
+.change { display: inline-block; margin-top: 16px; color: var(--steel-800); font-size: 14px; }
 @media (max-width: 800px) {
   .login { grid-template-columns: 1fr; }
   .side { padding: 24px; min-height: 140px; }

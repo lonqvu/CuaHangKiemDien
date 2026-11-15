@@ -2,13 +2,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../stores/auth'
 
 declare module 'vue-router' {
-  interface RouteMeta { admin?: boolean; title?: string }
+  interface RouteMeta { admin?: boolean; title?: string; public?: boolean }
 }
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: () => import('../views/LoginView.vue'), meta: { title: 'Đăng nhập' } },
+    { path: '/change-password', component: () => import('../views/ChangePasswordView.vue'), meta: { title: 'Đổi mật khẩu', public: true } },
     {
       path: '/',
       component: () => import('../views/Layout.vue'),
@@ -41,7 +42,7 @@ const router = createRouter({
 // Nhan vien (STAFF) chi vao duoc Ban hang + Doi mat khau (giong HomeUser cu)
 router.beforeEach((to) => {
   const auth = useAuth()
-  if (to.path !== '/login' && !auth.loggedIn) return '/login'
+  if (to.path !== '/login' && !to.meta.public && !auth.loggedIn) return '/login'
   if (to.meta.admin && !auth.isAdmin) return '/sale'
 })
 

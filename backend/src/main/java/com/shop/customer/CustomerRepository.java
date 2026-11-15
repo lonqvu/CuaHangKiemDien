@@ -14,4 +14,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
             order by c.name
             """)
     List<Customer> search(@Param("q") String q);
+
+    boolean existsByActiveTrueAndNameIgnoreCase(String name);
 }

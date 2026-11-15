@@ -21,12 +21,19 @@ public final class LineCalculator {
         return factor;
     }
 
+    /** Tong SL chua lam tron (app cu tinh tien tren so nay). */
     public static BigDecimal totalQuantity(BigDecimal quantity, int sheets, BigDecimal factor) {
         if (sheets == 0 && factor.signum() == 0) return quantity;
         return quantity.multiply(BigDecimal.valueOf(sheets)).multiply(factor);
     }
 
-    public static BigDecimal lineTotal(BigDecimal unitPrice, BigDecimal totalQuantity) {
-        return unitPrice.multiply(totalQuantity).setScale(2, RoundingMode.HALF_UP);
+    /** Tong SL luu/hien thi: app cu dung DecimalFormat("#.###") -> 3 so le, HALF_EVEN. */
+    public static BigDecimal storedQuantity(BigDecimal rawTotalQuantity) {
+        return rawTotalQuantity.setScale(3, RoundingMode.HALF_EVEN);
+    }
+
+    /** Thanh tien: app cu dung DecimalFormat("###,###,###") -> lam tron ve dong, HALF_EVEN, tren Tong SL chua lam tron. */
+    public static BigDecimal lineTotal(BigDecimal unitPrice, BigDecimal rawTotalQuantity) {
+        return unitPrice.multiply(rawTotalQuantity).setScale(0, RoundingMode.HALF_EVEN);
     }
 }

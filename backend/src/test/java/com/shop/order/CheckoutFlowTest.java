@@ -25,6 +25,7 @@ class CheckoutFlowTest {
     @Autowired CustomerRepository customers;
     @Autowired DebtLedgerRepository ledger;
     @Autowired DebtService debts;
+    @Autowired com.shop.customer.CustomerController customerController;
 
     Product product;
     Customer customer;
@@ -50,6 +51,7 @@ class CheckoutFlowTest {
     void checkout_creditCustomer_updatesDebtAndLedger() {
         Order o = draftWithItem(); // 3 x 10 x 1.08 x 1000 = 32400
         assertEquals(0, new BigDecimal("32400").compareTo(o.getItemsTotal()));
+        assertEquals(0, new BigDecimal("32.4").compareTo(o.getItems().get(0).getTotalQuantity()));
 
         Order paid = service.checkout(o.getId(), new OrderService.CheckoutRequest(
                 customer.getId(), null, null, null, new BigDecimal("100"), new BigDecimal("30000"), null));
@@ -88,12 +90,52 @@ class CheckoutFlowTest {
     }
 
     @Test
-    void walkInCustomer_mustPayInFull() {
-        Order o = draftWithItem();
+    void walkInCustomer_needsName_canPayPartially_likePayDialog() {
+        Order o = draftWithItem(); // 32400
         assertThrows(ApiException.class, () -> service.checkout(o.getId(),
-                new OrderService.CheckoutRequest(null, "Khach le", null, null, BigDecimal.ZERO, new BigDecimal("100"), null)));
-        // loi -> don van la DRAFT
-        assertEquals(Order.Status.DRAFT, service.get(o.getId()).getStatus());
+                new OrderService.CheckoutRequest(null, " ", null, null, BigDecimal.ZERO, new BigDecimal("100"), null)));
+        assertEquals(Order.Status.DRAFT, service.get(o.getId()).getStatus()); // loi -> rollback, van la nhap
+
+        Order paid = service.checkout(o.getId(),
+                new OrderService.CheckoutRequest(null, "Anh Ba", null, null, BigDecimal.ZERO, new BigDecimal("30000"), null));
+        assertEquals(0, new BigDecimal("2400").compareTo(paid.getDebtAfter())); // ghi tren hoa don, khong vao cong no
+        assertNull(paid.getCustomerId());
+    }
+
+    @Test
+    void overpay_remainIsZero_paidStoredAsEntered_debtNotNegative() {
+        Order o = draftWithItem(); // 32400
+        Order paid = service.checkout(o.getId(), new OrderService.CheckoutRequest(
+                customer.getId(), null, null, null, BigDecimal.ZERO, new BigDecimal("40000"), null));
+        assertEquals(0, new BigDecimal("40000").compareTo(paid.getPaidAmount()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(paid.getDebtAfter()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(customers.findById(customer.getId()).orElseThrow().getDebt()));
+        // huy -> no quay ve nhu truoc hoa don
+        service.cancel(o.getId());
+        assertEquals(0, BigDecimal.ZERO.compareTo(customers.findById(customer.getId()).orElseThrow().getDebt()));
+    }
+
+    @Test
+    void manualDebt_thenPayments_receiptShowsCurrentCycle() {
+        debts.setDebt(customer.getId(), new BigDecimal("1000000"), "No ban dau");
+        debts.pay(customer.getId(), new BigDecimal("300000"), null);
+        Order o = draftWithItem(); // 32400
+        service.checkout(o.getId(), new OrderService.CheckoutRequest(
+                customer.getId(), null, null, null, BigDecimal.ZERO, new BigDecimal("100000"), null));
+
+        var rows = customerController.receipt(customer.getId()).rows();
+        assertEquals(2, rows.size());
+        // lan 1 (ThanhToanNo): no cu 1.000.000, tra 300.000, con 700.000
+        assertEquals(0, new BigDecimal("1000000").compareTo(rows.get(0).oldDebt()));
+        assertEquals(0, new BigDecimal("700000").compareTo(rows.get(0).remainingDebt()));
+        // lan 2 (luc chot hoa don): "No cu" = no truoc hoa don 700.000, tra 100.000, con 632.400
+        assertEquals(0, new BigDecimal("700000").compareTo(rows.get(1).oldDebt()));
+        assertEquals(0, new BigDecimal("100000").compareTo(rows.get(1).amount()));
+        assertEquals(0, new BigDecimal("632400").compareTo(rows.get(1).remainingDebt()));
+
+        // tra het -> chu ky ket thuc, bien lai rong (app cu: "Khong co ban ghi thanh toan nao")
+        debts.pay(customer.getId(), new BigDecimal("632400"), null);
+        assertTrue(customerController.receipt(customer.getId()).rows().isEmpty());
     }
 
     @Test

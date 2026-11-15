@@ -29,6 +29,16 @@ public class DebtService {
         ledger.save(l);
     }
 
+    /** Giong nut "Cap nhat no cu" (PayDialog) va o "No" (Customers) cua app cu: dat lai so no. */
+    @Transactional
+    public Customer setDebt(Long customerId, BigDecimal newDebt, String note) {
+        if (newDebt == null || newDebt.signum() < 0) throw ApiException.badRequest("So no khong hop le");
+        Customer c = customers.findById(customerId).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
+        BigDecimal diff = newDebt.subtract(c.getDebt());
+        apply(c, DebtLedger.Type.MANUAL, diff, null, note == null || note.isBlank() ? "Dieu chinh no" : note);
+        return c;
+    }
+
     @Transactional
     public Customer pay(Long customerId, BigDecimal amount, String note) {
         if (amount == null || amount.signum() <= 0) throw ApiException.badRequest("So tien tra phai lon hon 0");

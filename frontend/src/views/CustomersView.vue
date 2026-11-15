@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Customer, LedgerRow } from '../api/types'
+import type { Customer, LedgerRow, ReceiptRow } from '../api/types'
 import { debounce, dt, money, num } from '../format'
 import PageHeader from '../components/PageHeader.vue'
+import DebtReceiptPrint from '../components/DebtReceiptPrint.vue'
 
 // Thay Customers + ThanhToanNo cu
 const route = useRoute()
@@ -29,18 +30,19 @@ const search = debounce(load)
 // ----- them / sua -----
 const formRef = ref<FormInstance>()
 const dialog = reactive({ open: false, id: null as number | null })
-const form = reactive({ name: '', phone: '', address: '' })
+const form = reactive({ name: '', phone: '', address: '', initialDebt: 0 })
 const rules: FormRules = { name: [{ required: true, message: 'Nhập tên khách', trigger: 'blur' }] }
 
 function openForm(c?: Customer) {
   dialog.id = c?.id ?? null
-  Object.assign(form, { name: c?.name ?? '', phone: c?.phone ?? '', address: c?.address ?? '' })
+  Object.assign(form, { name: c?.name ?? '', phone: c?.phone ?? '', address: c?.address ?? '', initialDebt: 0 })
   dialog.open = true
 }
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return
-  if (dialog.id) await http.put(`/customers/${dialog.id}`, form)
-  else await http.post('/customers', form)
+  const body = { name: form.name, phone: form.phone, address: form.address }
+  if (dialog.id) await http.put(`/customers/${dialog.id}`, body)
+  else await http.post('/customers', { ...body, initialDebt: form.initialDebt || 0 }) // app cu: nhap no khi them khach
   dialog.open = false
   ElMessage.success('Đã lưu khách hàng')
   load()
@@ -58,7 +60,7 @@ const current = ref<Customer | null>(null)
 const ledger = ref<LedgerRow[]>([])
 const payForm = reactive({ amount: 0, note: '' })
 const paying = ref(false)
-const typeLabel: Record<string, string> = { ORDER: 'Mua hàng', PAYMENT: 'Trả nợ', ADJUST: 'Điều chỉnh' }
+const typeLabel: Record<string, string> = { ORDER: 'Mua hàng', PAYMENT: 'Trả nợ', ADJUST: 'Hủy hóa đơn', MANUAL: 'Sửa nợ' }
 
 async function open(c: Customer) {
   current.value = c
@@ -79,6 +81,29 @@ async function collect() {
   } finally {
     paying.value = false
   }
+}
+
+// O "No" cua man Customers cu: sua thang so no
+async function setDebt() {
+  const c = current.value!
+  const { value } = await ElMessageBox.prompt(`Nợ hiện tại: ${money(c.debt)}. Nhập số nợ đúng:`, 'Sửa số nợ', {
+    inputValue: String(Number(c.debt)), inputPattern: /^\d+$/, inputErrorMessage: 'Nhập số tiền (chỉ chữ số)',
+    confirmButtonText: 'Lưu', cancelButtonText: 'Hủy',
+  })
+  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value), note: 'Sửa số nợ' })
+  ElMessage.success(`Đã đặt nợ thành ${money(data.debt)}`)
+  await load()
+  await open(data)
+}
+
+// Bien lai thanh toan cong no (ThanhToanNoReport cu)
+const receipt = ref<{ customer: Customer; currentDebt: number; rows: ReceiptRow[] } | null>(null)
+async function printReceipt() {
+  const { data } = await http.get(`/customers/${current.value!.id}/payment-receipt`)
+  if (!data.rows.length) return ElMessage.warning('Không có bản ghi thanh toán nào để xuất biên lai')
+  receipt.value = data
+  await nextTick()
+  window.print()
 }
 
 onMounted(load)
@@ -117,6 +142,8 @@ onMounted(load)
         <p class="muted">{{ current.phone || 'Chưa có SĐT' }}<span v-if="current.address"> · {{ current.address }}</span></p>
         <div class="actions">
           <el-button size="small" @click="openForm(current)">Sửa thông tin</el-button>
+          <el-button size="small" @click="setDebt">Sửa số nợ</el-button>
+          <el-button size="small" @click="printReceipt">In biên lai công nợ</el-button>
           <el-button size="small" type="danger" plain @click="hide(current)">Ẩn khách</el-button>
         </div>
       </div>
@@ -155,12 +182,17 @@ onMounted(load)
       <el-form-item label="Tên khách" prop="name"><el-input v-model="form.name" /></el-form-item>
       <el-form-item label="Số điện thoại"><el-input v-model="form.phone" inputmode="tel" /></el-form-item>
       <el-form-item label="Địa chỉ"><el-input v-model="form.address" /></el-form-item>
+      <el-form-item v-if="!dialog.id" label="Nợ ban đầu (₫)">
+        <el-input-number v-model="form.initialDebt" :min="0" :step="100000" :controls="false" style="width: 100%" />
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialog.open = false">Hủy</el-button>
       <el-button type="primary" @click="save">Lưu</el-button>
     </template>
   </el-dialog>
+
+  <DebtReceiptPrint :data="receipt" />
 </template>
 
 <style scoped>

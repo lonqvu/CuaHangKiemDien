@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd } from '@element-plus/icons-vue'
@@ -7,6 +7,9 @@ import http from '../api/http'
 import type { Customer, Order, OrderItem, Product } from '../api/types'
 import { debounce, money, num, previewLine, qty } from '../format'
 import InvoicePrint from '../components/InvoicePrint.vue'
+import { useAuth } from '../stores/auth'
+
+const auth = useAuth()
 
 const DRAFT_KEY = 'sale.draftId'
 
@@ -22,6 +25,9 @@ const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0
 const pay = reactive({ shippingFee: 0, paidAmount: 0, note: '', walkInName: '', walkInPhone: '' })
 
 const picked = computed(() => products.value.find((p) => p.id === line.productId) ?? null)
+
+// App cu: go so tam khac 0 thi he so tu dien 1.08 (ProductDialog); man sua dong (ModifyProduct) dien 1
+watch(() => line.sheets, (v, old) => { if (v && v !== old) line.factor = 1.08 })
 const preview = computed(() => previewLine(line.quantity || 0, line.sheets || 0, line.factor || 0, line.unitPrice || 0))
 
 // ---------- hoa don nhap ----------
@@ -87,12 +93,16 @@ async function addItem() {
 // ---------- sua dong hang (ModifyProduct cu) ----------
 const edit = reactive({ open: false, id: 0, name: '', productId: 0, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 const editPreview = computed(() => previewLine(edit.quantity || 0, edit.sheets || 0, edit.factor || 0, edit.unitPrice || 0))
+let loadingEdit = false
+watch(() => edit.sheets, (v, old) => { if (!loadingEdit && edit.open && v && v !== old) edit.factor = 1 })
 
 function openEdit(i: OrderItem) {
+  loadingEdit = true
   Object.assign(edit, {
     open: true, id: i.id, name: i.productName, productId: i.productId,
     quantity: Number(i.quantity), sheets: i.sheets, factor: Number(i.factor), unitPrice: Number(i.unitPrice),
   })
+  nextTick(() => (loadingEdit = false)) // sau khi watcher chay xong
 }
 
 async function saveEdit() {
@@ -127,21 +137,35 @@ async function createCustomer() {
 const itemsTotal = computed(() => Number(order.value?.itemsTotal ?? 0))
 const oldDebt = computed(() => Number(customer.value?.debt ?? 0))
 const payable = computed(() => itemsTotal.value + Number(pay.shippingFee || 0) + oldDebt.value)
-const remain = computed(() => payable.value - Number(pay.paidAmount || 0))
-const walkInShort = computed(() => !customer.value && remain.value > 0)
+// PayDialog cu: Con lai = max(0, Tong thanh toan - Khach tra); tra du thi la tien thua tra lai khach
+const remain = computed(() => Math.max(0, payable.value - Number(pay.paidAmount || 0)))
+const change = computed(() => Math.max(0, Number(pay.paidAmount || 0) - payable.value))
+const needName = computed(() => !customer.value && !pay.walkInName.trim())
+
+// Nut "Cap nhat" no cu trong PayDialog cu: dat lai so no cua khach (chi quan tri)
+async function editOldDebt() {
+  const c = customer.value!
+  const { value } = await ElMessageBox.prompt(`Nợ hiện tại của ${c.name}: ${money(c.debt)}. Nhập số nợ đúng:`, 'Cập nhật nợ cũ', {
+    inputValue: String(Number(c.debt)), inputPattern: /^\d+$/, inputErrorMessage: 'Nhập số tiền (chỉ chữ số)',
+    confirmButtonText: 'Cập nhật', cancelButtonText: 'Hủy',
+  })
+  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value), note: 'Cập nhật nợ cũ khi bán hàng' })
+  customer.value = data
+  customers.value = customers.value.map((x) => (x.id === data.id ? data : x))
+  ElMessage.success('Đã cập nhật nợ cũ')
+}
 
 function payAll() { pay.paidAmount = payable.value }
 function payGoodsOnly() { pay.paidAmount = itemsTotal.value + Number(pay.shippingFee || 0) }
 
 async function checkout() {
   if (!order.value?.items.length) return
-  if (walkInShort.value) return ElMessage.warning('Khách lẻ phải trả đủ. Muốn ghi nợ thì chọn khách hàng.')
-  if (Number(pay.paidAmount) > payable.value) return ElMessage.warning('Khách trả nhiều hơn tổng phải trả')
+  if (needName.value) return ElMessage.warning('Vui lòng chọn khách hàng hoặc nhập tên khách lẻ')
   busy.value = true
   try {
     const { data } = await http.post<Order>(`/orders/${order.value.id}/checkout`, {
       customerId: customer.value?.id ?? null,
-      customerName: customer.value ? null : pay.walkInName || 'Khách lẻ',
+      customerName: customer.value ? null : pay.walkInName.trim(),
       customerPhone: customer.value ? null : pay.walkInPhone,
       shippingFee: pay.shippingFee || 0,
       paidAmount: pay.paidAmount || 0,
@@ -260,7 +284,7 @@ onBeforeUnmount(() => {
         </el-select>
         <p v-if="customer" class="cus-meta muted">{{ customer.phone || 'Chưa có SĐT' }}<span v-if="customer.address"> · {{ customer.address }}</span></p>
         <div v-else-if="!done" class="walkin">
-          <el-input v-model="pay.walkInName" placeholder="Tên khách lẻ (không bắt buộc)" aria-label="Tên khách lẻ" />
+          <el-input v-model="pay.walkInName" placeholder="Tên khách lẻ *" aria-label="Tên khách lẻ (bắt buộc)" />
           <el-input v-model="pay.walkInPhone" placeholder="SĐT" aria-label="Số điện thoại khách lẻ" />
         </div>
       </div>
@@ -271,7 +295,10 @@ onBeforeUnmount(() => {
           <dt><label for="ship">Phí vận chuyển</label></dt>
           <dd><el-input-number id="ship" v-model="pay.shippingFee" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" /></dd>
         </div>
-        <div><dt>Nợ cũ</dt><dd class="num" :class="{ 'tone-debt': oldDebt > 0 }">{{ num(oldDebt) }}</dd></div>
+        <div>
+          <dt>Nợ cũ <el-button v-if="customer && auth.isAdmin && !done" link type="primary" size="small" @click="editOldDebt">Cập nhật</el-button></dt>
+          <dd class="num" :class="{ 'tone-debt': oldDebt > 0 }">{{ num(oldDebt) }}</dd>
+        </div>
         <div class="total"><dt>Tổng phải trả</dt><dd class="num">{{ num(payable) }}</dd></div>
         <div>
           <dt><label for="paid">Khách trả</label></dt>
@@ -283,16 +310,17 @@ onBeforeUnmount(() => {
           <el-button v-if="customer" size="small" @click="pay.paidAmount = 0">Ghi nợ hết</el-button>
         </div>
         <div class="remain" :class="{ owe: remain > 0 }">
-          <dt>{{ remain > 0 ? 'Còn nợ sau đơn' : 'Còn lại' }}</dt>
+          <dt>{{ remain > 0 ? (customer ? 'Còn nợ sau đơn' : 'Còn lại') : 'Còn lại' }}</dt>
           <dd class="num">{{ num(remain) }}</dd>
         </div>
+        <div v-if="change > 0"><dt>Tiền thừa trả khách</dt><dd class="num">{{ num(change) }}</dd></div>
       </dl>
-      <p v-if="walkInShort" class="warn" role="alert">Khách lẻ phải trả đủ. Chọn khách hàng nếu muốn ghi nợ.</p>
+      <p v-if="!customer && remain > 0" class="hint">Khách lẻ: phần còn lại chỉ ghi trên hóa đơn, không vào sổ công nợ.</p>
 
       <el-input v-model="pay.note" type="textarea" :rows="2" placeholder="Ghi chú (giao hàng, cắt theo kích thước...)" aria-label="Ghi chú" :disabled="!!done" />
 
       <template v-if="!done">
-        <el-button type="success" size="large" class="cta" :loading="busy" :disabled="!order.items.length || walkInShort" @click="checkout">
+        <el-button type="success" size="large" class="cta" :loading="busy" :disabled="!order.items.length || needName" @click="checkout">
           Chốt hóa đơn · {{ money(pay.paidAmount || 0) }}
         </el-button>
       </template>
@@ -376,7 +404,7 @@ onBeforeUnmount(() => {
 .quick .el-button + .el-button { margin-left: 0; }
 .remain dd { font-size: 18px; font-weight: 600; }
 .remain.owe dt, .remain.owe dd { color: var(--debt); }
-.warn { margin: 0; color: var(--danger); font-size: 13px; }
+.hint { margin: 0; color: var(--ink-muted); font-size: 13px; }
 .cta { width: 100%; height: 52px; font-size: 16px; }
 .done p { margin: 0 0 var(--space-md); }
 .done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }

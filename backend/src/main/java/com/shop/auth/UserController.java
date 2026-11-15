@@ -28,7 +28,7 @@ public class UserController {
                              @NotBlank @Pattern(regexp = "ADMIN|STAFF") String role, @NotBlank @Size(min = 6) String password) {}
     public record UpdateUser(@NotBlank String fullName, @NotBlank @Pattern(regexp = "ADMIN|STAFF") String role, boolean active) {}
     public record ResetPassword(@NotBlank @Size(min = 6) String password) {}
-    public record ChangePassword(@NotBlank String oldPassword, @NotBlank @Size(min = 6) String newPassword) {}
+    public record ChangePassword(String username, @NotBlank String oldPassword, @NotBlank @Size(min = 6) String newPassword) {}
 
     private UserDto dto(AppUser u) {
         return new UserDto(u.getId(), u.getUsername(), u.getFullName(), u.getRole(), u.isActive());
@@ -75,12 +75,20 @@ public class UserController {
         find(id).setPasswordHash(encoder.encode(r.password()));
     }
 
-    /** Ai dang nhap cung doi duoc mat khau cua minh (can mat khau cu). */
+    /**
+     * Doi mat khau (can mat khau cu). Giong app cu: lam duoc ngay tu man dang nhap (chon ten dang nhap)
+     * hoac sau khi dang nhap (lay tai khoan dang dung).
+     */
     @PostMapping("/auth/change-password")
     @Transactional
     public void changePassword(@Valid @RequestBody ChangePassword r, Authentication auth) {
-        AppUser u = users.findByUsername(auth.getName()).orElseThrow(() -> ApiException.notFound("Khong tim thay tai khoan"));
-        if (!encoder.matches(r.oldPassword(), u.getPasswordHash())) throw ApiException.badRequest("Mat khau cu khong dung");
+        String username = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())
+                ? auth.getName() : r.username();
+        if (username == null || username.isBlank()) throw ApiException.badRequest("Chua nhap ten dang nhap");
+        AppUser u = users.findByUsername(username.trim()).filter(AppUser::isActive)
+                .orElseThrow(() -> ApiException.badRequest("Ten dang nhap hoac mat khau hien tai khong dung"));
+        if (!encoder.matches(r.oldPassword(), u.getPasswordHash()))
+            throw ApiException.badRequest("Ten dang nhap hoac mat khau hien tai khong dung");
         u.setPasswordHash(encoder.encode(r.newPassword()));
     }
 }

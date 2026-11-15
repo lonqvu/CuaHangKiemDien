@@ -40,6 +40,8 @@ Thiet ke theo skill `ui-ux-pro-max`, design system o `design-system/nhom-sat-kie
 | `CheckAdminDialog` | Bo: thay bang phan quyen theo vai tro | |
 | `DatabaseBackup`, `EmployeesManagement`, `Find`, `Note`, `Revenue` | Khong lam: code cu khong man nao goi toi | |
 
+Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-chieu-nghiep-vu.md).
+
 ## Nghiep vu da lam (va khac app cu)
 - Dang nhap JWT, 2 vai tro: `ADMIN` (toan quyen), `STAFF` (chi man Ban hang). Mat khau BCrypt.
 - San pham / loai hang / khach hang: **xoa mem** (khong mat lich su).
