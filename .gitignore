@@ -9,3 +9,6 @@ frontend/dist/
 .idea/
 .vscode/
 *.iml
+
+# python cache cua skill
+__pycache__/
