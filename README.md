@@ -10,8 +10,8 @@ frontend/   Vue 3 + Vite + TypeScript + Pinia + Element Plus
 
 ## Chay local
 ```bash
-# 1. DB
-docker run -d --name shop-db -e POSTGRES_DB=shop -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -p 5432:5432 postgres:16
+# 1. DB (cong 5433 de khong dung Postgres khac dang chiem 5432)
+docker run -d --name shop-db -e POSTGRES_DB=shop -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -p 5433:5432 postgres:16
 # 2. Backend (http://localhost:8080) - Flyway tu tao bang, tu tao tai khoan admin / admin123
 cd backend && mvn spring-boot:run
 # 3. Frontend (http://localhost:5173)
