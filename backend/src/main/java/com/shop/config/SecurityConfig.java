@@ -35,6 +35,7 @@ public class SecurityConfig {
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/api/auth/login", "/actuator/health").permitAll()
+                .requestMatchers("/api/auth/change-password").authenticated()
                 // Nhan vien: chi ban hang (xem san pham/khach, tao khach, lam hoa don)
                 .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/customers/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/customers").authenticated()

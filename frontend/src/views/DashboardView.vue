@@ -1,0 +1,88 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { ShoppingCart, Wallet } from '@element-plus/icons-vue'
+import http from '../api/http'
+import type { Order, Overview } from '../api/types'
+import { dt, num } from '../format'
+import PageHeader from '../components/PageHeader.vue'
+import StatCard from '../components/StatCard.vue'
+
+// Thay man Home (menu nut) + phan so lieu dau trang cua ThongKe cu
+const ov = ref<Overview | null>(null)
+const recent = ref<Order[]>([])
+const today = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })
+
+onMounted(async () => {
+  const [a, b] = await Promise.all([
+    http.get<Overview>('/reports/overview'),
+    http.get<Order[]>('/orders', { params: { status: 'PAID' } }),
+  ])
+  ov.value = a.data
+  recent.value = b.data.slice(0, 8)
+})
+</script>
+
+<template>
+  <PageHeader title="Tổng quan" :subtitle="today">
+    <router-link to="/customers?debt=1"><el-button :icon="Wallet">Thu nợ</el-button></router-link>
+    <router-link to="/sale"><el-button type="primary" :icon="ShoppingCart">Bán hàng</el-button></router-link>
+  </PageHeader>
+
+  <template v-if="ov">
+    <div class="grid4">
+      <StatCard label="Doanh thu hôm nay" :value="ov.day.current" :previous="ov.day.previous" previous-label="Hôm qua" />
+      <StatCard label="7 ngày qua" :value="ov.week.current" :previous="ov.week.previous" previous-label="7 ngày trước" />
+      <StatCard label="Tháng này" :value="ov.month.current" :previous="ov.month.previous" previous-label="Tháng trước" />
+      <StatCard label="Năm nay" :value="ov.year.current" :previous="ov.year.previous" previous-label="Năm trước" />
+    </div>
+
+    <div class="row2">
+      <div class="debt panel">
+        <div class="label">Khách đang nợ</div>
+        <div class="big num tone-debt">{{ num(ov.totalDebt) }} <small>₫</small></div>
+        <p class="muted">{{ ov.customersInDebt }} khách còn nợ</p>
+        <router-link to="/customers?debt=1" class="link">Xem danh sách thu nợ</router-link>
+      </div>
+      <div class="mini-grid">
+        <StatCard label="Hóa đơn tháng này" :value="ov.ordersThisMonth" />
+        <StatCard label="Trung bình mỗi hóa đơn" :value="ov.avgOrderThisMonth" />
+        <StatCard label="Khách mới tháng này" :value="ov.newCustomersThisMonth" />
+        <StatCard label="Khách quay lại" :value="ov.returningRate" unit="%">trong số khách mua tháng này</StatCard>
+      </div>
+    </div>
+  </template>
+  <el-skeleton v-else :rows="6" animated />
+
+  <section class="panel recent">
+    <div class="recent-head">
+      <h2>Hóa đơn gần đây</h2>
+      <router-link to="/orders" class="link">Tất cả hóa đơn</router-link>
+    </div>
+    <el-table :data="recent" empty-text="Chưa có hóa đơn nào">
+      <el-table-column label="Mã" width="130"><template #default="{ row }"><span class="mono">{{ row.code }}</span></template></el-table-column>
+      <el-table-column label="Lúc" width="150"><template #default="{ row }">{{ dt(row.checkedOutAt) }}</template></el-table-column>
+      <el-table-column label="Khách" min-width="160"><template #default="{ row }">{{ row.customerName || 'Khách lẻ' }}</template></el-table-column>
+      <el-table-column label="Tiền hàng" width="130" align="right"><template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template></el-table-column>
+      <el-table-column label="Còn nợ" width="130" align="right">
+        <template #default="{ row }"><span class="num" :class="{ 'tone-debt': Number(row.debtAfter) > 0 }">{{ num(row.debtAfter) }}</span></template>
+      </el-table-column>
+    </el-table>
+  </section>
+</template>
+
+<style scoped>
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.row2 { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr); gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.debt { padding: var(--space-xl); border-left: 4px solid var(--debt); display: flex; flex-direction: column; gap: var(--space-sm); }
+.debt .label { color: var(--ink-muted); font-size: 14px; }
+.debt .big { font-size: 32px; font-weight: 600; line-height: 1.15; }
+.debt .big small { font-size: 16px; }
+.debt p { margin: 0; }
+.mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); }
+.link { color: var(--steel-800); font-weight: 500; font-size: 14px; }
+.recent { padding: var(--space-lg) var(--space-xl) var(--space-xl); }
+.recent-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-md); }
+.recent-head h2 { font-size: 16px; }
+@media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row2 { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .grid4, .mini-grid { grid-template-columns: 1fr; } }
+</style>

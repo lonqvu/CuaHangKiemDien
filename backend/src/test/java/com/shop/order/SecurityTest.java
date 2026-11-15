@@ -44,5 +44,9 @@ class SecurityTest {
         mvc.perform(get("/api/products").header("Authorization", "Bearer " + t)).andExpect(status().isOk());
         mvc.perform(get("/api/reports/revenue?from=2026-01-01&to=2026-12-31").header("Authorization", "Bearer " + t))
                 .andExpect(status().isOk());
+        mvc.perform(get("/api/reports/overview").header("Authorization", "Bearer " + t))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.month.current").exists());
+        mvc.perform(get("/api/users").header("Authorization", "Bearer " + t))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].username").value("admin"));
     }
 }

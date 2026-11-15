@@ -56,6 +56,63 @@ public class ReportController {
         return rows.stream().map(r -> new TopProduct((String) r[0], bd(r[1]), bd(r[2]))).toList();
     }
 
+    /** Thay man ThongKe cu: doanh thu ngay/7 ngay/thang/nam so voi ky truoc, khach moi, ty le quay lai, tong no. */
+    public record Period(BigDecimal current, BigDecimal previous) {}
+    public record Overview(Period day, Period week, Period month, Period year,
+                           long ordersThisMonth, BigDecimal avgOrderThisMonth,
+                           long newCustomersThisMonth, double returningRate,
+                           BigDecimal totalDebt, long customersInDebt) {}
+
+    @GetMapping("/overview")
+    @Transactional(readOnly = true)
+    public Overview overview() {
+        LocalDate today = LocalDate.now();
+        LocalDate tomorrow = today.plusDays(1);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate yearStart = today.withDayOfYear(1);
+
+        Period day = new Period(revenue(today, tomorrow), revenue(today.minusDays(1), today));
+        Period week = new Period(revenue(today.minusDays(6), tomorrow), revenue(today.minusDays(13), today.minusDays(6)));
+        Period month = new Period(revenue(monthStart, tomorrow), revenue(monthStart.minusMonths(1), monthStart));
+        Period year = new Period(revenue(yearStart, tomorrow), revenue(yearStart.minusYears(1), yearStart));
+
+        long orders = num("select count(*) from orders where status = 'PAID' and checked_out_at >= :f and checked_out_at < :t",
+                monthStart, tomorrow).longValue();
+        BigDecimal avg = orders == 0 ? BigDecimal.ZERO
+                : month.current().divide(BigDecimal.valueOf(orders), 0, java.math.RoundingMode.HALF_UP);
+        long newCustomers = num("select count(*) from customer where created_at >= :f and created_at < :t",
+                monthStart, tomorrow).longValue();
+        long buyers = num("""
+                select count(distinct customer_id) from orders
+                where status = 'PAID' and customer_id is not null and checked_out_at >= :f and checked_out_at < :t
+                """, monthStart, tomorrow).longValue();
+        long returning = num("""
+                select count(distinct o.customer_id) from orders o
+                where o.status = 'PAID' and o.customer_id is not null and o.checked_out_at >= :f and o.checked_out_at < :t
+                  and exists (select 1 from orders p where p.customer_id = o.customer_id
+                              and p.status = 'PAID' and p.checked_out_at < :f)
+                """, monthStart, tomorrow).longValue();
+        Object[] debt = (Object[]) em.createNativeQuery(
+                "select coalesce(sum(debt),0), count(*) from customer where active = true and debt > 0").getSingleResult();
+
+        return new Overview(day, week, month, year, orders, avg, newCustomers,
+                buyers == 0 ? 0 : Math.round(returning * 1000.0 / buyers) / 10.0,
+                bd(debt[0]), ((Number) debt[1]).longValue());
+    }
+
+    private BigDecimal revenue(LocalDate from, LocalDate to) {
+        return bd(num("select coalesce(sum(items_total),0) from orders where status = 'PAID' and checked_out_at >= :f and checked_out_at < :t",
+                from, to));
+    }
+
+    private Number num(String sql, LocalDate from, LocalDate to) {
+        Object r = em.createNativeQuery(sql)
+                .setParameter("f", from.atStartOfDay())
+                .setParameter("t", to.atStartOfDay())
+                .getSingleResult();
+        return r instanceof Number n ? n : new BigDecimal(r.toString());
+    }
+
     private static BigDecimal bd(Object o) {
         return o instanceof BigDecimal b ? b : new BigDecimal(o.toString());
     }

@@ -21,6 +21,25 @@ Hoac chay tat ca: `cp .env.example .env` (doi gia tri) roi `docker compose up --
 
 > Doi mat khau admin mac dinh (`ADMIN_PASSWORD`) va `JWT_SECRET` truoc khi dua len server that.
 
+## Man hinh (doi chieu app Swing cu)
+Thiet ke theo skill `ui-ux-pro-max`, design system o `design-system/nhom-sat-kiem-dien/MASTER.md`.
+
+| App cu (Swing) | Man moi | Ai dung |
+|---|---|---|
+| `Login` | Dang nhap | tat ca |
+| `ChangePassWord` | Doi mat khau | tat ca |
+| `Home`, phan so lieu cua `ThongKe` | Tong quan (`/dashboard`) | ADMIN |
+| `HomeUser` | Nhan vien vao thang man Ban hang | STAFF |
+| `Sale` + `ProductDialog` + `ModifyProduct` + `CustomerDialog` + `PayDialog` | Ban hang (`/sale`), in hoa don bang trinh duyet | tat ca |
+| `OrderHistory` + `OrderDetailDialog` | Hoa don (`/orders`) | ADMIN |
+| `Customers` + `ThanhToanNo` | Khach hang & cong no (`/customers`) | ADMIN |
+| `Product` | San pham (`/products`) | ADMIN |
+| `Data` | Loai hang (`/categories`) | ADMIN |
+| `ThongKe` | Thong ke (`/reports`) | ADMIN |
+| `Account` | Tai khoan (`/accounts`) | ADMIN |
+| `CheckAdminDialog` | Bo: thay bang phan quyen theo vai tro | |
+| `DatabaseBackup`, `EmployeesManagement`, `Find`, `Note`, `Revenue` | Khong lam: code cu khong man nao goi toi | |
+
 ## Nghiep vu da lam (va khac app cu)
 - Dang nhap JWT, 2 vai tro: `ADMIN` (toan quyen), `STAFF` (chi man Ban hang). Mat khau BCrypt.
 - San pham / loai hang / khach hang: **xoa mem** (khong mat lich su).
@@ -34,10 +53,9 @@ Hoac chay tat ca: `cp .env.example .env` (doi gia tri) roi `docker compose up --
 - Bao cao: doanh thu theo ngay (tach **doanh thu** va **tien thuc thu**), top 10 san pham. Chi tinh hoa don da chot.
 
 ## Chua lam (TODO)
-- In hoa don PDF (tai dung file `.jrxml` cu bang JasperReports) va gui Zalo.
+- Gui hoa don qua Zalo (in hoa don da lam bang trinh duyet).
 - Script chuyen du lieu tu DB SQL Server cu (`script.sql` repo cu) sang schema moi.
 - Don dep hoa don nhap bi bo quen (job dinh ky).
-- Quan ly tai khoan nhan vien (API + man hinh), doi mat khau.
 - Ton kho / nhap hang (hoi chu cua hang co can khong).
 
 ## API chinh
@@ -47,4 +65,6 @@ Hoac chay tat ca: `cp .env.example .env` (doi gia tri) roi `docker compose up --
 | `GET/POST/PUT/DELETE /api/products`, `/api/categories` | san pham (ghi: ADMIN) |
 | `GET/POST/PUT/DELETE /api/customers`, `GET /{id}/debt-ledger`, `POST /{id}/debt-payments` | khach hang, so no, thu no |
 | `POST /api/orders`, `POST /{id}/items`, `PUT/DELETE /{id}/items/{itemId}`, `POST /{id}/checkout`, `POST /{id}/cancel` | hoa don |
-| `GET /api/reports/revenue?from&to`, `/top-products` | bao cao (ADMIN) |
+| `GET /api/reports/overview`, `/revenue?from&to`, `/top-products` | bao cao (ADMIN) |
+| `GET/POST/PUT /api/users`, `POST /{id}/reset-password` | tai khoan (ADMIN) |
+| `POST /api/auth/change-password` | doi mat khau (moi nguoi) |

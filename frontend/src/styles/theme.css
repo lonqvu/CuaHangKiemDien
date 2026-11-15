@@ -1,0 +1,145 @@
+/*
+ * Design system: design-system/nhom-sat-kiem-dien/MASTER.md
+ * Minimalism & Swiss (ui-ux-pro-max), ban sang cho quay ban hang:
+ * nen kem lanh mau thep, chu Fira Sans, so tien Fira Code (tabular).
+ * Xanh = tien thu, ho phach = cong no, do = huy/loi. Khong dung mau mot minh de truyen y (luon kem chu).
+ */
+:root {
+  /* palette */
+  --steel-950: #101B2C;
+  --steel-900: #16243A;
+  --steel-800: #1E3A5F;
+  --steel-600: #475569;
+  --steel-400: #94A3B8;
+  --steel-200: #CBD5E1;
+  --steel-100: #E2E8EE;
+  --steel-50: #EEF1F4;
+  --surface: #FFFFFF;
+  --ink: #0F172A;
+  --ink-muted: #475569;
+  --money: #15803D;
+  --debt: #B45309;
+  --danger: #B91C1C;
+
+  /* spacing (density 8/10) */
+  --space-xs: 2px;
+  --space-sm: 4px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.16);
+
+  --font-sans: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* Element Plus */
+  --el-font-family: var(--font-sans);
+  --el-font-size-base: 15px;
+  --el-border-radius-base: var(--radius-md);
+  --el-border-radius-small: var(--radius-sm);
+  --el-border-color: var(--steel-200);
+  --el-border-color-light: var(--steel-100);
+  --el-border-color-lighter: var(--steel-100);
+  --el-text-color-primary: var(--ink);
+  --el-text-color-regular: #1E293B;
+  --el-text-color-secondary: var(--ink-muted);
+  --el-text-color-placeholder: #64748B;
+  --el-bg-color-page: var(--steel-50);
+  --el-fill-color-light: #F5F7F9;
+  --el-fill-color-lighter: #F8FAFB;
+  --el-color-primary: #1E3A5F;
+  --el-color-primary-light-3: #62758F;
+  --el-color-primary-light-5: #8E9CAF;
+  --el-color-primary-light-7: #BCC4CF;
+  --el-color-primary-light-8: #D2D8DF;
+  --el-color-primary-light-9: #E8EBEF;
+  --el-color-primary-dark-2: #182E4C;
+  --el-color-success: #15803D;
+  --el-color-success-light-3: #5BA677;
+  --el-color-success-light-5: #8AC09E;
+  --el-color-success-light-7: #B9D9C5;
+  --el-color-success-light-8: #D0E6D8;
+  --el-color-success-light-9: #E8F2EC;
+  --el-color-success-dark-2: #116631;
+  --el-color-warning: #B45309;
+  --el-color-warning-light-3: #CA8753;
+  --el-color-warning-light-5: #DAA984;
+  --el-color-warning-light-7: #E8CBB5;
+  --el-color-warning-light-8: #F0DDCE;
+  --el-color-warning-light-9: #F8EEE6;
+  --el-color-warning-dark-2: #904207;
+  --el-color-danger: #B91C1C;
+  --el-color-danger-light-3: #CE6060;
+  --el-color-danger-light-5: #DC8E8E;
+  --el-color-danger-light-7: #EABBBB;
+  --el-color-danger-light-8: #F1D2D2;
+  --el-color-danger-light-9: #F8E8E8;
+  --el-color-danger-dark-2: #941616;
+  --el-color-info: #475569;
+  --el-color-info-light-3: #7E8896;
+  --el-color-info-light-5: #A3AAB4;
+  --el-color-info-light-7: #C8CCD2;
+  --el-color-info-light-8: #DADDE1;
+  --el-color-info-light-9: #EDEEF0;
+  --el-color-info-dark-2: #394454;
+  --el-component-size: 36px;
+  --el-component-size-large: 44px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--steel-50);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num { white-space: nowrap; }
+.tone-money { color: var(--money); }
+.tone-debt { color: var(--debt); }
+.tone-danger { color: var(--danger); }
+.muted { color: var(--ink-muted); }
+
+/* bang du lieu: so can phai, hang gon */
+.el-table { --el-table-header-bg-color: #F5F7F9; --el-table-header-text-color: #334155; font-size: 14px; }
+.el-table th.el-table__cell { font-weight: 600; }
+.el-table .cell { line-height: 1.45; }
+.el-table__row:hover > td.el-table__cell { background: #F3F6F9 !important; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--steel-200);
+  border-radius: var(--radius-lg);
+}
+.panel-pad { padding: var(--space-xl); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; margin-bottom: var(--space-lg); }
+.toolbar .grow { flex: 1; }
+
+/* focus luon nhin thay khi dung ban phim */
+:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+.el-button:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* In hoa don: chi in vung .print-root */
+.print-root { display: none; }
+@media print {
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { display: block !important; }
+  @page { margin: 10mm; }
+}

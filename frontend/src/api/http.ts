@@ -12,7 +12,9 @@ http.interceptors.request.use((cfg) => {
 http.interceptors.response.use(
   (r) => r,
   (err) => {
-    if (err.response?.status === 401 && !err.config.url?.includes('/auth/login')) {
+    const isLogin = err.config?.url?.includes('/auth/login')
+    if (isLogin) return Promise.reject(err) // man dang nhap tu hien loi duoi form
+    if (err.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       location.href = '/login'

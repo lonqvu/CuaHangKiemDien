@@ -72,6 +72,23 @@ public class ProductController {
     @GetMapping("/categories")
     public List<Category> categories() { return categories.findAll(); }
 
+    @PutMapping("/categories/{id}")
+    @Transactional
+    public Category updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequest r) {
+        Category c = categories.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay loai hang"));
+        c.setName(r.name().trim());
+        return c;
+    }
+
+    @DeleteMapping("/categories/{id}")
+    @Transactional
+    public void deleteCategory(@PathVariable Long id) {
+        if (products.existsByCategoryIdAndActiveTrue(id))
+            throw ApiException.conflict("Loai hang dang co san pham, hay chuyen san pham sang loai khac truoc");
+        products.clearCategory(id); // san pham da xoa mem van giu tham chieu -> bo tham chieu de xoa duoc
+        categories.deleteById(id);
+    }
+
     @PostMapping("/categories")
     public Category createCategory(@Valid @RequestBody CategoryRequest r) {
         Category c = new Category();
