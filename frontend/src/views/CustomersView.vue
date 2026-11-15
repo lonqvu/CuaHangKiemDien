@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Customer, LedgerRow, ReceiptRow } from '../api/types'
+import type { Customer, LedgerRow } from '../api/types'
 import { debounce, dt, money, num } from '../format'
 import PageHeader from '../components/PageHeader.vue'
-import DebtReceiptPrint from '../components/DebtReceiptPrint.vue'
+import { openPdf } from '../api/pdf'
 
 // Thay Customers + ThanhToanNo cu
 const route = useRoute()
@@ -96,15 +96,8 @@ async function setDebt() {
   await open(data)
 }
 
-// Bien lai thanh toan cong no (ThanhToanNoReport cu)
-const receipt = ref<{ customer: Customer; currentDebt: number; rows: ReceiptRow[] } | null>(null)
-async function printReceipt() {
-  const { data } = await http.get(`/customers/${current.value!.id}/payment-receipt`)
-  if (!data.rows.length) return ElMessage.warning('Không có bản ghi thanh toán nào để xuất biên lai')
-  receipt.value = data
-  await nextTick()
-  window.print()
-}
+// Bien lai thanh toan cong no bang mau Jasper cu (ThanhToanNoReport.jrxml)
+function printReceipt() { openPdf(`/customers/${current.value!.id}/payment-receipt.pdf`) }
 
 onMounted(load)
 </script>
@@ -191,8 +184,6 @@ onMounted(load)
       <el-button type="primary" @click="save">Lưu</el-button>
     </template>
   </el-dialog>
-
-  <DebtReceiptPrint :data="receipt" />
 </template>
 
 <style scoped>

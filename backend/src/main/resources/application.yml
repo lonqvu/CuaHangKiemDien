@@ -16,3 +16,6 @@ app:
     username: ${ADMIN_USER:admin}
     password: ${ADMIN_PASSWORD:admin123}
   cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+  report:
+    # Dinh dang so tren hoa don in (Jasper). App cu chay locale en-US -> 1,234,567. Doi thanh vi-VN neu muon 1.234.567
+    locale: ${REPORT_LOCALE:en-US}

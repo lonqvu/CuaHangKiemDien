@@ -54,8 +54,14 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - Khach le (khong chon khach) phai tra du tien, khong ghi no.
 - Bao cao: doanh thu theo ngay (tach **doanh thu** va **tien thuc thu**), top 10 san pham. Chi tinh hoa don da chot.
 
+## In hoa don / bien lai (JasperReports cu)
+- Mau in: `backend/src/main/resources/reports/Bill.jrxml`, `ThanhToanNoReport.jrxml` (lay nguyen tu app cu), anh logo/QR o `reports/images/`.
+- Server nap ban da bien dich san `*.jasper` (JasperReports 5.5.0, giong app cu) -> `GET /api/orders/{id}/invoice.pdf`, `GET /api/customers/{id}/payment-receipt.pdf`.
+- Sua `.jrxml` xong phai bien dich lai: `cd backend && mvn test -Dtest=ReportTemplatesTest -Dreports.compile=true`.
+- Dinh dang so: bien `REPORT_LOCALE` (mac dinh `en-US` -> 1,234,567; `vi-VN` -> 1.234.567). Gio: `APP_TZ` (mac dinh Asia/Ho_Chi_Minh).
+
 ## Chua lam (TODO)
-- Gui hoa don qua Zalo (in hoa don da lam bang trinh duyet).
+- Gui hoa don qua Zalo.
 - Script chuyen du lieu tu DB SQL Server cu (`script.sql` repo cu) sang schema moi.
 - Don dep hoa don nhap bi bo quen (job dinh ky).
 - Ton kho / nhap hang (hoi chu cua hang co can khong).

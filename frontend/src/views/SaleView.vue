@@ -6,7 +6,7 @@ import { Plus, Edit, Delete, Printer, DocumentAdd } from '@element-plus/icons-vu
 import http from '../api/http'
 import type { Customer, Order, OrderItem, Product } from '../api/types'
 import { debounce, money, num, previewLine, qty } from '../format'
-import InvoicePrint from '../components/InvoicePrint.vue'
+import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
@@ -179,7 +179,8 @@ async function checkout() {
   }
 }
 
-function print() { window.print() }
+// In hoa don bang mau Jasper cu (Bill.jrxml) - backend tra ve PDF
+function print() { openPdf(`/orders/${done.value!.id}/invoice.pdf`) }
 
 onMounted(async () => {
   await resume()
@@ -361,7 +362,6 @@ onBeforeUnmount(() => {
       </template>
     </el-dialog>
 
-    <InvoicePrint :order="done" />
   </div>
 </template>
 

@@ -27,6 +27,29 @@
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>${jjwt.version}</version><scope>runtime</scope></dependency>
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>${jjwt.version}</version><scope>runtime</scope></dependency>
     <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><optional>true</optional></dependency>
+
+    <!-- In hoa don / bien lai: dung dung JasperReports 5.5.0 nhu app Swing cu (nap file .jasper da bien dich san) -->
+    <dependency>
+      <groupId>net.sf.jasperreports</groupId>
+      <artifactId>jasperreports</artifactId>
+      <version>5.5.0</version>
+      <exclusions>
+        <exclusion><groupId>eclipse</groupId><artifactId>jdtcore</artifactId></exclusion>
+        <exclusion><groupId>xml-apis</groupId><artifactId>xml-apis</artifactId></exclusion>
+        <exclusion><groupId>org.codehaus.castor</groupId><artifactId>castor</artifactId></exclusion>
+        <exclusion><groupId>commons-logging</groupId><artifactId>commons-logging</artifactId></exclusion>
+        <exclusion><groupId>commons-collections</groupId><artifactId>commons-collections</artifactId></exclusion>
+        <exclusion><groupId>bouncycastle</groupId><artifactId>bcmail-jdk14</artifactId></exclusion>
+        <exclusion><groupId>bouncycastle</groupId><artifactId>bcprov-jdk14</artifactId></exclusion>
+        <exclusion><groupId>org.bouncycastle</groupId><artifactId>bctsp-jdk14</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <!-- 3.2.1 cua Jasper co lo hong deserialization -> dung 3.2.2 -->
+    <dependency><groupId>commons-collections</groupId><artifactId>commons-collections</artifactId><version>3.2.2</version></dependency>
+    <!-- Font DejaVu Sans cho Jasper (app cu cung dung jasperreports-fonts-6.0.0) -->
+    <dependency><groupId>net.sf.jasperreports</groupId><artifactId>jasperreports-fonts</artifactId><version>6.0.0</version></dependency>
+    <!-- Jasper 5.5 nap extension can lop javax.servlet (Spring Boot 3 chi co jakarta.servlet) -->
+    <dependency><groupId>javax.servlet</groupId><artifactId>javax.servlet-api</artifactId><version>4.0.1</version></dependency>
     <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>

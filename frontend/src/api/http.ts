@@ -12,7 +12,7 @@ http.interceptors.request.use((cfg) => {
 http.interceptors.response.use(
   (r) => r,
   (err) => {
-    const isLogin = err.config?.url?.includes('/auth/') // dang nhap / doi mat khau tu hien loi duoi form
+    const isLogin = err.config?.url?.includes('/auth/') || err.config?.silent // dang nhap / doi mat khau / tai PDF tu hien loi
     if (isLogin) return Promise.reject(err) // man dang nhap tu hien loi duoi form
     if (err.response?.status === 401) {
       localStorage.removeItem('token')

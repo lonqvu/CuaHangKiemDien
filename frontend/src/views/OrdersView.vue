@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Printer, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Order } from '../api/types'
 import { dateOnly, dt, num, qty } from '../format'
 import PageHeader from '../components/PageHeader.vue'
-import InvoicePrint from '../components/InvoicePrint.vue'
+import { openPdf } from '../api/pdf'
 
 // Thay OrderHistory + OrderDetailDialog cu
 const status = ref<'PAID' | 'CANCELLED'>('PAID')
@@ -15,7 +15,6 @@ const q = ref('')
 const loading = ref(false)
 const range = ref<[string, string] | null>(null)
 const detail = ref<Order | null>(null)
-const printing = ref<Order | null>(null)
 
 const filtered = computed(() => {
   const k = q.value.trim().toLowerCase()
@@ -46,11 +45,8 @@ async function cancel(o: Order) {
   load()
 }
 
-async function print(o: Order) {
-  printing.value = o
-  await nextTick()
-  window.print()
-}
+// In lai hoa don bang mau Jasper cu (Bill.jrxml)
+function print(o: Order) { openPdf(`/orders/${o.id}/invoice.pdf`) }
 
 onMounted(load)
 </script>
@@ -121,7 +117,6 @@ onMounted(load)
     </template>
   </el-drawer>
 
-  <InvoicePrint :order="printing" />
 </template>
 
 <style scoped>

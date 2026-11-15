@@ -6,6 +6,8 @@ COPY src ./src
 RUN mvn -q -B -DskipTests package
 
 FROM eclipse-temurin:21-jre
+# Jasper can fontconfig de do chu khi xuat PDF
+RUN apt-get update && apt-get install -y --no-install-recommends fontconfig && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/target/shop-backend-0.1.0.jar app.jar
 EXPOSE 8080
