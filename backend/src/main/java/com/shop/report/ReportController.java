@@ -90,6 +90,27 @@ public class ReportController {
         return rows.stream().map(r -> new DayRevenue(toDate(r[0]), ((Number) r[1]).longValue(), bd(r[2]), bd(r[3]))).toList();
     }
 
+    /**
+     * Lai gop = doanh thu cac dong co gia von - gia von. Dong ban khi san pham chua co gia von (chua tung nhap/kiem ke)
+     * khong tinh vao lai gop; tra ve so dong do de man hinh bao "chua du gia von".
+     */
+    public record Profit(BigDecimal revenue, BigDecimal revenueWithCost, BigDecimal cost, BigDecimal grossProfit,
+                         long lines, long linesWithCost) {}
+
+    @GetMapping("/profit")
+    public Profit profit(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        Object[] r = (Object[]) range(em.createNativeQuery("""
+                select coalesce(sum(i.line_total),0),
+                       coalesce(sum(case when i.cost_total is not null then i.line_total else 0 end),0),
+                       coalesce(sum(i.cost_total),0),
+                       count(*),
+                       count(i.cost_total)
+                """ + PAID_ITEMS), from, to).getSingleResult();
+        BigDecimal withCost = bd(r[1]), cost = bd(r[2]);
+        return new Profit(bd(r[0]), withCost, cost, withCost.subtract(cost), ((Number) r[3]).longValue(), ((Number) r[4]).longValue());
+    }
+
     /** Bieu do doanh thu 12 thang cua mot nam (app cu: thang chua co du lieu = 0). */
     @GetMapping("/revenue-by-month")
     @SuppressWarnings("unchecked")

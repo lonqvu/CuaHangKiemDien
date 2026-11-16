@@ -14,6 +14,11 @@ import com.shop.product.Category;
 import com.shop.product.CategoryRepository;
 import com.shop.product.Product;
 import com.shop.product.ProductRepository;
+import com.shop.stock.ReceiptService;
+import com.shop.stock.StockBalanceRepository;
+import com.shop.stock.StockService;
+import com.shop.supplier.Supplier;
+import com.shop.supplier.SupplierRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -54,14 +59,23 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final DebtService debtService;
     private final PasswordEncoder encoder;
     private final JdbcTemplate jdbc;
+    private final ReceiptService receipts;
+    private final StockService stock;
+    private final StockBalanceRepository balances;
+    private final SupplierRepository suppliers;
     private final Random rnd = new Random(42);
+    /** productId -> ten loai (de chon nha cung cap khi nhap hang). */
+    private final java.util.Map<Long, String> categoryOf = new java.util.HashMap<>();
+    private final java.util.Map<String, Supplier> supplierOf = new java.util.HashMap<>();
 
     public DemoDataSeeder(CategoryRepository categories, ProductRepository products, CustomerRepository customers,
                           OrderRepository orders, AppUserRepository users, OrderService orderService,
-                          DebtService debtService, PasswordEncoder encoder, JdbcTemplate jdbc) {
+                          DebtService debtService, PasswordEncoder encoder, JdbcTemplate jdbc,
+                          ReceiptService receipts, StockService stock, StockBalanceRepository balances, SupplierRepository suppliers) {
         this.categories = categories; this.products = products; this.customers = customers; this.orders = orders;
         this.users = users; this.orderService = orderService; this.debtService = debtService;
         this.encoder = encoder; this.jdbc = jdbc;
+        this.receipts = receipts; this.stock = stock; this.balances = balances; this.suppliers = suppliers;
     }
 
     /** Ban theo tam (ton, nhom tam): SL = chieu dai 1 tam (m), nhap so tam, he so 1.08. */
@@ -82,9 +96,16 @@ public class DemoDataSeeder implements CommandLineRunner {
         List<Product> unitProducts = new ArrayList<>();
         seedProducts(sheetProducts, unitProducts);
         List<Customer> custs = seedCustomers(start);
+        List<Product> all = new ArrayList<>(sheetProducts);
+        all.addAll(unitProducts);
+        seedSuppliers();
+        restock(all, start.minusDays(1), true); // nhap kho dau ky
 
-        int orderCount = 0, payments = 0, cancelled = 0;
+        int orderCount = 0, payments = 0, cancelled = 0, receiptCount = 1;
         for (LocalDate day = start.toLocalDate(); !day.isAfter(LocalDate.now()); day = day.plusDays(1)) {
+            // Thu Hai hang tuan: nhap bu cac mat hang sap het (nhu cua hang dat hang dinh ky)
+            if (day.getDayOfWeek() == DayOfWeek.MONDAY && day.atTime(6, 30).isBefore(LocalDateTime.now()))
+                receiptCount += restock(all, day.atTime(6, 30), false);
             int n = day.getDayOfWeek() == DayOfWeek.SUNDAY ? rnd.nextInt(2) : 1 + rnd.nextInt(4);
             List<LocalDateTime> times = new ArrayList<>();
             for (int i = 0; i < n; i++) times.add(day.atTime(7 + rnd.nextInt(11), rnd.nextInt(60)));
@@ -95,9 +116,9 @@ public class DemoDataSeeder implements CommandLineRunner {
                         rnd.nextBoolean() ? "Quản trị" : staffName, sheetProducts, unitProducts);
                 orderCount++;
                 if (rnd.nextInt(60) == 0) { // ~1.5% hoa don bi huy (ADMIN huy ngay trong ngay)
-                    long mark = maxLedgerId();
+                    long[] mark = marks();
                     orderService.cancel(id);
-                    backdateLedgerAfter(mark, at.plusMinutes(30));
+                    backdate(mark, at.plusMinutes(30));
                     cancelled++;
                 }
             }
@@ -109,16 +130,16 @@ public class DemoDataSeeder implements CommandLineRunner {
                             .divide(BigDecimal.valueOf(100), 0, RoundingMode.DOWN)).min(c.getDebt());
                     LocalDateTime at = day.atTime(17, 30);
                     if (amt.signum() > 0 && at.isBefore(LocalDateTime.now())) {
-                        long mark = maxLedgerId();
+                        long[] mark = marks();
                         debtService.pay(c.getId(), amt, "Khách trả nợ");
-                        backdateLedgerAfter(mark, at);
+                        backdate(mark, at);
                         payments++;
                     }
                 }
             }
         }
-        log.warn("SEED_DEMO: da tao {} san pham, {} khach, {} hoa don ({} huy), {} lan tra no trong {} ms",
-                sheetProducts.size() + unitProducts.size(), customers.count(), orderCount, cancelled, payments,
+        log.warn("SEED_DEMO: da tao {} san pham, {} khach, {} hoa don ({} huy), {} lan tra no, {} phieu nhap trong {} ms",
+                sheetProducts.size() + unitProducts.size(), customers.count(), orderCount, cancelled, payments, receiptCount,
                 System.currentTimeMillis() - t0);
     }
 
@@ -182,6 +203,8 @@ public class DemoDataSeeder implements CommandLineRunner {
                 pr.setUnit(p.unit());
                 pr.setPrice(BigDecimal.valueOf(p.price()));
                 products.save(pr);
+                stock.ensureBalance(pr.getId());
+                categoryOf.put(pr.getId(), (String) row[0]);
                 (p.bySheet() ? sheet : unit).add(pr);
             }
         }
@@ -227,9 +250,9 @@ public class DemoDataSeeder implements CommandLineRunner {
             jdbc.update("update customer set created_at = ? where id = ?", Timestamp.valueOf(created), c.getId());
             BigDecimal opening = new BigDecimal(d[3]);
             if (opening.signum() > 0) {
-                long mark = maxLedgerId();
+                long[] mark = marks();
                 debtService.setDebt(c.getId(), opening, "Nợ cũ chuyển sang");
-                backdateLedgerAfter(mark, created);
+                backdate(mark, created);
             }
             if (i < 12) list.add(c);
             else newCustomers.add(c);
@@ -267,7 +290,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         BigDecimal ship = rnd.nextInt(4) == 0 ? BigDecimal.valueOf((1 + rnd.nextInt(5)) * 50_000L) : BigDecimal.ZERO;
         BigDecimal charge = draft.getItemsTotal().add(ship);
 
-        long mark = maxLedgerId();
+        long[] mark = marks();
         CheckoutRequest req;
         if (customer == null) {
             // Khach le: tra du (lam tron len nghin, phan thua tra lai khach)
@@ -290,17 +313,76 @@ public class DemoDataSeeder implements CommandLineRunner {
         orderService.checkout(o.getId(), req);
         jdbc.update("update orders set created_at = ?, checked_out_at = ? where id = ?",
                 Timestamp.valueOf(at.minusMinutes(5 + rnd.nextInt(20))), Timestamp.valueOf(at), o.getId());
-        backdateLedgerAfter(mark, at);
+        backdate(mark, at);
         return o.getId();
     }
 
-    private long maxLedgerId() {
-        Long v = jdbc.queryForObject("select coalesce(max(id), 0) from debt_ledger", Long.class);
-        return v == null ? 0 : v;
+    private static final String[] BACKDATED = {"debt_ledger", "stock_movement", "supplier_ledger"};
+
+    /** id lon nhat hien tai cua cac so (cong no khach, so kho, cong no NCC) - de lui ngay cac dong sinh ra sau do. */
+    private long[] marks() {
+        long[] m = new long[BACKDATED.length];
+        for (int i = 0; i < m.length; i++) {
+            Long v = jdbc.queryForObject("select coalesce(max(id), 0) from " + BACKDATED[i], Long.class);
+            m[i] = v == null ? 0 : v;
+        }
+        return m;
     }
 
-    private void backdateLedgerAfter(long ledgerId, LocalDateTime at) {
-        jdbc.update("update debt_ledger set created_at = ? where id > ?", Timestamp.valueOf(at), ledgerId);
+    private void backdate(long[] mark, LocalDateTime at) {
+        for (int i = 0; i < mark.length; i++)
+            jdbc.update("update " + BACKDATED[i] + " set created_at = ? where id > ?", Timestamp.valueOf(at), mark[i]);
+    }
+
+    private void seedSuppliers() {
+        String[][] data = {
+            {"Tôn lợp", "Đại lý tôn Phương Nam", "0912000111", "KCN Phúc Khánh"},
+            {"Thép hộp", "Kho thép Minh Long", "0912000222", "Quốc lộ 10"},
+            {"Sắt thép xây dựng", "Kho thép Minh Long", "0912000222", "Quốc lộ 10"},
+            {"Nhôm", "Nhôm kính Hải Đăng", "0912000333", "TP Thái Bình"},
+            {"Phụ kiện", "Phụ kiện Tân Tiến", "0912000444", "Chợ Bo"},
+        };
+        java.util.Map<String, Supplier> byName = new java.util.HashMap<>();
+        for (String[] d : data) {
+            Supplier s = byName.computeIfAbsent(d[1], n -> {
+                Supplier x = new Supplier();
+                x.setName(n);
+                x.setPhone(d[2]);
+                x.setAddress(d[3]);
+                return suppliers.save(x);
+            });
+            supplierOf.put(d[0], s);
+        }
+    }
+
+    /**
+     * Nhap hang qua ReceiptService that (phieu -> ghi so): dau ky nhap day kho; cac tuan sau chi nhap bu mat hang duoi 30% muc.
+     * Gia nhap ~ 75-82% gia ban; tra truoc 50-100%, phan con lai thanh no NCC. Tra ve so phieu da tao.
+     */
+    private int restock(List<Product> all, LocalDateTime at, boolean opening) {
+        java.util.Map<Supplier, List<ReceiptService.LineRequest>> bySupplier = new java.util.LinkedHashMap<>();
+        var bal = stock.balancesOf(all.stream().map(Product::getId).toList());
+        for (Product p : all) {
+            BigDecimal target = BigDecimal.valueOf("m".equals(p.getUnit()) ? 2500 : "kg".equals(p.getUnit()) ? 3000 : 300);
+            BigDecimal onHand = bal.get(p.getId()) == null ? BigDecimal.ZERO : bal.get(p.getId()).getOnHand();
+            if (!opening && onHand.compareTo(target.multiply(new BigDecimal("0.3"))) >= 0) continue;
+            BigDecimal qty = opening ? target : target.subtract(onHand).setScale(0, RoundingMode.UP);
+            BigDecimal cost = roundThousand(p.getPrice().multiply(BigDecimal.valueOf(75 + rnd.nextInt(8))).divide(BigDecimal.valueOf(100), 0, RoundingMode.DOWN));
+            bySupplier.computeIfAbsent(supplierOf.get(categoryOf.get(p.getId())), k -> new ArrayList<>())
+                    .add(new ReceiptService.LineRequest(p.getId(), null, qty, cost, null));
+        }
+        int n = 0;
+        for (var e : bySupplier.entrySet()) {
+            BigDecimal total = e.getValue().stream().map(l -> l.inputQty().multiply(l.inputPrice())).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal paid = roundThousand(total.multiply(BigDecimal.valueOf(50 + rnd.nextInt(51))).divide(BigDecimal.valueOf(100), 0, RoundingMode.DOWN));
+            long[] mark = marks();
+            var r = receipts.create(new ReceiptService.ReceiptRequest(e.getKey().getId(), opening ? "Nhập kho đầu kỳ" : "Nhập bổ sung", paid, e.getValue()), "Quản trị");
+            receipts.post(r.getId(), "Quản trị");
+            jdbc.update("update goods_receipt set created_at = ?, posted_at = ? where id = ?", Timestamp.valueOf(at.minusMinutes(20)), Timestamp.valueOf(at), r.getId());
+            backdate(mark, at);
+            n++;
+        }
+        return n;
     }
 
     private static BigDecimal roundThousand(BigDecimal v) {

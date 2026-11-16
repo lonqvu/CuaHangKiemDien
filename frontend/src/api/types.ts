@@ -1,4 +1,4 @@
-export interface Product { id: number; name: string; categoryId: number | null; categoryName: string | null; unit: string | null; price: number }
+export interface Product { id: number; name: string; categoryId: number | null; categoryName: string | null; unit: string | null; price: number; minStock: number; onHand: number | null }
 export interface Category { id: number; name: string; productCount: number }
 export interface Customer { id: number; name: string; address: string | null; phone: string | null; debt: number }
 export interface ReceiptRow { date: string; oldDebt: number; amount: number; remainingDebt: number }
@@ -38,3 +38,27 @@ export interface CustomerStat { newCustomers: number; returningCustomers: number
 export interface MonthRevenue { month: number; revenue: number }
 export interface UserAccount { id: number; username: string; fullName: string; role: 'ADMIN' | 'STAFF'; active: boolean }
 
+// ================= KHO HANG =================
+export interface ProductUnit { unit: string; ratio: number }
+export interface StockRow { productId: number; name: string; categoryName: string | null; unit: string | null; onHand: number; avgCost: number; value: number; minStock: number; price: number }
+export interface StockSummary { count: number; totalValue: number; lowCount: number; negativeCount: number }
+export type MovementType = 'RECEIPT' | 'RECEIPT_CANCEL' | 'SALE' | 'SALE_CANCEL' | 'COUNT' | 'ADJUST'
+export interface StockMovement {
+  id: number; productId: number; type: MovementType; qty: number; unitCost: number; value: number; balanceAfter: number; avgCostAfter: number
+  refType: 'ORDER' | 'RECEIPT' | 'COUNT' | 'ADJUST'; refId: number | null; refCode: string | null; note: string | null; createdBy: string | null; createdAt: string
+}
+export type ReceiptStatus = 'DRAFT' | 'POSTED' | 'CANCELLED'
+export interface ReceiptLine { id: number; productId: number; productName: string; unit: string | null; inputUnit: string | null; inputQty: number; inputPrice: number; ratio: number; qty: number; unitCost: number; lineTotal: number }
+export interface Receipt {
+  id: number; code: string | null; status: ReceiptStatus; supplierId: number | null; supplierName: string | null; note: string | null
+  total: number; paidAmount: number; createdBy: string | null; createdAt: string; postedAt: string | null; cancelledAt: string | null; lines: ReceiptLine[]
+}
+export interface ReceiptRow { id: number; code: string | null; status: ReceiptStatus; supplierId: number | null; supplierName: string | null; total: number; paidAmount: number; lineCount: number; createdBy: string | null; createdAt: string; postedAt: string | null }
+export interface ReceiptSummary { count: number; total: number; paid: number; countByStatus: Record<ReceiptStatus, number> }
+export interface Supplier { id: number; name: string; phone: string | null; address: string | null; debt: number }
+export interface SupplierSummary { count: number; totalDebt: number; suppliersInDebt: number }
+export interface SupplierLedgerRow { id: number; type: 'RECEIPT' | 'PAYMENT' | 'CANCEL' | 'MANUAL'; amount: number; balanceAfter: number; receiptId: number | null; note: string | null; createdAt: string }
+export interface StockCountLine { id: number; productId: number; productName: string; unit: string | null; systemQty: number | null; countedQty: number | null; diff: number | null; unitCost: number | null }
+export interface StockCount { id: number; code: string | null; status: 'DRAFT' | 'POSTED'; note: string | null; createdBy: string | null; createdAt: string; postedAt: string | null; lines: StockCountLine[] }
+export interface CountRow { id: number; code: string | null; status: 'DRAFT' | 'POSTED'; note: string | null; lineCount: number; countedLines: number; createdBy: string | null; createdAt: string; postedAt: string | null }
+export interface Profit { revenue: number; revenueWithCost: number; cost: number; grossProfit: number; lines: number; linesWithCost: number }

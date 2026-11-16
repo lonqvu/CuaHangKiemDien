@@ -59,6 +59,24 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - **Ma hoa don (HDxxxxxxxx) chi cap khi chot**: hoa don nhap chua co ma, so hoa don lien tuc. Nhap bo do hien o tab "Nhap bo do" man Hoa don (mo ban tiep / xoa).
 - Bao cao: doanh thu theo ngay (tach **doanh thu** va **tien thuc thu**), top 10 san pham. Chi tinh hoa don da chot.
 
+## Kho hang (nhap kho, ton kho, kiem ke, nha cung cap)
+Mo hinh giong cong no: **so kho bat bien** (`stock_movement`, chi them, huy = ghi nguoc) + **so du** (`stock_balance`), cap nhat cung transaction.
+Bat bien: `on_hand = SUM(stock_movement.qty)` (co test).
+- **Don vi ton = don vi ban** cua san pham (m, cay, kg...). Ban hang tru **Tong SL** (SL x tam x he so).
+  Neu he so 1,08 chi de tinh tien (khong phai hang xuat that): dat `STOCK_SALE_QTY=without-factor` -> tru SL x so tam.
+- **Don vi quy doi khi nhap** (man San pham): 1 kg = 0,318 m, 1 bo = 10 cay... Phieu nhap tu quy ra don vi goc, **sua duoc theo so do thuc te**;
+  so da quy doi luu tren phieu nen sua ty le sau nay khong lam sai so cu.
+- **Gia von binh quan di dong** (nhu KiotViet): tinh lai moi lan nhap; xuat theo binh quan hien tai. Ton dang <= 0 ma nhap -> binh quan = gia nhap.
+  Dong hoa don luu `cost_total` luc chot -> bao cao **lai gop** (`/reports/profit`). Ban khi chua tung co gia von: van xuat kho, gia von de trong.
+- **Cho ban am kho, canh bao**: man Ban hang bao "Vuot ton kho"; man Ton kho co loc "Am kho". Khong chan ban o quay.
+- **Phieu nhap**: nhap -> ghi so (cap ma PNxxxxxx, cong kho, ghi no NCC phan chua tra) -> huy (tru lai dung so da nhap, hoan no NCC).
+- **Kiem ke**: lap phieu -> dem (tu luu) -> ghi so chenh lech so voi ton **luc ghi so**. Phieu dau tien = **ton dau ky** (nhap them gia von).
+- **Dieu chinh / xuat huy** (hao hut khi cat, hu hong...) o the kho, bat buoc ly do. **Muc ton toi thieu** -> loc "Sap het".
+- **Nha cung cap + cong no NCC**: cung mau khach hang (so no, tra tien, sua no).
+- Chong ban trung: khoa `stock_balance` (`SELECT ... FOR UPDATE`) theo thu tu product_id tang dan (khong deadlock). Co test 8 don chot song song.
+- **Bat dau dung that**: hoa don cu (truoc khi co kho) khong tru kho. Lap 1 phieu kiem ke "Ton dau ky" dem toan bo hang + gia von, roi moi ban.
+- Chua lam: theo doi tung cuon ton (ma cuon), nhieu kho / chuyen kho, phan bo chi phi van chuyen vao gia von, ma vach.
+
 ## Danh sach & giao dien
 - Moi danh sach (hoa don, khach, san pham, so no) **phan trang o server**: `?page` (tu 0) `&size` (20/50/100, toi da 100) `&sort=truong,asc|desc`,
   tra ve `{ items, total, page, size, summary }`. `summary` tinh tren **toan bo ket qua loc** (tong tien hang, da thu, tong no...).
@@ -77,7 +95,6 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - Gui hoa don qua Zalo.
 - Script chuyen du lieu tu DB SQL Server cu (`script.sql` repo cu) sang schema moi.
 - Don dep hoa don nhap bi bo quen (job dinh ky). Hien da xoa duoc tay o tab "Nhap bo do".
-- Ton kho / nhap hang (hoi chu cua hang co can khong).
 - Tim kiem khong dau ("phu gia" tim ra "Phú Gia"): can extension `unaccent` cua PostgreSQL hoac cot ten da bo dau.
 
 ## API chinh
@@ -89,6 +106,11 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 | `GET /api/customers?q&debt&page&size&sort`, `GET /{id}`, `GET /{id}/debt-ledger?page&size`, `POST /{id}/debt-payments` | khach hang, so no (kem `orderCode`), thu no |
 | `GET /api/orders?status=PAID,CANCELLED,DRAFT&from&to&q&customerId&page&size&sort` | danh sach hoa don (khong kem dong hang) + `summary.countByStatus` |
 | `GET /api/orders/{id}`, `POST /api/orders`, `POST /{id}/items`, `PUT/DELETE /{id}/items/{itemId}`, `POST /{id}/checkout`, `POST /{id}/cancel` | hoa don |
-| `GET /api/reports/overview`, `/revenue?from&to`, `/top-products` | bao cao (ADMIN) |
+| `GET /api/stock?q&categoryId&filter=all\|low\|negative\|out`, `GET /{productId}`, `GET /{productId}/movements`, `POST /{productId}/adjust`, `PUT /{productId}/min-stock` | ton kho, the kho, dieu chinh (ADMIN) |
+| `GET/PUT /api/products/{id}/units` | don vi quy doi khi nhap |
+| `GET/POST /api/receipts`, `GET/PUT/DELETE /{id}`, `POST /{id}/post`, `POST /{id}/cancel` | phieu nhap (ADMIN) |
+| `GET/POST /api/stock-counts`, `GET /{id}`, `PUT /{id}/lines`, `POST /{id}/post`, `DELETE /{id}` | kiem ke (ADMIN) |
+| `GET/POST/PUT/DELETE /api/suppliers`, `GET /{id}/ledger`, `POST /{id}/payments`, `POST /{id}/debt-adjustments` | nha cung cap + cong no NCC (ADMIN) |
+| `GET /api/reports/overview`, `/revenue?from&to`, `/top-products`, `/profit?from&to` | bao cao, lai gop (ADMIN) |
 | `GET/POST/PUT /api/users`, `POST /{id}/reset-password` | tai khoan (ADMIN) |
 | `POST /api/auth/change-password` | doi mat khau (moi nguoi) |

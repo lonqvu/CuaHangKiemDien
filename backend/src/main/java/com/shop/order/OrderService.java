@@ -7,6 +7,8 @@ import com.shop.customer.DebtLedger;
 import com.shop.customer.DebtService;
 import com.shop.product.Product;
 import com.shop.product.ProductRepository;
+import com.shop.stock.StockMovement;
+import com.shop.stock.StockService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,11 @@ public class OrderService {
     private final ProductRepository products;
     private final CustomerRepository customers;
     private final DebtService debts;
+    private final StockService stock;
 
     public OrderService(OrderRepository orders, ProductRepository products,
-                        CustomerRepository customers, DebtService debts) {
-        this.orders = orders; this.products = products; this.customers = customers; this.debts = debts;
+                        CustomerRepository customers, DebtService debts, StockService stock) {
+        this.orders = orders; this.products = products; this.customers = customers; this.debts = debts; this.stock = stock;
     }
 
     public record ItemRequest(Long productId, BigDecimal quantity, Integer sheets, BigDecimal factor, BigDecimal unitPrice) {}
@@ -211,6 +214,8 @@ public class OrderService {
 
         o.setStatus(Order.Status.PAID);
         o.setCheckedOutAt(LocalDateTime.now());
+        // Xuat kho + ghi gia von tung dong, cung transaction: loi kho thi khong chot duoc hoa don
+        stock.issueForOrder(o, o.getStaffName());
         return o;
     }
 
@@ -224,6 +229,9 @@ public class OrderService {
             BigDecimal netDebtAdded = o.getDebtAfter().subtract(o.getPreviousDebt()); // hoa don nay lam no thay doi bao nhieu
             debts.apply(c, DebtLedger.Type.ADJUST, netDebtAdded.negate(), o.getId(), "Hủy hóa đơn " + o.getCode());
         }
+        // Nhap tra dung so luong + gia von da xuat (hoa don tu truoc khi co kho thi khong co gi de tra)
+        stock.reverse(StockService.REF_ORDER, o.getId(), StockMovement.Type.SALE, StockMovement.Type.SALE_CANCEL,
+                "Hủy hóa đơn " + o.getCode(), null);
         o.setStatus(Order.Status.CANCELLED);
         o.getItems().size();
         return o;

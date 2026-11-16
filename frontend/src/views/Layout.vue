@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ShoppingCart, Document, User, Goods, Collection, DataLine, UserFilled, Odometer, Key, SwitchButton, Menu as MenuIcon,
+  Box, Van, Checked, OfficeBuilding,
 } from '@element-plus/icons-vue'
 import { useAuth } from '../stores/auth'
 
@@ -25,6 +26,12 @@ const groups = computed(() => {
         { to: '/customers', label: 'Khách hàng & công nợ', icon: User },
         { to: '/products', label: 'Sản phẩm', icon: Goods },
         { to: '/categories', label: 'Loại hàng', icon: Collection },
+      ] },
+      { title: 'Kho hàng', items: [
+        { to: '/inventory', label: 'Tồn kho', icon: Box },
+        { to: '/receipts', label: 'Nhập hàng', icon: Van },
+        { to: '/stock-counts', label: 'Kiểm kê', icon: Checked },
+        { to: '/suppliers', label: 'Nhà cung cấp', icon: OfficeBuilding },
       ] },
       { title: 'Quản trị', items: [
         { to: '/reports', label: 'Thống kê', icon: DataLine },
@@ -86,7 +93,7 @@ function logout() {
   width: 232px; flex-shrink: 0; background: var(--steel-900); color: #E2E8F0;
   display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
-.brand { display: flex; gap: var(--space-lg); align-items: center; padding: var(--space-xl) var(--space-xl) var(--space-lg); }
+.brand { display: flex; gap: var(--space-lg); align-items: center; padding: var(--space-lg) var(--space-xl) var(--space-md); }
 .brand b { display: block; font-size: 15px; color: #fff; line-height: 1.3; }
 .brand small { color: var(--steel-400); font-size: 12px; }
 /* dau logo: thanh thep cat vat */
@@ -96,16 +103,16 @@ function logout() {
   background: linear-gradient(135deg, #E2E8EE 0 50%, #94A3B8 50% 100%);
 }
 nav { flex: 1; padding: 0 var(--space-md); }
-nav h2 { font-size: 12px; font-weight: 500; color: var(--steel-400); padding: var(--space-lg) var(--space-md) var(--space-sm); }
+nav h2 { font-size: 12px; font-weight: 500; color: var(--steel-400); padding: var(--space-md) var(--space-md) var(--space-xs); }
 .nav-item {
-  display: flex; align-items: center; gap: var(--space-lg); width: 100%; min-height: 40px;
+  display: flex; align-items: center; gap: var(--space-lg); width: 100%; min-height: 36px;
   padding: 0 var(--space-md); border-radius: var(--radius-md); color: #CBD5E1; text-decoration: none;
   font: inherit; font-size: 14px; background: none; border: 0; cursor: pointer; text-align: left;
   transition: background-color 0.15s, color 0.15s;
 }
 .nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .nav-item.router-link-active { background: #fff; color: var(--steel-900); font-weight: 600; }
-.nav-item.small { min-height: 36px; font-size: 13px; }
+.nav-item.small { min-height: 32px; font-size: 13px; }
 .me { border-top: 1px solid rgba(255, 255, 255, 0.1); padding: var(--space-lg) var(--space-md) var(--space-xl); }
 .who { padding: 0 var(--space-md) var(--space-md); }
 .who b { display: block; color: #fff; font-size: 14px; }

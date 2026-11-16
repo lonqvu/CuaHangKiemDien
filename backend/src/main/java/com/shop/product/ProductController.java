@@ -1,6 +1,10 @@
 package com.shop.product;
 
 import com.shop.common.PageDto;
+import com.shop.stock.ProductUnit;
+import com.shop.stock.ProductUnitRepository;
+import com.shop.stock.StockBalance;
+import com.shop.stock.StockService;
 import org.springframework.data.domain.Sort;
 import java.util.Map;
 
@@ -20,20 +24,27 @@ import java.util.List;
 public class ProductController {
     private final ProductRepository products;
     private final CategoryRepository categories;
+    private final StockService stock;
+    private final ProductUnitRepository units;
 
-    public ProductController(ProductRepository products, CategoryRepository categories) {
-        this.products = products; this.categories = categories;
+    public ProductController(ProductRepository products, CategoryRepository categories, StockService stock, ProductUnitRepository units) {
+        this.products = products; this.categories = categories; this.stock = stock; this.units = units;
     }
 
     public record ProductRequest(@NotBlank String name, Long categoryId, @NotBlank(message = "Bạn chưa nhập đơn vị cho sản phẩm") String unit,
-                                 @NotNull @DecimalMin("0") BigDecimal price) {}
-    public record ProductDto(Long id, String name, Long categoryId, String categoryName, String unit, BigDecimal price) {}
+                                 @NotNull @DecimalMin("0") BigDecimal price, BigDecimal minStock) {}
+    /** onHand: ton hien tai (don vi goc) - man Ban hang dung de canh bao ban qua ton. */
+    public record ProductDto(Long id, String name, Long categoryId, String categoryName, String unit, BigDecimal price,
+                             BigDecimal minStock, BigDecimal onHand) {}
+    public record UnitDto(String unit, BigDecimal ratio) {}
     public record CategoryRequest(@NotBlank String name) {}
 
-    private ProductDto dto(Product p) {
+    private ProductDto dto(Product p) { return dto(p, null); }
+
+    private ProductDto dto(Product p, StockBalance b) {
         Category c = p.getCategory();
         return new ProductDto(p.getId(), p.getName(), c == null ? null : c.getId(),
-                c == null ? null : c.getName(), p.getUnit(), p.getPrice());
+                c == null ? null : c.getName(), p.getUnit(), p.getPrice(), p.getMinStock(), b == null ? null : b.getOnHand());
     }
 
     private static final Map<String, String> SORTABLE = Map.of("name", "name", "price", "price", "unit", "unit");
@@ -52,7 +63,38 @@ public class ProductController {
                                     @RequestParam(defaultValue = "") String sort) {
         var p = products.page(PageDto.like(q), categoryId, active,
                 PageDto.pageable(page, size, sort, SORTABLE, Sort.by("name").and(Sort.by("id"))));
-        return PageDto.of(p, this::dto, null);
+        var bal = stock.balancesOf(p.getContent().stream().map(Product::getId).toList()); // 1 truy van cho ca trang
+        return PageDto.of(p, x -> dto(x, bal.get(x.getId())), null);
+    }
+
+    /** Don vi quy doi khi nhap hang (1 don vi = ratio don vi goc). */
+    @GetMapping("/products/{id}/units")
+    public List<UnitDto> units(@PathVariable Long id) {
+        return units.findByProductIdOrderByUnit(id).stream().map(u -> new UnitDto(u.getUnit(), u.getRatio())).toList();
+    }
+
+    /** Thay toan bo don vi quy doi. Sua ty le khong anh huong phieu nhap cu (so luong da quy doi duoc luu tren phieu). */
+    @PutMapping("/products/{id}/units")
+    @Transactional
+    public List<UnitDto> setUnits(@PathVariable Long id, @RequestBody List<UnitDto> list) {
+        Product p = products.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm"));
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (UnitDto u : list) {
+            if (u.unit() == null || u.unit().isBlank()) throw ApiException.badRequest("Có đơn vị quy đổi chưa nhập tên");
+            if (u.unit().trim().equalsIgnoreCase(p.getUnit())) throw ApiException.badRequest("Đơn vị \"" + u.unit() + "\" trùng đơn vị gốc");
+            if (u.ratio() == null || u.ratio().signum() <= 0) throw ApiException.badRequest("Tỷ lệ quy đổi của \"" + u.unit() + "\" phải lớn hơn 0");
+            if (!seen.add(u.unit().trim().toLowerCase())) throw ApiException.badRequest("Đơn vị \"" + u.unit() + "\" bị trùng");
+        }
+        units.deleteAllOfProduct(id);
+        units.flush();
+        for (UnitDto u : list) {
+            ProductUnit x = new ProductUnit();
+            x.setProductId(id);
+            x.setUnit(u.unit().trim());
+            x.setRatio(u.ratio());
+            units.save(x);
+        }
+        return units(id);
     }
 
     /** Ban lai san pham da ngung ban. */
@@ -69,7 +111,9 @@ public class ProductController {
     public ProductDto create(@Valid @RequestBody ProductRequest r) {
         Product p = new Product();
         apply(p, r);
-        return dto(products.save(p));
+        p = products.save(p);
+        stock.ensureBalance(p.getId()); // san pham moi: ton 0
+        return dto(p);
     }
 
     @PutMapping("/products/{id}")
@@ -91,6 +135,10 @@ public class ProductController {
         p.setName(r.name().trim());
         p.setUnit(r.unit());
         p.setPrice(r.price());
+        if (r.minStock() != null) {
+            if (r.minStock().signum() < 0) throw ApiException.badRequest("Tồn tối thiểu không được âm");
+            p.setMinStock(r.minStock());
+        }
         p.setCategory(r.categoryId() == null ? null : categories.findById(r.categoryId())
                 .orElseThrow(() -> ApiException.badRequest("Loại hàng không tồn tại")));
     }

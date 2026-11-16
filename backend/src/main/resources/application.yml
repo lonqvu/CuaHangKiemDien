@@ -19,6 +19,10 @@ app:
     username: ${ADMIN_USER:admin}
     password: ${ADMIN_PASSWORD:admin123}
   cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+  stock:
+    # Ban ton theo tam tru kho bao nhieu: total = Tong SL (SL x tam x he so, mac dinh);
+    # without-factor = SL x so tam (he so 1.08 chi de tinh tien, khong phai hang xuat that)
+    sale-quantity: ${STOCK_SALE_QTY:total}
   # SEED_DEMO=true: tao du lieu mau (san pham, khach, ~14 thang hoa don) neu DB chua co san pham/hoa don. KHONG bat tren server that.
   seed-demo: ${SEED_DEMO:false}
   report:

@@ -251,7 +251,8 @@ onBeforeUnmount(() => {
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
                      placeholder="Gõ tên để tìm" :disabled="!!done" @change="onPickProduct">
             <el-option v-for="p in products" :key="p.id" :value="p.id" :label="p.name">
-              <div class="opt"><span>{{ p.name }}</span><span class="num muted">{{ num(p.price) }} / {{ p.unit || 'đv' }}</span></div>
+              <div class="opt"><span>{{ p.name }}</span>
+                <span class="num muted">{{ num(p.price) }}/{{ p.unit || 'đv' }} · <span :class="{ 'tone-danger': p.onHand != null && Number(p.onHand) <= 0 }">tồn {{ p.onHand == null ? '—' : qty(p.onHand) }}</span></span></div>
             </el-option>
           </el-select>
         </div>
@@ -279,6 +280,9 @@ onBeforeUnmount(() => {
           <span class="sep" />
           <span class="muted">Thành tiền</span>
           <b class="num">{{ money(preview.lineTotal) }}</b>
+          <span v-if="picked && picked.onHand != null" class="stockinfo" :class="{ over: preview.totalQuantity > Number(picked.onHand) }">
+            {{ preview.totalQuantity > Number(picked.onHand) ? 'Vượt tồn kho' : 'Tồn' }}: <b class="num">{{ qty(picked.onHand) }}</b> {{ picked.unit }}
+          </span>
         </div>
         <el-button type="primary" native-type="submit" :icon="Plus" :loading="busy" :disabled="!!done" class="add">Thêm vào hóa đơn</el-button>
       </form>
@@ -441,6 +445,8 @@ kbd.on-dark { color: inherit; background: rgba(255, 255, 255, 0.15); border-colo
 .calc .sep { width: 1px; height: 14px; background: var(--steel-200); margin: 0 var(--space-sm); }
 .add { grid-column: -3 / -1; }
 .small { font-size: 12px; }
+.stockinfo { font-size: 13px; color: var(--ink-muted); margin-left: auto; }
+.stockinfo.over { color: var(--debt); font-weight: 600; }
 .opt { display: flex; justify-content: space-between; gap: var(--space-lg); }
 
 /* phieu: diem nhan duy nhat cua man - nhu to hoa don xe rang cua */

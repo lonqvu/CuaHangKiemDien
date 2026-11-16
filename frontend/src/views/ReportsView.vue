@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import http from '../api/http'
-import type { CategoryStat, CustomerStat, DayRevenue, MonthRevenue, TopCustomer, TopProduct } from '../api/types'
+import type { CategoryStat, CustomerStat, DayRevenue, MonthRevenue, Profit, TopCustomer, TopProduct } from '../api/types'
 import { datePresets, num, qty } from '../format'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
@@ -22,6 +22,8 @@ const top = ref<TopProduct[]>([])
 const topCus = ref<TopCustomer[]>([])
 const cats = ref<CategoryStat[]>([])
 const cus = ref<CustomerStat | null>(null)
+const profit = ref<Profit | null>(null)
+const margin = computed(() => (profit.value && Number(profit.value.revenueWithCost) ? (Number(profit.value.grossProfit) / Number(profit.value.revenueWithCost)) * 100 : 0))
 const loading = ref(false)
 const chartMode = ref<'day' | 'month'>('day')
 const productSort = ref<'revenue' | 'quantity'>('revenue')
@@ -63,16 +65,18 @@ async function load() {
   if (!range.value?.[0]) return
   loading.value = true
   try {
-    const [a, c, d] = await Promise.all([
+    const [a, c, d, pf] = await Promise.all([
       http.get<DayRevenue[]>('/reports/revenue', { params: params() }),
       http.get<CategoryStat[]>('/reports/categories', { params: params() }),
       http.get<CustomerStat>('/reports/customers', { params: params() }),
+      http.get<Profit>('/reports/profit', { params: params() }),
       loadTop(),
       loadTopCus(),
     ])
     rows.value = a.data
     cats.value = c.data
     cus.value = d.data
+    profit.value = pf.data
   } finally {
     loading.value = false
   }
@@ -103,6 +107,12 @@ onMounted(async () => {
   <div v-loading="loading">
     <div class="grid4">
       <StatCard label="Doanh thu" :value="totals.revenue" unit="₫" />
+      <StatCard label="Lãi gộp" :value="Number(profit?.grossProfit ?? 0)" unit="₫" :tone="Number(profit?.grossProfit ?? 0) >= 0 ? 'money' : 'debt'">
+        <template v-if="profit && profit.lines && profit.linesWithCost < profit.lines">
+          Tính trên {{ profit.linesWithCost }}/{{ profit.lines }} dòng có giá vốn. Nhập hàng hoặc kiểm kê đầu kỳ để đủ giá vốn.
+        </template>
+        <template v-else-if="profit && profit.lines">Biên lãi {{ margin.toFixed(1).replace('.', ',') }}% trên doanh thu</template>
+      </StatCard>
       <StatCard label="Số hóa đơn" :value="totals.orders" />
       <StatCard label="Khách hàng mới" :value="cus?.newCustomers ?? 0" />
       <StatCard label="Tỷ lệ khách quay lại" :value="cus?.returningRate ?? 0" unit="%">

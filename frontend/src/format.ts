@@ -15,6 +15,14 @@ export const dtShort = (s: string | null | undefined) => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${p(d.getFullYear() % 100)} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+/** Nhan nghiep vu so kho - dung chung the kho. */
+export const movementLabel: Record<string, string> = {
+  RECEIPT: 'Nhập hàng', RECEIPT_CANCEL: 'Hủy phiếu nhập', SALE: 'Bán hàng', SALE_CANCEL: 'Hủy hóa đơn', COUNT: 'Kiểm kê', ADJUST: 'Điều chỉnh',
+}
+/** Duong dan toi chung tu goc cua 1 dong so kho. */
+export const movementLink = (refType: string, refId: number | null) =>
+  !refId ? null : refType === 'ORDER' ? `/orders/${refId}` : refType === 'RECEIPT' ? `/receipts/${refId}` : refType === 'COUNT' ? `/stock-counts/${refId}` : null
+
 export const dateOnly = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('vi-VN') : '')
 
 /** Lam tron kieu ngan hang (HALF_EVEN) nhu DecimalFormat cua Java trong app cu. */
