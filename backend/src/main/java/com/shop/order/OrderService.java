@@ -195,9 +195,14 @@ public class OrderService {
                 debts.apply(c, DebtLedger.Type.PAYMENT, applied.negate(), o.getId(), "Thanh toan hoa don " + o.getCode());
             }
         } else {
-            // Khach le (app cu): bat buoc co ten; duoc tra thieu, phan con lai chi ghi tren hoa don, khong vao cong no
+            // Khach le: bat buoc co ten va PHAI TRA DU (tien hang + ship). Khac app cu (cho tra thieu, phan thieu chi ghi
+            // tren hoa don, khong ai theo doi de thu) -> muon ghi no thi chon / tao khach hang.
             if (r.customerName() == null || r.customerName().isBlank())
                 throw ApiException.badRequest("Vui long nhap ten khach le hoac chon khach hang");
+            if (paid.compareTo(charge) < 0)
+                throw ApiException.badRequest("Khach le phai tra du " + charge.stripTrailingZeros().toPlainString()
+                        + " (con thieu " + charge.subtract(paid).stripTrailingZeros().toPlainString()
+                        + "). Muon ghi no thi chon hoac tao khach hang");
             o.setCustomerName(r.customerName().trim());
             o.setCustomerAddress(r.customerAddress());
             o.setCustomerPhone(r.customerPhone());

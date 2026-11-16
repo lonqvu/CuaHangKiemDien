@@ -14,7 +14,7 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 | Tổng thanh toán | Tiền hàng + Nợ cũ + Phí vận chuyển | `checkout` |
 | Còn lại | `max(0, Tổng thanh toán − Khách trả)`; trả dư thì còn lại 0, lưu nguyên số khách đưa | `checkout` |
 | Nợ khách sau đơn | = Còn lại | `checkout` + `debt_ledger` |
-| Khách lẻ | Bắt buộc có tên; được trả thiếu, phần còn lại chỉ ghi trên hóa đơn, không vào công nợ | `checkout` |
+| Khách lẻ | Bắt buộc có tên | `checkout` |
 | Cập nhật nợ cũ (PayDialog) / sửa ô Nợ (Customers) | Đặt lại số nợ của khách | `POST /customers/{id}/debt-adjustments` (ADMIN, **bắt buộc lý do**) |
 | Nợ ban đầu khi thêm khách | Nhập được khi tạo khách | `POST /customers` `initialDebt` (ADMIN) |
 | Trùng tên khách | Không cho thêm khách trùng tên | `CustomerController.create` |
@@ -48,6 +48,7 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 | Chốt đơn làm nợ về 0 chỉ ẩn dòng lịch sử vừa ghi | Kết thúc cả chu kỳ biên lai (giống màn Thu nợ) | App cũ in lại các lần trả của chu kỳ trước |
 | Số lượng nhập 0 vẫn thêm được | Số lượng phải > 0 | Dòng 0 đồng vô nghĩa |
 | Sửa nợ không cần quyền | Chỉ quản trị | Tránh nhân viên sửa nợ |
+| Khách lẻ được trả thiếu, phần còn lại chỉ ghi trên hóa đơn | Khách lẻ phải trả đủ tiền hàng + ship; muốn ghi nợ thì chọn / tạo khách (chặn ở cả màn hình và server) | Khoản thiếu của khách lẻ không có sổ nào theo dõi để thu |
 | Thống kê theo loại hàng: bỏ sót hàng chưa phân loại, "số mặt hàng" đếm cả hàng đã xóa | Thêm dòng "Chưa phân loại"; chỉ đếm mặt hàng đang bán | Tổng các loại = tổng doanh thu, tỷ trọng đủ 100% |
 | Xóa khách (kể cả đang nợ) | Không ẩn được khách còn nợ (thu hết / điều chỉnh về 0 có lý do trước) | Nợ không biến khỏi "Khách đang nợ" |
 | Nhân viên vào màn Bán hàng (`HomeUser`) | Server chặn nhân viên đọc sổ nợ, sao kê, danh sách hóa đơn, báo cáo (403); khóa tài khoản có hiệu lực ngay cả với phiên đang đăng nhập | Phân quyền ở server, không chỉ ẩn menu |

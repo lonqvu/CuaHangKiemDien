@@ -160,13 +160,19 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
 
   // khach le tra thieu, tra thua; khach B tra du; mot hoa don se huy
   const mk = async (lines, body) => { const o = await ok(admin, 'POST', '/orders'); for (const [p, q, s, pr] of lines) await ok(admin, 'POST', `/orders/${o.id}/items`, { productId: p.id, quantity: q, sheets: s, factor: 0, unitPrice: pr }); return ok(admin, 'POST', `/orders/${o.id}/checkout`, body); };
-  const o2 = await mk([[hop, 2, 0, 285000]], { customerName: 'Khách lẻ B', shippingFee: 0, paidAmount: 500000 });       // 570000, con 70000
+  // khach le phai tra du: thieu (ke ca thieu phi ship) -> 400, hoa don van la nhap
+  const oLe = await ok(admin, 'POST', '/orders');
+  await ok(admin, 'POST', `/orders/${oLe.id}/items`, { productId: hop.id, quantity: 2, sheets: 0, factor: 0, unitPrice: 285000 });
+  const thieu = await call(admin, 'POST', `/orders/${oLe.id}/checkout`, { customerName: 'Khách lẻ B', shippingFee: 0, paidAmount: 500000 });
+  const thieuShip = await call(admin, 'POST', `/orders/${oLe.id}/checkout`, { customerName: 'Khách lẻ B', shippingFee: 30000, paidAmount: 570000 });
+  check('khach le tra thieu / thieu phi ship -> 400, van la nhap', thieu.status === 400 && thieuShip.status === 400 && (await ok(admin, 'GET', `/orders/${oLe.id}`)).status === 'DRAFT', thieu.data?.message);
+  const o2 = await ok(admin, 'POST', `/orders/${oLe.id}/checkout`, { customerName: 'Khách lẻ B', shippingFee: 30000, paidAmount: 600000 }); // tra du
   const o3 = await mk([[vit, 1, 0, 45000]], { customerName: 'Khách lẻ C', shippingFee: 0, paidAmount: 100000 });        // tra thua
   const o4 = await mk([[ton, 10, 0, 95000]], { customerId: kB.id, shippingFee: 0, paidAmount: 950000, expectedPreviousDebt: 0 });
   const o5 = await mk([[hop, 1, 0, 285000], [ton, 2, 0, 95000]], { customerId: kB.id, shippingFee: 0, paidAmount: 0, expectedPreviousDebt: 0 });
   const o6 = await mk([[ton, 1, 0, 95000]], { customerId: kA.id, shippingFee: 0, paidAmount: 0, expectedPreviousDebt: N(p1.debtAfter) });
   await ok(admin, 'POST', `/orders/${o6.id}/cancel`);
-  check('khach le tra thieu: con lai 70.000 tren hoa don', N(o2.debtAfter) === 70000 && o2.customerId === null);
+  check('khach le tra du: con lai 0, khong gan khach', N(o2.debtAfter) === 0 && o2.customerId === null);
   check('khach le tra thua: con lai 0', N(o3.debtAfter) === 0);
   // loc danh sach hoa don
   const paidToday = await ok(admin, 'GET', `/orders?status=PAID&from=${TODAY}&to=${TODAY}`);

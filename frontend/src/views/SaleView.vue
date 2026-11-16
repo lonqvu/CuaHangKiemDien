@@ -259,6 +259,9 @@ const needName = computed(() => !customer.value && !pay.walkInName.trim())
 const blockReason = computed(() => {
   if (!order.value?.items.length) return 'Thêm ít nhất 1 mặt hàng để chốt hóa đơn.'
   if (needName.value) return 'Chọn khách hàng hoặc nhập tên khách lẻ để chốt.'
+  // khach le phai tra du (khong ghi no): muon ghi no thi chon / tao khach
+  if (!customer.value && remain.value > 0)
+    return `Khách lẻ phải trả đủ ${money(payable.value)}, còn thiếu ${money(remain.value)}. Muốn ghi nợ thì chọn hoặc tạo khách hàng.`
   return ''
 })
 
@@ -435,7 +438,7 @@ onBeforeUnmount(() => {
           <el-button v-if="!done" link type="primary" :icon="Plus" @click="newCus.open = true">Khách mới</el-button>
         </div>
         <el-select id="cus" ref="customerSelect" v-model="customer" value-key="id" filterable remote clearable default-first-option :remote-method="searchCustomers"
-                   placeholder="Khách lẻ (không ghi nợ)" :disabled="!!done" style="width: 100%">
+                   placeholder="Khách lẻ (trả đủ, không ghi nợ)" :disabled="!!done" style="width: 100%">
           <el-option v-for="c in customers" :key="c.id" :value="c" :label="c.name">
             <div class="opt"><span>{{ c.name }} <span class="muted">{{ c.phone }}</span></span>
               <span v-if="Number(c.debt) > 0" class="num tone-debt">nợ {{ num(c.debt) }}</span></div>
@@ -481,12 +484,11 @@ onBeforeUnmount(() => {
           <el-button v-if="customer" size="small" @click="pay.paidAmount = 0">Ghi nợ hết</el-button>
         </div>
         <div class="remain" :class="{ owe: remain > 0 }">
-          <dt>{{ remain > 0 ? (customer ? 'Còn nợ sau đơn' : 'Còn lại') : 'Còn lại' }}</dt>
+          <dt>{{ remain > 0 ? (customer ? 'Còn nợ sau đơn' : 'Còn thiếu') : 'Còn lại' }}</dt>
           <dd class="num">{{ num(remain) }}</dd>
         </div>
         <div v-if="change > 0"><dt>Tiền thừa trả khách</dt><dd class="num">{{ num(change) }}</dd></div>
       </dl>
-      <p v-if="!customer && remain > 0" class="hint">Khách lẻ: phần còn lại chỉ ghi trên hóa đơn, không vào sổ công nợ.</p>
 
       <el-input v-model="pay.note" type="textarea" :rows="2" placeholder="Ghi chú (giao hàng, cắt theo kích thước...)" aria-label="Ghi chú" :disabled="!!done" />
 

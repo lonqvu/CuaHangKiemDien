@@ -193,12 +193,16 @@ class SaleScenariosTest {
     private void customer(Customer c, String debt) { debts.setDebt(c.getId(), d(debt), "Dat lai no"); }
 
     @Test
-    void khachLe_traThieu_khongDungVaoCongNoAi() {
+    void khachLe_phaiTraDu_traThuaThiConLai0_khongDungVaoCongNoAi() {
         Customer c = customer("Khách quen", "700000");
-        Order o = pay(service.addItem(service.createDraft("thu").getId(), item(tonLanh, "4", 3, null, null)), null, "0", "1000000");
+        Order draft = service.addItem(service.createDraft("thu").getId(), item(tonLanh, "4", 3, null, null));
         // 4 x 3 x 1,08 = 12,96 x 95000 = 1231200
+        assertThrows(ApiException.class, () -> pay(draft, null, "0", "1000000"), "Khach le tra thieu -> khong chot");
+        assertEquals(Order.Status.DRAFT, service.get(draft.getId()).getStatus());
+        Order o = pay(draft, null, "0", "1300000"); // tra thua 68.800
         eq("1231200", o.getTotalPayable(), "Tong phai tra");
-        eq("231200", o.getDebtAfter(), "Con lai ghi tren hoa don");
+        eq("0", o.getDebtAfter(), "Con lai");
+        eq("1300000", o.getPaidAmount(), "Luu nguyen so khach dua");
         assertNull(o.getCustomerId());
         eq("700000", reload(c).getDebt(), "No khach khac khong doi");
     }

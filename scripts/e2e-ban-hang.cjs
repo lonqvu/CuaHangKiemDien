@@ -178,7 +178,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   const ed = (await draft()).items[0];
   check('dong sau sua = 4,5 x 95000', Number(ed.lineTotal) === exactLine('4.5', 0, '0', 95000).lineTotal, `${ed.lineTotal}`);
 
-  // ===== 5. Khach le: thieu ten bi chan; tra thieu khong vao cong no ai =====
+  // ===== 5. Khach le: thieu ten bi chan; PHAI TRA DU (khong ghi no) =====
   await page.keyboard.press('F9'); await page.waitForTimeout(200);
   check('F9 khi chua co ten khach le -> nhac, khong chot', (await draft()).status === 'DRAFT' && await page.isVisible('.el-message--warning'));
   await page.fill('#walkin-name', 'Khách vãng lai');
@@ -186,10 +186,17 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await typeIn('paid', String(total5 - 100000));
   const lanBefore = Number((await api('GET', '/customers?q=lan'))[0].debt);
   const id5 = await draftId();
+  const reason5 = await page.evaluate(() => document.querySelector('#block-reason')?.innerText);
+  check('khach le tra thieu: nut Chot khoa, bao con thieu 100.000 + goi y chon khach', await page.evaluate(() => document.querySelector('.cta').disabled)
+    && reason5?.includes('còn thiếu 100.000') && reason5?.includes('chọn hoặc tạo khách'), reason5);
+  check('khach le tra thieu: dong "Con thieu" thay "Con lai"', await page.evaluate(() => document.querySelector('.remain dt')?.innerText) === 'Còn thiếu');
+  check('khach le tra thieu: server cung tu choi', (await fetch(API + `/orders/${id5}/checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ customerName: 'Khách vãng lai', shippingFee: 0, paidAmount: total5 - 1 }) })).status === 400 && (await draft()).status === 'DRAFT');
+  await page.click('.quick >> text=Trả đủ'); await page.waitForTimeout(150);
   await page.click('.cta'); await page.waitForTimeout(800);
   const o5 = await api('GET', `/orders/${id5}`);
-  check('khach le: PAID, khong gan khach, con lai 100.000 tren hoa don', o5.status === 'PAID' && o5.customerId === null && Number(o5.debtAfter) === 100000, `${o5.debtAfter}`);
-  check('khach le tra thieu khong lam doi no khach khac', Number((await api('GET', '/customers?q=lan'))[0].debt) === lanBefore);
+  check('khach le tra du: PAID, khong gan khach, con lai 0', o5.status === 'PAID' && o5.customerId === null && Number(o5.debtAfter) === 0 && Number(o5.paidAmount) === total5, `${o5.debtAfter}`);
+  check('khach le khong lam doi no khach khac', Number((await api('GET', '/customers?q=lan'))[0].debt) === lanBefore);
 
   // ===== 6. Tra thua: tien thua tra lai, no khong am =====
   await page.click('.done-actions >> text=Hóa đơn mới'); await page.waitForTimeout(800);

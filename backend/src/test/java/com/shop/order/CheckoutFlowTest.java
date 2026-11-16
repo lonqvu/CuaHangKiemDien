@@ -91,15 +91,20 @@ class CheckoutFlowTest {
     }
 
     @Test
-    void walkInCustomer_needsName_canPayPartially_likePayDialog() {
+    void walkInCustomer_needsName_mustPayInFull() {
         Order o = draftWithItem(); // 32400
         assertThrows(ApiException.class, () -> service.checkout(o.getId(),
-                new OrderService.CheckoutRequest(null, " ", null, null, BigDecimal.ZERO, new BigDecimal("100"), null)));
-        assertEquals(Order.Status.DRAFT, service.get(o.getId()).getStatus()); // loi -> rollback, van la nhap
+                new OrderService.CheckoutRequest(null, " ", null, null, BigDecimal.ZERO, new BigDecimal("32400"), null)));
+        // tra thieu (ke ca thieu 1 dong, ke ca thieu phi ship) -> khong chot, van la hoa don nhap
+        assertThrows(ApiException.class, () -> service.checkout(o.getId(),
+                new OrderService.CheckoutRequest(null, "Anh Ba", null, null, BigDecimal.ZERO, new BigDecimal("32399"), null)));
+        assertThrows(ApiException.class, () -> service.checkout(o.getId(),
+                new OrderService.CheckoutRequest(null, "Anh Ba", null, null, new BigDecimal("10000"), new BigDecimal("32400"), null)));
+        assertEquals(Order.Status.DRAFT, service.get(o.getId()).getStatus());
 
         Order paid = service.checkout(o.getId(),
-                new OrderService.CheckoutRequest(null, "Anh Ba", null, null, BigDecimal.ZERO, new BigDecimal("30000"), null));
-        assertEquals(0, new BigDecimal("2400").compareTo(paid.getDebtAfter())); // ghi tren hoa don, khong vao cong no
+                new OrderService.CheckoutRequest(null, "Anh Ba", null, null, new BigDecimal("10000"), new BigDecimal("42400"), null));
+        assertEquals(0, BigDecimal.ZERO.compareTo(paid.getDebtAfter()));
         assertNull(paid.getCustomerId());
     }
 
