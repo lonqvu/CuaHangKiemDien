@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import http from '../api/http'
 import type { CategoryStat, CustomerStat, DayRevenue, MonthRevenue, TopCustomer, TopProduct } from '../api/types'
-import { isoDate, num, qty } from '../format'
+import { datePresets, num, qty } from '../format'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import BarChart from '../components/BarChart.vue'
@@ -13,14 +13,7 @@ import BarChart from '../components/BarChart.vue'
  * top 10 khach than thiet (theo so don / tong tien), bieu do doanh thu theo ngay hoac theo thang trong nam,
  * phan bo theo loai hang.
  */
-const now = new Date()
-const presets = [
-  { key: 'today', label: 'Hôm nay', range: () => [now, now] },
-  { key: '7d', label: '7 ngày', range: () => [new Date(now.getTime() - 6 * 864e5), now] },
-  { key: 'month', label: 'Tháng này', range: () => [new Date(now.getFullYear(), now.getMonth(), 1), now] },
-  { key: 'lastMonth', label: 'Tháng trước', range: () => [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)] },
-  { key: 'year', label: 'Năm nay', range: () => [new Date(now.getFullYear(), 0, 1), now] },
-]
+const presets = datePresets()
 const preset = ref('month')
 const range = ref<[string, string]>(['', ''])
 const rows = ref<DayRevenue[]>([])
@@ -37,15 +30,25 @@ const customerSort = ref<'orders' | 'amount'>('orders')
 const totals = computed(() => rows.value.reduce(
   (a, r) => ({ orders: a.orders + r.orders, revenue: a.revenue + Number(r.revenue), collected: a.collected + Number(r.collected) }),
   { orders: 0, revenue: 0, collected: 0 }))
-const chart = computed(() => chartMode.value === 'day'
-  ? rows.value.map((r) => ({ label: r.day.slice(8, 10) + '/' + r.day.slice(5, 7), value: Number(r.revenue) }))
-  : months.value.map((m) => ({ label: `T${m.month}`, value: Number(m.revenue) })))
+// Khoang dai (> 62 ngay, vd "Nam nay") thi tu gop theo thang: 300 cot ngay khong doc duoc
+const spanDays = computed(() => (range.value[0] ? (Date.parse(range.value[1]) - Date.parse(range.value[0])) / 864e5 + 1 : 0))
+const byMonthAuto = computed(() => chartMode.value === 'day' && spanDays.value > 62)
+const chart = computed(() => {
+  if (chartMode.value === 'month') return months.value.map((m) => ({ label: `T${m.month}`, value: Number(m.revenue) }))
+  if (!byMonthAuto.value) return rows.value.map((r) => ({ label: r.day.slice(8, 10) + '/' + r.day.slice(5, 7), value: Number(r.revenue) }))
+  const g = new Map<string, number>()
+  for (const r of rows.value) {
+    const k = `T${Number(r.day.slice(5, 7))}/${r.day.slice(2, 4)}`
+    g.set(k, (g.get(k) ?? 0) + Number(r.revenue))
+  }
+  return [...g].map(([label, value]) => ({ label, value }))
+})
+const granularity = computed(() => (chartMode.value === 'month' || byMonthAuto.value ? 'tháng' : 'ngày'))
 const params = () => ({ from: range.value[0], to: range.value[1] })
 
 function applyPreset(k: string) {
   const p = presets.find((x) => x.key === k)!
-  const [a, b] = p.range()
-  range.value = [isoDate(a), isoDate(b)]
+  range.value = [p.from, p.to]
   load()
 }
 
@@ -109,14 +112,14 @@ onMounted(async () => {
 
     <section class="panel panel-pad block">
       <div class="head">
-        <h2>Doanh thu <span class="muted">(triệu đồng)</span></h2>
+        <h2>Doanh thu</h2>
         <el-radio-group v-model="chartMode" size="small">
-          <el-radio-button value="day">Theo ngày (khoảng đã chọn)</el-radio-button>
+          <el-radio-button value="day">{{ byMonthAuto ? 'Khoảng đã chọn (gộp theo tháng)' : 'Theo ngày (khoảng đã chọn)' }}</el-radio-button>
           <el-radio-button value="month">Theo tháng (năm nay)</el-radio-button>
         </el-radio-group>
       </div>
-      <BarChart :data="chart" :caption="chartMode === 'day' ? 'Doanh thu theo ngày' : 'Doanh thu theo tháng'" />
-      <p class="muted small">Tiền thực thu trên các hóa đơn này: <b class="num tone-money">{{ num(totals.collected) }}</b> · ghi nợ: <b class="num tone-debt">{{ num(totals.revenue - totals.collected) }}</b></p>
+      <BarChart :data="chart" :granularity="granularity" :caption="`Doanh thu theo ${granularity}`" />
+      <p class="muted small">Tiền thực thu trên các hóa đơn này: <b class="num tone-money">{{ num(totals.collected) }}</b>. Số này gồm cả tiền khách trả nợ cũ khi mua hàng, nên có thể lớn hơn doanh thu.</p>
     </section>
 
     <div class="row">
@@ -173,7 +176,7 @@ onMounted(async () => {
 
 <style scoped>
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg); }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-lg); margin-bottom: var(--space-lg); }
 .block { margin-bottom: var(--space-lg); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-lg); }
 h2 { font-size: 16px; }
@@ -183,5 +186,5 @@ h2 .muted { font-weight: 400; font-size: 13px; }
 p.small { margin: var(--space-md) 0 0; }
 .share { display: inline-block; width: 110px; height: 8px; background: var(--steel-100); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
 .share span { display: block; height: 100%; background: var(--steel-800); }
-@media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: minmax(0, 1fr); } }
 </style>

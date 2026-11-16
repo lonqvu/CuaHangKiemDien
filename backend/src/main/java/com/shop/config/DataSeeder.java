@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 /** Tao tai khoan admin lan dau chay. DOI MAT KHAU ngay (ADMIN_PASSWORD) khi deploy that. */
 @Component
+@org.springframework.core.annotation.Order(1)
 public class DataSeeder implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
     private final AppUserRepository users;
@@ -30,7 +31,7 @@ public class DataSeeder implements CommandLineRunner {
         AppUser u = new AppUser();
         u.setUsername(username);
         u.setPasswordHash(encoder.encode(password));
-        u.setFullName("Quan tri");
+        u.setFullName("Quản trị");
         u.setRole("ADMIN");
         users.save(u);
         log.warn("Da tao tai khoan admin '{}'. Hay doi mat khau mac dinh!", username);

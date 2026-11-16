@@ -33,7 +33,7 @@ public class JasperReportService {
             try (InputStream in = new ClassPathResource("reports/" + n + ".jasper").getInputStream()) {
                 return (JasperReport) JRLoader.loadObject(in);
             } catch (IOException | JRException e) {
-                throw new IllegalStateException("Khong nap duoc mau in " + n, e);
+                throw new IllegalStateException("Không nạp được mẫu in " + n, e);
             }
         });
     }

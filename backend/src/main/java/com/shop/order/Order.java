@@ -17,7 +17,7 @@ public class Order {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(nullable = false, unique = true)
+    @Column(unique = true) // null khi con nhap; cap luc chot
     private String code;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

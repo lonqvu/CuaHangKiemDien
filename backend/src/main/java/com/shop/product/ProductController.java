@@ -1,5 +1,9 @@
 package com.shop.product;
 
+import com.shop.common.PageDto;
+import org.springframework.data.domain.Sort;
+import java.util.Map;
+
 import com.shop.common.ApiException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -21,7 +25,7 @@ public class ProductController {
         this.products = products; this.categories = categories;
     }
 
-    public record ProductRequest(@NotBlank String name, Long categoryId, @NotBlank(message = "Ban chua nhap don vi cho san pham") String unit,
+    public record ProductRequest(@NotBlank String name, Long categoryId, @NotBlank(message = "Bạn chưa nhập đơn vị cho sản phẩm") String unit,
                                  @NotNull @DecimalMin("0") BigDecimal price) {}
     public record ProductDto(Long id, String name, Long categoryId, String categoryName, String unit, BigDecimal price) {}
     public record CategoryRequest(@NotBlank String name) {}
@@ -32,10 +36,32 @@ public class ProductController {
                 c == null ? null : c.getName(), p.getUnit(), p.getPrice());
     }
 
+    private static final Map<String, String> SORTABLE = Map.of("name", "name", "price", "price", "unit", "unit");
+
+    /**
+     * Danh sach san pham co phan trang. active=false: san pham da ngung ban (de ban lai).
+     * categoryId: 0 moi loai, -1 chua phan loai.
+     */
     @GetMapping("/products")
     @Transactional(readOnly = true)
-    public List<ProductDto> list(@RequestParam(defaultValue = "") String q) {
-        return products.findByActiveTrueAndNameContainingIgnoreCaseOrderByName(q).stream().map(this::dto).toList();
+    public PageDto<ProductDto> list(@RequestParam(defaultValue = "") String q,
+                                    @RequestParam(defaultValue = "0") long categoryId,
+                                    @RequestParam(defaultValue = "true") boolean active,
+                                    @RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "20") int size,
+                                    @RequestParam(defaultValue = "") String sort) {
+        var p = products.page(PageDto.like(q), categoryId, active,
+                PageDto.pageable(page, size, sort, SORTABLE, Sort.by("name").and(Sort.by("id"))));
+        return PageDto.of(p, this::dto, null);
+    }
+
+    /** Ban lai san pham da ngung ban. */
+    @PostMapping("/products/{id}/restore")
+    @Transactional
+    public ProductDto restore(@PathVariable Long id) {
+        Product p = products.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm"));
+        p.setActive(true);
+        return dto(p);
     }
 
     @PostMapping("/products")
@@ -49,7 +75,7 @@ public class ProductController {
     @PutMapping("/products/{id}")
     @Transactional
     public ProductDto update(@PathVariable Long id, @Valid @RequestBody ProductRequest r) {
-        Product p = products.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay san pham"));
+        Product p = products.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm"));
         apply(p, r);
         return dto(p);
     }
@@ -58,7 +84,7 @@ public class ProductController {
     @DeleteMapping("/products/{id}")
     @Transactional
     public void delete(@PathVariable Long id) {
-        products.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay san pham")).setActive(false);
+        products.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm")).setActive(false);
     }
 
     private void apply(Product p, ProductRequest r) {
@@ -66,16 +92,22 @@ public class ProductController {
         p.setUnit(r.unit());
         p.setPrice(r.price());
         p.setCategory(r.categoryId() == null ? null : categories.findById(r.categoryId())
-                .orElseThrow(() -> ApiException.badRequest("Loai hang khong ton tai")));
+                .orElseThrow(() -> ApiException.badRequest("Loại hàng không tồn tại")));
     }
 
+    public record CategoryDto(Long id, String name, long productCount) {}
+
+    /** Loai hang kem so san pham dang ban, sap theo ten. */
     @GetMapping("/categories")
-    public List<Category> categories() { return categories.findAll(); }
+    public List<CategoryDto> categories() {
+        return products.categoryCounts().stream()
+                .map(r -> new CategoryDto((Long) r[0], (String) r[1], ((Number) r[2]).longValue())).toList();
+    }
 
     @PutMapping("/categories/{id}")
     @Transactional
     public Category updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequest r) {
-        Category c = categories.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay loai hang"));
+        Category c = categories.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy loại hàng"));
         c.setName(r.name().trim());
         return c;
     }
@@ -84,7 +116,7 @@ public class ProductController {
     @Transactional
     public void deleteCategory(@PathVariable Long id) {
         if (products.existsByCategoryIdAndActiveTrue(id))
-            throw ApiException.conflict("Loai hang dang co san pham, hay chuyen san pham sang loai khac truoc");
+            throw ApiException.conflict("Loại hàng đang có sản phẩm. Chuyển sản phẩm sang loại khác trước khi xóa.");
         products.clearCategory(id); // san pham da xoa mem van giu tham chieu -> bo tham chieu de xoa duoc
         categories.deleteById(id);
     }

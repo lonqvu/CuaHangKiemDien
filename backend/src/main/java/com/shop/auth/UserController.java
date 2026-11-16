@@ -35,7 +35,7 @@ public class UserController {
     }
 
     private AppUser find(Long id) {
-        return users.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay tai khoan"));
+        return users.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản"));
     }
 
     @GetMapping("/users")
@@ -45,7 +45,7 @@ public class UserController {
 
     @PostMapping("/users")
     public UserDto create(@Valid @RequestBody CreateUser r) {
-        if (users.findByUsername(r.username().trim()).isPresent()) throw ApiException.conflict("Ten dang nhap da ton tai");
+        if (users.findByUsername(r.username().trim()).isPresent()) throw ApiException.conflict("Tên đăng nhập đã tồn tại");
         AppUser u = new AppUser();
         u.setUsername(r.username().trim());
         u.setFullName(r.fullName().trim());
@@ -60,9 +60,9 @@ public class UserController {
         AppUser u = find(id);
         boolean losesAdmin = "ADMIN".equals(u.getRole()) && (!"ADMIN".equals(r.role()) || !r.active());
         if (losesAdmin && u.getUsername().equals(auth.getName()))
-            throw ApiException.badRequest("Khong the tu ha quyen hoac khoa chinh minh");
+            throw ApiException.badRequest("Không thể tự hạ quyền hoặc tự khóa tài khoản của mình");
         if (losesAdmin && users.countByRoleAndActiveTrue("ADMIN") <= 1)
-            throw ApiException.badRequest("Phai con it nhat 1 tai khoan quan tri");
+            throw ApiException.badRequest("Phải còn ít nhất 1 tài khoản quản trị đang dùng");
         u.setFullName(r.fullName().trim());
         u.setRole(r.role());
         u.setActive(r.active());
@@ -84,11 +84,11 @@ public class UserController {
     public void changePassword(@Valid @RequestBody ChangePassword r, Authentication auth) {
         String username = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())
                 ? auth.getName() : r.username();
-        if (username == null || username.isBlank()) throw ApiException.badRequest("Chua nhap ten dang nhap");
+        if (username == null || username.isBlank()) throw ApiException.badRequest("Chưa nhập tên đăng nhập");
         AppUser u = users.findByUsername(username.trim()).filter(AppUser::isActive)
-                .orElseThrow(() -> ApiException.badRequest("Ten dang nhap hoac mat khau hien tai khong dung"));
+                .orElseThrow(() -> ApiException.badRequest("Tên đăng nhập hoặc mật khẩu hiện tại không đúng"));
         if (!encoder.matches(r.oldPassword(), u.getPasswordHash()))
-            throw ApiException.badRequest("Ten dang nhap hoac mat khau hien tai khong dung");
+            throw ApiException.badRequest("Tên đăng nhập hoặc mật khẩu hiện tại không đúng");
         u.setPasswordHash(encoder.encode(r.newPassword()));
     }
 }

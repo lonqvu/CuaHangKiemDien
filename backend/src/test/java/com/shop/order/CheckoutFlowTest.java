@@ -48,6 +48,23 @@ class CheckoutFlowTest {
     }
 
     @Test
+    void draft_hasNoCode_untilCheckout() {
+        Order o = draftWithItem();
+        assertNull(o.getCode(), "Hoa don nhap chua co ma");
+        Order paid = service.checkout(o.getId(), new OrderService.CheckoutRequest(
+                null, "Khach le", null, null, null, new BigDecimal("40000"), null));
+        assertTrue(paid.getCode().matches("HD\\d{8}"), paid.getCode());
+    }
+
+    @Test
+    void checkout_withoutCustomerName_keepsDraftWithoutCode() {
+        Order o = draftWithItem();
+        assertThrows(com.shop.common.ApiException.class, () -> service.checkout(o.getId(),
+                new OrderService.CheckoutRequest(null, " ", null, null, null, BigDecimal.ZERO, null)));
+        assertNull(service.get(o.getId()).getCode());
+    }
+
+    @Test
     void checkout_creditCustomer_updatesDebtAndLedger() {
         Order o = draftWithItem(); // 3 x 10 x 1.08 x 1000 = 32400
         assertEquals(0, new BigDecimal("32400").compareTo(o.getItemsTotal()));

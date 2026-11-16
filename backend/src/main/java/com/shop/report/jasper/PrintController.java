@@ -31,7 +31,8 @@ public class PrintController {
     @GetMapping("/api/orders/{id}/invoice.pdf")
     public ResponseEntity<byte[]> invoice(@PathVariable Long id) {
         Order o = orders.get(id);
-        if (o.getItems().isEmpty()) throw ApiException.badRequest("Hoa don chua co mat hang");
+        if (o.getStatus() == Order.Status.DRAFT) throw ApiException.badRequest("Hóa đơn chưa chốt nên chưa in được");
+        if (o.getItems().isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có mặt hàng");
         BillReportData.Header h = new BillReportData.Header(o.getCode(), o.getCreatedAt(), o.getCustomerName(),
                 o.getCustomerAddress(), o.getCustomerPhone(), o.getPreviousDebt(), o.getItemsTotal(), o.getTotalPayable(),
                 o.getPaidAmount(), o.getDebtAfter(), o.getShippingFee(), o.getStaffName(), o.getNote());
@@ -44,7 +45,7 @@ public class PrintController {
     @GetMapping("/api/customers/{id}/payment-receipt.pdf")
     public ResponseEntity<byte[]> debtReceipt(@PathVariable Long id) {
         CustomerController.Receipt r = customers.receipt(id);
-        if (r.rows().isEmpty()) throw ApiException.badRequest("Khong co ban ghi thanh toan nao de xuat hoa don!");
+        if (r.rows().isEmpty()) throw ApiException.badRequest("Khách chưa có lần trả nợ nào trong kỳ nợ hiện tại để in biên lai");
         List<DebtReceiptData.Payment> pays = r.rows().stream()
                 .map(x -> new DebtReceiptData.Payment(x.date(), x.oldDebt(), x.amount(), x.remainingDebt())).toList();
         Double last = pays.get(pays.size() - 1).amount().doubleValue();

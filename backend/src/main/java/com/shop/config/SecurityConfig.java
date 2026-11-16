@@ -34,7 +34,8 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(a -> a
-                .requestMatchers("/api/auth/login", "/actuator/health").permitAll()
+                // /error phai mo: neu khong, moi loi 500 bi doi thanh 401 va frontend dang xuat nguoi dung
+                .requestMatchers("/api/auth/login", "/actuator/health", "/error").permitAll()
                 .requestMatchers("/api/auth/change-password").permitAll() // nhu app cu: doi tu man dang nhap
                 // Nhan vien: chi ban hang (xem san pham/khach, tao khach, lam hoa don)
                 .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/customers/**").authenticated()

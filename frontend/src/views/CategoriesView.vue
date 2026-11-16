@@ -3,21 +3,17 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Category, Product } from '../api/types'
+import type { Category } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
 
 // Thay man Data (danh muc san pham) cu
-const rows = ref<(Category & { count: number })[]>([])
+const rows = ref<Category[]>([])
 const newName = ref('')
 const editing = ref<number | null>(null)
 const editName = ref('')
 
-async function load() {
-  const [c, p] = await Promise.all([http.get<Category[]>('/categories'), http.get<Product[]>('/products')])
-  rows.value = c.data
-    .map((x) => ({ ...x, count: p.data.filter((pp) => pp.categoryId === x.id).length }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-}
+// Server tra ve so san pham dang ban cua tung loai (khong tai ca danh sach san pham ve dem)
+async function load() { rows.value = (await http.get<Category[]>('/categories')).data }
 
 async function add() {
   if (!newName.value.trim()) return
@@ -37,7 +33,7 @@ async function saveEdit(c: Category) {
   load()
 }
 
-async function remove(c: Category & { count: number }) {
+async function remove(c: Category) {
   await ElMessageBox.confirm(`Xóa loại "${c.name}"?`, 'Xóa loại hàng', { confirmButtonText: 'Xóa', cancelButtonText: 'Không', type: 'warning' })
   await http.delete(`/categories/${c.id}`)
   ElMessage.success('Đã xóa')
@@ -68,11 +64,11 @@ onMounted(load)
             <span v-else>{{ row.name }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Số sản phẩm" width="130" align="right"><template #default="{ row }"><span class="num">{{ row.count }}</span></template></el-table-column>
+        <el-table-column label="Số sản phẩm" width="130" align="right"><template #default="{ row }"><span class="num">{{ row.productCount }}</span></template></el-table-column>
         <el-table-column width="140" align="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="startEdit(row)">Đổi tên</el-button>
-            <el-button link type="danger" :disabled="row.count > 0" :title="row.count > 0 ? 'Còn sản phẩm thuộc loại này' : ''" @click="remove(row)">Xóa</el-button>
+            <el-button link type="danger" :disabled="row.productCount > 0" :title="row.productCount > 0 ? 'Còn sản phẩm đang bán thuộc loại này' : ''" @click="remove(row)">Xóa</el-button>
           </template>
         </el-table-column>
       </el-table>

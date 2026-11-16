@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Customer, Order, OrderItem, Product } from '../api/types'
+import type { Customer, Order, OrderItem, Page, Product } from '../api/types'
 import { debounce, money, num, previewLine, qty } from '../format'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
+const route = useRoute()
+const router = useRouter()
 
 const DRAFT_KEY = 'sale.draftId'
 
@@ -20,6 +23,7 @@ const customers = ref<Customer[]>([])
 const customer = ref<Customer | null>(null)
 const busy = ref(false)
 const productSelect = ref()
+const customerSelect = ref()
 
 const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 const pay = reactive({ shippingFee: 0, paidAmount: 0, note: '', walkInName: '', walkInPhone: '' })
@@ -42,11 +46,17 @@ async function startNew() {
 }
 
 async function resume() {
-  const id = sessionStorage.getItem(DRAFT_KEY)
+  const fromLink = route.query.draft ? String(route.query.draft) : null
+  if (fromLink) router.replace({ query: {} })
+  const id = fromLink ?? sessionStorage.getItem(DRAFT_KEY)
   if (id) {
     try {
       const { data } = await http.get<Order>(`/orders/${id}`)
-      if (data.status === 'DRAFT') return (order.value = data)
+      if (data.status === 'DRAFT') {
+        sessionStorage.setItem(DRAFT_KEY, String(data.id))
+        return (order.value = data)
+      }
+      if (fromLink) ElMessage.info('Hóa đơn này đã chốt hoặc đã xóa, mở hóa đơn mới.')
     } catch { /* hoa don khong con -> tao moi */ }
   }
   await startNew()
@@ -64,7 +74,7 @@ async function newInvoice() {
 
 // ---------- them dong hang (ProductDialog cu) ----------
 const searchProducts = debounce(async (q: string) => {
-  products.value = (await http.get<Product[]>('/products', { params: { q } })).data
+  products.value = (await http.get<Page<Product>>('/products', { params: { q, size: 30 } })).data.items
 })
 
 function onPickProduct() {
@@ -120,7 +130,7 @@ async function removeItem(i: OrderItem) {
 
 // ---------- khach hang (CustomerDialog cu) ----------
 const searchCustomers = debounce(async (q: string) => {
-  customers.value = (await http.get<Customer[]>('/customers', { params: { q } })).data
+  customers.value = (await http.get<Page<Customer>>('/customers', { params: { q, size: 20 } })).data.items
 })
 
 const newCus = reactive({ open: false, name: '', phone: '', address: '' })
@@ -182,7 +192,31 @@ async function checkout() {
 // In hoa don bang mau Jasper cu (Bill.jrxml) - backend tra ve PDF
 function print() { openPdf(`/orders/${done.value!.id}/invoice.pdf`) }
 
+// Phim tat o quay: F2 chon san pham, F4 chon khach, F9 chot hoa don
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'F2') { e.preventDefault(); if (!done.value) productSelect.value?.focus() }
+  else if (e.key === 'F4') { e.preventDefault(); if (!done.value) customerSelect.value?.focus() }
+  else if (e.key === 'F9') {
+    e.preventDefault()
+    if (!done.value && order.value?.items.length && !needName.value && !busy.value) checkout()
+    else if (needName.value && order.value?.items.length) ElMessage.warning('Chọn khách hàng (F4) hoặc nhập tên khách lẻ trước khi chốt')
+  }
+}
+
+// Dong tab / tai lai khi hoa don nhap con trong -> xoa luon (keepalive de request van gui khi trang dong)
+function dropEmptyDraft() {
+  if (order.value && !done.value && order.value.items.length === 0) {
+    fetch(`/api/orders/${order.value.id}`, { method: 'DELETE', keepalive: true, headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(() => {})
+    sessionStorage.removeItem(DRAFT_KEY)
+  }
+}
+
+const ticketEl = ref<HTMLElement>()
+function goToTicket() { ticketEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+
 onMounted(async () => {
+  window.addEventListener('keydown', onKey)
+  window.addEventListener('pagehide', dropEmptyDraft)
   await resume()
   searchProducts('')
   searchCustomers('')
@@ -190,10 +224,9 @@ onMounted(async () => {
 
 // Roi man hinh khi hoa don nhap con trong thi xoa luon
 onBeforeUnmount(() => {
-  if (order.value && !done.value && order.value.items.length === 0) {
-    http.delete(`/orders/${order.value.id}`).catch(() => {})
-    sessionStorage.removeItem(DRAFT_KEY)
-  }
+  window.removeEventListener('keydown', onKey)
+  window.removeEventListener('pagehide', dropEmptyDraft)
+  dropEmptyDraft()
 })
 </script>
 
@@ -204,14 +237,17 @@ onBeforeUnmount(() => {
       <header class="head">
         <div>
           <h1>Bán hàng</h1>
-          <p class="muted">Hóa đơn <span class="mono">{{ order.code }}</span> · {{ done ? 'đã chốt' : 'đang nhập' }}</p>
+          <p class="muted">
+            <template v-if="done">Đã chốt hóa đơn <span class="mono">{{ done.code }}</span></template>
+            <template v-else>Hóa đơn mới, đang nhập. Mã hóa đơn được cấp khi chốt.</template>
+          </p>
         </div>
         <el-button :icon="DocumentAdd" @click="newInvoice">Hóa đơn mới</el-button>
       </header>
 
       <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="addItem">
         <div class="f product">
-          <label for="pick-product">Sản phẩm</label>
+          <label for="pick-product">Sản phẩm <kbd>F2</kbd></label>
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
                      placeholder="Gõ tên để tìm" :disabled="!!done" @change="onPickProduct">
             <el-option v-for="p in products" :key="p.id" :value="p.id" :label="p.name">
@@ -248,18 +284,22 @@ onBeforeUnmount(() => {
       </form>
 
       <div class="panel">
-        <el-table :data="order.items" empty-text="Chưa có mặt hàng. Chọn sản phẩm ở trên rồi bấm Thêm (hoặc Enter)." style="width: 100%">
-          <el-table-column type="index" label="#" width="48" />
-          <el-table-column label="Mặt hàng" min-width="180">
-            <template #default="{ row }">{{ row.productName }}<span v-if="row.unit" class="muted"> · {{ row.unit }}</span></template>
+        <el-table :data="order.items" empty-text="Chưa có mặt hàng. Chọn sản phẩm ở trên (F2) rồi bấm Thêm hoặc Enter." style="width: 100%">
+          <el-table-column type="index" label="#" width="40" />
+          <el-table-column label="Mặt hàng" min-width="150">
+            <template #default="{ row }">{{ row.productName }}</template>
           </el-table-column>
-          <el-table-column label="SL" width="80" align="right"><template #default="{ row }"><span class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
-          <el-table-column label="Tấm" width="64" align="right"><template #default="{ row }"><span class="num">{{ row.sheets || '' }}</span></template></el-table-column>
-          <el-table-column label="Hệ số" width="72" align="right"><template #default="{ row }"><span class="num">{{ Number(row.factor) ? qty(row.factor) : '' }}</span></template></el-table-column>
-          <el-table-column label="Tổng SL" width="90" align="right"><template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span></template></el-table-column>
-          <el-table-column label="Đơn giá" width="110" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" width="128" align="right"><template #default="{ row }"><b class="num">{{ num(row.lineTotal) }}</b></template></el-table-column>
-          <el-table-column v-if="!done" width="96" align="center">
+          <el-table-column label="SL × tấm × hệ số" width="150" align="right">
+            <template #default="{ row }">
+              <span class="num">{{ qty(row.quantity) }}<template v-if="row.sheets"> × {{ row.sheets }} × {{ qty(row.factor) }}</template></span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Tổng SL" width="96" align="right">
+            <template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span> <span class="muted small">{{ row.unit }}</span></template>
+          </el-table-column>
+          <el-table-column label="Đơn giá" width="100" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
+          <el-table-column label="Thành tiền" width="116" align="right"><template #default="{ row }"><b class="num">{{ num(row.lineTotal) }}</b></template></el-table-column>
+          <el-table-column v-if="!done" width="84" align="center">
             <template #default="{ row }">
               <el-button text :icon="Edit" :aria-label="`Sửa ${row.productName}`" @click="openEdit(row)" />
               <el-button text type="danger" :icon="Delete" :aria-label="`Xóa ${row.productName}`" @click="removeItem(row)" />
@@ -270,13 +310,13 @@ onBeforeUnmount(() => {
     </section>
 
     <!-- cot phai: phieu thanh toan -->
-    <aside class="ticket panel" aria-label="Thanh toán">
+    <aside ref="ticketEl" class="ticket panel" aria-label="Thanh toán">
       <div class="block">
         <div class="row-between">
-          <label class="lbl" for="cus">Khách hàng</label>
+          <label class="lbl" for="cus">Khách hàng <kbd>F4</kbd></label>
           <el-button v-if="!done" link type="primary" @click="newCus.open = true">+ Khách mới</el-button>
         </div>
-        <el-select id="cus" v-model="customer" value-key="id" filterable remote clearable :remote-method="searchCustomers"
+        <el-select id="cus" ref="customerSelect" v-model="customer" value-key="id" filterable remote clearable :remote-method="searchCustomers"
                    placeholder="Khách lẻ (không ghi nợ)" :disabled="!!done" style="width: 100%">
           <el-option v-for="c in customers" :key="c.id" :value="c" :label="c.name">
             <div class="opt"><span>{{ c.name }} <span class="muted">{{ c.phone }}</span></span>
@@ -322,8 +362,9 @@ onBeforeUnmount(() => {
 
       <template v-if="!done">
         <el-button type="success" size="large" class="cta" :loading="busy" :disabled="!order.items.length || needName" @click="checkout">
-          Chốt hóa đơn · {{ money(pay.paidAmount || 0) }}
+          Chốt hóa đơn · thu {{ money(pay.paidAmount || 0) }} <kbd class="on-dark">F9</kbd>
         </el-button>
+        <p v-if="needName && order.items.length" class="hint">Chọn khách hàng hoặc nhập tên khách lẻ để chốt.</p>
       </template>
       <div v-else class="done">
         <p><b>Đã chốt {{ done.code }}.</b> <span v-if="Number(done.debtAfter) > 0">Khách còn nợ <b class="num tone-debt">{{ money(done.debtAfter) }}</b>.</span></p>
@@ -333,6 +374,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </aside>
+
+    <div v-if="!done" class="paybar">
+      <div><span class="muted">Tổng phải trả</span> <b class="num">{{ money(payable) }}</b></div>
+      <el-button type="success" :disabled="!order.items.length" @click="goToTicket">Thanh toán</el-button>
+    </div>
 
     <el-dialog v-model="edit.open" :title="`Sửa: ${edit.name}`" width="440px">
       <el-form label-position="top" class="edit-grid">
@@ -366,13 +412,24 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.sale { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-xl); align-items: start; }
-.left { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
+.sale { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 30vw, 360px); gap: var(--space-xl); align-items: start; }
+/* cot trai tu co gian theo be rong that cua no (container query), khong theo man hinh */
+.left { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; container-type: inline-size; }
 .head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-lg); flex-wrap: wrap; }
 .head h1 { font-size: 22px; }
 .head p { margin: 2px 0 0; font-size: 14px; }
 
-.entry { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(4, minmax(112px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
+.entry { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(4, minmax(100px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
+@container (max-width: 700px) {
+  .entry { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .f.product { grid-column: 1 / -1; }
+  .calc { grid-column: 1 / -1 !important; }
+  .add { grid-column: 1 / -1 !important; }
+}
+@container (max-width: 420px) { .entry { grid-template-columns: 1fr 1fr; } }
+kbd { font-family: var(--font-mono); font-size: 11px; font-weight: 500; padding: 0 5px; border: 1px solid var(--steel-200); border-radius: 4px; color: var(--ink-muted); background: var(--steel-50); margin-left: 4px; }
+kbd.on-dark { color: inherit; background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.35); }
+.paybar { display: none; }
 .entry.disabled { opacity: 0.6; }
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
@@ -383,6 +440,7 @@ onBeforeUnmount(() => {
 .calc .small { font-size: 12px; }
 .calc .sep { width: 1px; height: 14px; background: var(--steel-200); margin: 0 var(--space-sm); }
 .add { grid-column: -3 / -1; }
+.small { font-size: 12px; }
 .opt { display: flex; justify-content: space-between; gap: var(--space-lg); }
 
 /* phieu: diem nhan duy nhat cua man - nhu to hoa don xe rang cua */
@@ -412,12 +470,16 @@ onBeforeUnmount(() => {
 .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-lg); }
 .edit-grid :deep(.el-input-number) { width: 100%; }
 
-@media (max-width: 1180px) {
-  .sale { grid-template-columns: 1fr; }
-  .ticket { position: static; }
-}
-@media (max-width: 720px) {
-  .entry { grid-template-columns: 1fr 1fr; }
-  .f.product, .calc, .add { grid-column: 1 / -1; }
+/* Duoi 900px: 1 cot, phieu thanh toan xuong duoi + thanh "Tong phai tra" dinh day man de khong phai cuon tim nut */
+@media (max-width: 900px) {
+  .sale { grid-template-columns: 1fr; padding-bottom: 72px; }
+  .ticket { position: static; scroll-margin-top: 64px; }
+  .paybar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; align-items: center; justify-content: space-between;
+    gap: var(--space-lg); padding: var(--space-md) var(--space-xl); background: var(--surface); border-top: 1px solid var(--steel-200);
+    box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+  }
+  .paybar b { font-size: 18px; margin-left: var(--space-sm); }
+  .paybar .el-button { min-height: 44px; }
 }
 </style>

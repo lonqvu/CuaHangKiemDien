@@ -1,11 +1,16 @@
 package com.shop.order;
 
+import com.shop.common.PageDto;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -38,11 +43,43 @@ public class OrderController {
         return dto(service.createDraft(name));
     }
 
+    /** Dong trong danh sach: khong kem dong hang (nhe, khong N+1). Chi tiet: GET /{id}. */
+    public record OrderRow(Long id, String code, Order.Status status, Long customerId, String customerName,
+                           String customerPhone, String staffName, BigDecimal itemsTotal, BigDecimal totalPayable,
+                           BigDecimal paidAmount, BigDecimal debtAfter, LocalDateTime createdAt, LocalDateTime checkedOutAt) {}
+
+    private static OrderRow row(Order o) {
+        return new OrderRow(o.getId(), o.getCode(), o.getStatus(), o.getCustomerId(), o.getCustomerName(), o.getCustomerPhone(),
+                o.getStaffName(), o.getItemsTotal(), o.getTotalPayable(), o.getPaidAmount(), o.getDebtAfter(),
+                o.getCreatedAt(), o.getCheckedOutAt());
+    }
+
+    private static final Map<String, String> SORTABLE = Map.of(
+            "code", "code", "customerName", "customerName", "itemsTotal", "itemsTotal", "totalPayable", "totalPayable",
+            "paidAmount", "paidAmount", "debtAfter", "debtAfter", "date", "checkedOutAt", "createdAt", "createdAt");
+
+    /**
+     * Danh sach hoa don co phan trang. status: PAID | CANCELLED | DRAFT, nhieu gia tri cach nhau dau phay
+     * (mac dinh PAID,CANCELLED). summary: count, itemsTotal, collected, debtAfter, countByStatus.
+     */
     @GetMapping
-    public List<OrderDto> list(@RequestParam(defaultValue = "PAID") Order.Status status,
-                               @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate from,
-                               @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
-        return service.list(status, from, to).stream().map(this::dto).toList();
+    public PageDto<OrderRow> list(@RequestParam(defaultValue = "PAID,CANCELLED") List<Order.Status> status,
+                                  @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                  @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                  @RequestParam(defaultValue = "") String q,
+                                  @RequestParam(required = false) Long customerId,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "20") int size,
+                                  @RequestParam(defaultValue = "") String sort) {
+        boolean drafts = status.size() == 1 && status.get(0) == Order.Status.DRAFT;
+        Sort fallback = drafts ? Sort.by(Sort.Direction.DESC, "createdAt", "id") : Sort.by(Sort.Direction.DESC, "checkedOutAt", "id");
+        Map<String, String> allowed = new java.util.HashMap<>(SORTABLE);
+        if (drafts) allowed.put("date", "createdAt");
+        var filter = new OrderService.Filter(status, from, to, q, customerId);
+        var p = service.page(filter, PageDto.pageable(page, size, sort, allowed, fallback));
+        var s = service.summary(filter);
+        return PageDto.of(p, OrderController::row, Map.of("count", s.count(), "itemsTotal", s.itemsTotal(),
+                "collected", s.collected(), "debtAfter", s.debtAfter(), "countByStatus", s.countByStatus()));
     }
 
     @GetMapping("/{id}")
