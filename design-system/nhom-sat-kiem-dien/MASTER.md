@@ -259,3 +259,5 @@ Quy tắc dùng chung:
 - Lưới chứa bảng dùng `minmax(0, 1fr)` (không dùng `1fr` trần) để bảng cuộn bên trong, không đẩy tràn trang.
 - **Không dùng `el-input-number`** (nó hiểu "4,2" thành 42). Mọi ô nhập số dùng `components/NumberField.vue`: `kind="decimal"` cho số lượng/hệ số (dấu phẩy hay chấm đều là dấu thập phân), `kind="integer"` cho tiền/số tấm (bỏ mọi dấu ngăn cách).
 - Ô tìm sản phẩm/khách: tìm không dấu, theo từng từ, không cần đúng thứ tự (backend `TextSearch`); Enter chọn kết quả đầu rồi nhảy sang ô tiếp theo; tô đậm phần khớp; khi không thấy thì nói rõ và đưa lối tạo mới.
+- Màn Bán hàng: thêm dòng xong giữ sản phẩm + đơn giá, Số lượng về 0 (nhập tiếp đoạn khác cùng mặt hàng; Enter lỡ tay không tạo dòng trùng); Esc bỏ sản phẩm. Phím tắt F2 (tìm SP), F4 (khách), F9 (tới nút Chốt, Enter để chốt).
+- Không cho thêm dòng Tổng SL = 0 (báo đỏ ngay dưới ô, khóa nút Thêm); đơn giá 0 thì hỏi xác nhận.

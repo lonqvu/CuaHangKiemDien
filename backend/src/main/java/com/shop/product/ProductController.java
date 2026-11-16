@@ -2,6 +2,8 @@ package com.shop.product;
 
 import com.shop.common.ApiException;
 import com.shop.common.TextSearch;
+import com.shop.order.Order;
+import com.shop.order.OrderRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -10,16 +12,19 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
 public class ProductController {
     private final ProductRepository products;
     private final CategoryRepository categories;
+    private final OrderRepository orders;
 
-    public ProductController(ProductRepository products, CategoryRepository categories) {
-        this.products = products; this.categories = categories;
+    public ProductController(ProductRepository products, CategoryRepository categories, OrderRepository orders) {
+        this.products = products; this.categories = categories; this.orders = orders;
     }
 
     public record ProductRequest(@NotBlank String name, Long categoryId, @NotBlank(message = "Ban chua nhap don vi cho san pham") String unit,
@@ -36,9 +41,13 @@ public class ProductController {
     @GetMapping("/products")
     @Transactional(readOnly = true)
     public List<ProductDto> list(@RequestParam(defaultValue = "") String q) {
-        // khong dau, theo tu, khong can dung thu tu; tim ca theo ten loai hang ("nhom" -> moi mat hang loai Nhôm)
-        return TextSearch.filter(products.findByActiveTrueOrderByName(), q,
-                p -> new String[]{p.getName(), p.getCategory() == null ? null : p.getCategory().getName()})
+        // khong dau, theo tu, khong can dung thu tu; tim ca theo ten loai hang ("nhom" -> moi mat hang loai Nhôm).
+        // Xep hang: khop nguyen tu > dau tu > giua tu, roi mat hang ban nhieu len truoc (Enter chon ket qua dau).
+        Map<Long, Long> sold = new HashMap<>();
+        for (Object[] r : orders.countLinesByProduct(Order.Status.PAID)) sold.put((Long) r[0], (Long) r[1]);
+        return TextSearch.rank(products.findByActiveTrueOrderByName(), q,
+                        p -> new String[]{p.getName(), p.getCategory() == null ? null : p.getCategory().getName()},
+                        p -> sold.getOrDefault(p.getId(), 0L))
                 .stream().map(this::dto).toList();
     }
 

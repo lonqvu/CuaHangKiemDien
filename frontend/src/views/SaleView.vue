@@ -22,6 +22,8 @@ const customer = ref<Customer | null>(null)
 const busy = ref(false)
 const loadError = ref(false)
 const productSelect = ref()
+const customerSelect = ref()
+const ctaButton = ref()
 const qtyField = ref()
 
 const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
@@ -30,7 +32,11 @@ const pay = reactive({ shippingFee: 0, paidAmount: 0, note: '', walkInName: '', 
 const picked = computed(() => products.value.find((p) => p.id === line.productId) ?? null)
 
 // App cu: go so tam khac 0 thi he so tu dien 1.08 (ProductDialog); man sua dong (ModifyProduct) dien 1
-watch(() => line.sheets, (v, old) => { if (v && v !== old) line.factor = 1.08 })
+// Xoa so tam ve 0 thi he so cung ve 0: neu khong, cong thuc cu (so tam 0, he so != 0) cho Tong SL = 0 -> dong 0 d
+watch(() => line.sheets, (v, old) => {
+  if (v && v !== old) line.factor = 1.08
+  else if (!v && old) line.factor = 0
+})
 const preview = computed(() => previewLine(line.quantity || 0, line.sheets || 0, line.factor || 0, line.unitPrice || 0))
 
 // ---------- hoa don nhap ----------
@@ -70,10 +76,22 @@ async function newInvoice() {
 const productQuery = ref('')
 const productLoading = ref(false)
 let productSeq = 0
+// Go nhanh roi Enter truoc khi ket qua ve: nho lai, ket qua (cua dung cau vua go) ve thi chon luon ket qua dau.
+// Khong chon tu danh sach cu -> khong bao gio chon nham theo cau tim truoc.
+let enterPending = false
 const fetchProducts = debounce(async (q: string, seq: number) => {
   try {
     const data = (await http.get<Product[]>('/products', { params: { q } })).data
-    if (seq === productSeq) products.value = data
+    if (seq !== productSeq) return
+    products.value = data
+    if (enterPending) {
+      enterPending = false
+      if (data.length) {
+        line.productId = data[0].id
+        productSelect.value?.blur()
+        await onPickProduct()
+      }
+    }
   } finally {
     if (seq === productSeq) productLoading.value = false
   }
@@ -82,6 +100,9 @@ function searchProducts(q: string) {
   productQuery.value = q
   productLoading.value = true
   fetchProducts(q, ++productSeq)
+}
+function onProductEnter() {
+  if (productLoading.value) enterPending = true
 }
 
 // Chon xong (Enter chon luon ket qua dau) -> nhay sang So luong, boi den san de go de
@@ -123,26 +144,70 @@ function resetLine() {
   Object.assign(line, { productId: null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 }
 
+// Ly do khong them duoc dong dang nhap (hien ngay duoi o nhap, khong cho bam Them)
+const lineProblem = computed(() => {
+  if (!line.productId || !(line.quantity > 0)) return '' // chua nhap SL: khong bao do, bam Them se nhac
+  if (preview.value.totalQuantity === 0)
+    return line.sheets ? 'Tổng SL bằng 0, kiểm tra lại hệ số.' : 'Số tấm đang là 0 nhưng hệ số khác 0 nên Tổng SL = 0. Xóa hệ số hoặc nhập số tấm.'
+  return ''
+})
+
 async function addItem() {
-  if (!order.value) return
+  if (!order.value || busy.value) return // chan bam Enter 2 lan khi dang gui
   if (!line.productId) return ElMessage.warning('Chọn sản phẩm trước')
-  if (!(line.quantity > 0)) return ElMessage.warning('Số lượng phải lớn hơn 0')
+  if (!(line.quantity > 0)) {
+    qtyField.value?.focus()
+    return ElMessage.warning('Nhập số lượng lớn hơn 0')
+  }
+  if (lineProblem.value) return ElMessage.warning(lineProblem.value)
+  if (!(line.unitPrice > 0)) {
+    const ok = await ElMessageBox.confirm(`Đơn giá đang là 0 ₫, dòng này sẽ thành 0 ₫. Vẫn thêm?`, 'Đơn giá 0 ₫', {
+      confirmButtonText: 'Vẫn thêm', cancelButtonText: 'Sửa đơn giá', type: 'warning',
+    }).then(() => true, () => false)
+    if (!ok) return document.getElementById('p')?.focus()
+  }
   busy.value = true
   try {
     order.value = (await http.post<Order>(`/orders/${order.value.id}/items`, { ...line })).data
-    resetLine()
+    // Giu san pham + don gia de nhap tiep doan khac cung mat hang (ton: 4,7 m, 4,5 m, 3 m...).
+    // So luong ve 0 de lo bam Enter them lan nua khong tao dong trung.
+    Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
     await nextTick()
-    productSelect.value?.focus()
+    qtyField.value?.focus()
   } finally {
     busy.value = false
   }
 }
 
+// Esc o khung nhap: bo san pham dang giu, quay ve o tim
+function clearLine() {
+  resetLine()
+  nextTick(() => productSelect.value?.focus())
+}
+
+// Phim tat: F2 tim san pham, F4 chon khach, F9 toi nut Chot (bam Enter de chot - 2 buoc cho chac)
+function onKey(e: KeyboardEvent) {
+  if (done.value || edit.open || newCus.open || newProd.open) return
+  if (e.key === 'F2') { e.preventDefault(); productSelect.value?.focus() }
+  else if (e.key === 'F4') { e.preventDefault(); customerSelect.value?.focus() }
+  else if (e.key === 'F9') {
+    e.preventDefault()
+    if (blockReason.value) ElMessage.warning(blockReason.value)
+    else ctaButton.value?.ref?.focus()
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
 // ---------- sua dong hang (ModifyProduct cu) ----------
 const edit = reactive({ open: false, id: 0, name: '', productId: 0, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 const editPreview = computed(() => previewLine(edit.quantity || 0, edit.sheets || 0, edit.factor || 0, edit.unitPrice || 0))
 let loadingEdit = false
-watch(() => edit.sheets, (v, old) => { if (!loadingEdit && edit.open && v && v !== old) edit.factor = 1 })
+watch(() => edit.sheets, (v, old) => {
+  if (loadingEdit || !edit.open) return
+  if (v && v !== old) edit.factor = 1
+  else if (!v && old) edit.factor = 0
+})
 
 function openEdit(i: OrderItem) {
   loadingEdit = true
@@ -213,7 +278,7 @@ function payAll() { pay.paidAmount = payable.value }
 function payGoodsOnly() { pay.paidAmount = itemsTotal.value + Number(pay.shippingFee || 0) }
 
 async function checkout() {
-  if (!order.value?.items.length) return
+  if (!order.value?.items.length || busy.value) return
   if (needName.value) return ElMessage.warning('Vui lòng chọn khách hàng hoặc nhập tên khách lẻ')
   busy.value = true
   try {
@@ -273,11 +338,11 @@ onBeforeUnmount(() => {
         <el-button :icon="DocumentAdd" @click="newInvoice">Hóa đơn mới</el-button>
       </header>
 
-      <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="addItem">
-        <div class="f product">
-          <label for="pick-product">Sản phẩm</label>
+      <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="addItem" @keydown.esc="clearLine">
+        <div class="f product" @keydown.enter.capture="onProductEnter">
+          <label for="pick-product">Sản phẩm <kbd>F2</kbd></label>
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
-                     default-first-option :loading="productLoading" placeholder="Gõ tên, không cần dấu (vd: ton 0,4)"
+                     default-first-option :debounce="0" :loading="productLoading" placeholder="Gõ tên, không cần dấu (vd: ton 0,4)"
                      :disabled="!!done" popper-class="product-popper" @change="onPickProduct">
             <el-option v-for="p in products" :key="p.id" :value="p.id" :label="p.name">
               <div class="opt">
@@ -327,8 +392,10 @@ onBeforeUnmount(() => {
           <span class="sep" />
           <span class="muted">Thành tiền</span>
           <b class="num">{{ money(preview.lineTotal) }}</b>
+          <span v-if="lineProblem" class="line-problem" role="alert">{{ lineProblem }}</span>
+          <span v-else-if="line.productId && order.items.length" class="muted small keep-hint">Esc: chọn sản phẩm khác</span>
         </div>
-        <el-button type="primary" native-type="submit" :icon="Plus" :loading="busy" :disabled="!!done" class="add">Thêm vào hóa đơn</el-button>
+        <el-button type="primary" native-type="submit" :icon="Plus" :loading="busy" :disabled="!!done || !!lineProblem" class="add">Thêm vào hóa đơn</el-button>
       </form>
 
       <div class="panel">
@@ -362,10 +429,10 @@ onBeforeUnmount(() => {
     <aside class="ticket panel" aria-label="Thanh toán">
       <div class="block">
         <div class="row-between">
-          <label class="lbl" for="cus">Khách hàng</label>
+          <label class="lbl" for="cus">Khách hàng <kbd>F4</kbd></label>
           <el-button v-if="!done" link type="primary" :icon="Plus" @click="newCus.open = true">Khách mới</el-button>
         </div>
-        <el-select id="cus" v-model="customer" value-key="id" filterable remote clearable :remote-method="searchCustomers"
+        <el-select id="cus" ref="customerSelect" v-model="customer" value-key="id" filterable remote clearable default-first-option :remote-method="searchCustomers"
                    placeholder="Khách lẻ (không ghi nợ)" :disabled="!!done" style="width: 100%">
           <el-option v-for="c in customers" :key="c.id" :value="c" :label="c.name">
             <div class="opt"><span>{{ c.name }} <span class="muted">{{ c.phone }}</span></span>
@@ -423,9 +490,9 @@ onBeforeUnmount(() => {
 
       <template v-if="!done">
         <p v-if="blockReason" id="block-reason" class="hint warn" role="status">{{ blockReason }}</p>
-        <el-button type="success" size="large" class="cta" :loading="busy" :disabled="!!blockReason"
+        <el-button ref="ctaButton" type="success" size="large" class="cta" :loading="busy" :disabled="!!blockReason"
                    :aria-describedby="blockReason ? 'block-reason' : 'cta-note'" @click="checkout">
-          Chốt hóa đơn
+          Chốt hóa đơn <kbd class="on-dark">F9</kbd>
         </el-button>
         <p v-if="!blockReason" id="cta-note" class="cta-note">
           Thu <b class="num">{{ money(pay.paidAmount || 0) }}</b>
@@ -524,6 +591,10 @@ onBeforeUnmount(() => {
 .calc .small { font-size: 12px; }
 .calc .sep { width: 1px; height: 14px; background: var(--steel-200); margin: 0 var(--space-sm); }
 .add { grid-column: -3 / -1; }
+.line-problem { color: var(--danger); font-weight: 500; flex-basis: 100%; }
+.keep-hint { margin-left: auto; }
+kbd { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--ink-muted); border: 1px solid var(--steel-200); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; margin-left: 4px; background: var(--surface); }
+kbd.on-dark { color: inherit; background: transparent; border-color: rgba(255, 255, 255, 0.5); }
 .opt { display: flex; justify-content: space-between; gap: var(--space-lg); }
 .opt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .opt-name mark { background: #FEF3C7; color: inherit; font-weight: 600; border-radius: 2px; padding: 0 1px; }

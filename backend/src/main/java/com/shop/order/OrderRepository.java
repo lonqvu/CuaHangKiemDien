@@ -16,6 +16,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> search(@Param("status") Order.Status status, @Param("from") java.time.LocalDateTime from,
                        @Param("to") java.time.LocalDateTime to, org.springframework.data.domain.Pageable page);
 
+    /** So dong hang da ban (hoa don da chot) theo san pham: de xep mat hang ban nhieu len dau khi tim. */
+    @Query("select i.productId, count(i) from SalesOrder o join o.items i where o.status = :status group by i.productId")
+    List<Object[]> countLinesByProduct(@Param("status") Order.Status status);
+
     @Query(value = "select nextval('order_code_seq')", nativeQuery = true)
     long nextCode();
 }

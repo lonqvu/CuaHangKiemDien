@@ -54,6 +54,12 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - Khach le (khong chon khach) phai tra du tien, khong ghi no.
 - Bao cao: doanh thu theo ngay (tach **doanh thu** va **tien thuc thu**), top 10 san pham. Chi tinh hoa don da chot.
 
+## Test
+- Backend: `cd backend && mvn test` (gom ca kich ban ban hang, mo phong ngau nhien 300 thao tac kiem tra cong no, 419 case tinh tien).
+- Frontend: `cd frontend && npm test` (cung 419 case tinh tien voi backend + doc so `4,2` / `95.000`).
+- Bo case tinh tien dung chung: `backend/src/test/resources/line-cases.json`, sinh bang `python3 scripts/gen-line-cases.py` (ket qua tinh doc lap bang Decimal).
+- E2E man Ban hang tren backend that: `scripts/e2e-ban-hang.cjs` (xem huong dan dau file).
+
 ## In hoa don / bien lai (JasperReports cu)
 - Mau in: `backend/src/main/resources/reports/Bill.jrxml`, `ThanhToanNoReport.jrxml` (lay nguyen tu app cu), anh logo/QR o `reports/images/`.
 - Server nap ban da bien dich san `*.jasper` (JasperReports 5.5.0, giong app cu) -> `GET /api/orders/{id}/invoice.pdf`, `GET /api/customers/{id}/payment-receipt.pdf`.

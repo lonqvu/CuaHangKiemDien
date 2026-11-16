@@ -112,6 +112,12 @@ public class OrderService {
         BigDecimal price = r.unitPrice() != null ? r.unitPrice() : p.getPrice();
         if (price.signum() < 0) throw ApiException.badRequest("Don gia khong hop le");
         BigDecimal rawQty = LineCalculator.totalQuantity(r.quantity(), sheets, factor);
+        // Cong thuc cu: so tam = 0 ma he so != 0 -> Tong SL = 0 -> dong hang 0 d. Gan nhu luon la go nham (xoa so tam
+        // nhung he so 1,08 con lai) -> chan, de khong lot dong 0 d vao hoa don.
+        if (LineCalculator.storedQuantity(rawQty).signum() == 0)
+            throw ApiException.badRequest(sheets == 0 && factor.signum() != 0
+                    ? "Tong so luong bang 0: so tam = 0 nhung he so khac 0. Xoa he so hoac nhap so tam"
+                    : "Tong so luong bang 0");
 
         it.setProductId(p.getId());
         it.setProductName(p.getName());

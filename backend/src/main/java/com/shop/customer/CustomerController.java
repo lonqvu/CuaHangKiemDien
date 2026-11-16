@@ -37,7 +37,7 @@ public class CustomerController {
     @GetMapping
     public List<Customer> list(@RequestParam(defaultValue = "") String q) {
         // khong dau, theo tu: "tuan han" thay "Anh Tuấn thợ hàn"; so dien thoai tim theo doan so
-        return TextSearch.filter(customers.findByActiveTrueOrderByName(), q, c -> new String[]{c.getName(), c.getPhone()});
+        return TextSearch.rank(customers.findByActiveTrueOrderByName(), q, c -> new String[]{c.getName(), c.getPhone()}, c -> 0L);
     }
 
     /** App cu: khong cho trung ten khach; duoc nhap no ban dau khi tao. */
