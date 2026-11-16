@@ -198,6 +198,34 @@ public class OrderService {
         return o;
     }
 
+    /**
+     * Huy hoa don se lam gi voi cong no.
+     * @param debtReversal so no duoc tru (am = no tang lai, khi hoa don nay da tru bot no cu)
+     * @param refund       tien mat cua hang phai tra lai khach
+     */
+    public record CancelEffect(BigDecimal debtReversal, BigDecimal refund, BigDecimal debtBefore, BigDecimal debtAfter) {}
+
+    /**
+     * Hoa don nay lam no tang "net" = con no - no cu. Huy thi tru lai net, NHUNG no khong xuong duoi 0:
+     * neu khach da tra bot/tra het (thu no sau do) thi chi tru phan con no, phan con lai cua hang tra lai tien mat.
+     * Vd: mua chiu 570.000, tra het 570.000, roi huy -> no 0, tra lai khach 570.000.
+     */
+    @Transactional(readOnly = true)
+    public CancelEffect cancelPreview(Long orderId) {
+        Order o = find(orderId);
+        if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chi huy duoc hoa don da chot");
+        if (o.getCustomerId() == null) return new CancelEffect(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        Customer c = customers.findById(o.getCustomerId()).orElseThrow();
+        return effect(o, c);
+    }
+
+    private static CancelEffect effect(Order o, Customer c) {
+        BigDecimal net = o.getDebtAfter().subtract(o.getPreviousDebt());
+        BigDecimal reversal = net.signum() > 0 ? net.min(c.getDebt().max(BigDecimal.ZERO)) : net;
+        BigDecimal refund = net.subtract(reversal).max(BigDecimal.ZERO);
+        return new CancelEffect(reversal, refund, c.getDebt(), c.getDebt().subtract(reversal));
+    }
+
     /** Huy hoa don da chot: giu lai hoa don (CANCELLED) va hoan lai cong no. Khac app cu (xoa cung, no bi lech). */
     @Transactional
     public Order cancel(Long orderId) {
@@ -205,8 +233,12 @@ public class OrderService {
         if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chi huy duoc hoa don da chot");
         if (o.getCustomerId() != null) {
             Customer c = customers.findById(o.getCustomerId()).orElseThrow();
-            BigDecimal netDebtAdded = o.getDebtAfter().subtract(o.getPreviousDebt()); // hoa don nay lam no thay doi bao nhieu
-            debts.apply(c, DebtLedger.Type.ADJUST, netDebtAdded.negate(), o.getId(), "Huy hoa don " + o.getCode());
+            CancelEffect e = effect(o, c);
+            String note = "Huy hoa don " + o.getCode()
+                    + (e.refund().signum() > 0 ? "; tra lai khach " + e.refund().stripTrailingZeros().toPlainString() + " tien mat" : "");
+            if (e.debtReversal().signum() != 0 || e.refund().signum() > 0)
+                debts.apply(c, DebtLedger.Type.ADJUST, e.debtReversal().negate(), o.getId(), note);
+            o.setRefundAmount(e.refund());
         }
         o.setStatus(Order.Status.CANCELLED);
         o.getItems().size();

@@ -51,6 +51,8 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
   Chot hoa don = 1 transaction (hoa don + cong no + so cai), loi la rollback het.
   Khach hang co khoa lac quan (`@Version`) chong 2 may ghi de cong no.
 - **Huy hoa don** (chi ADMIN): giu hoa don o trang thai `CANCELLED` va hoan lai cong no (app cu xoa cung va lam lech no).
+  Neu khach da tra bot/tra het no cua chinh hoa don do: no chi ve 0 (khong am), phan con lai cua hang **tra lai khach tien mat**
+  (bao truoc khi huy, luu o `refund_amount` cua hoa don va ghi trong so cong no).
 - Khach le (khong chon khach) phai tra du tien, khong ghi no.
 - Bao cao: doanh thu theo ngay (tach **doanh thu** va **tien thuc thu**), top 10 san pham. Chi tinh hoa don da chot.
 

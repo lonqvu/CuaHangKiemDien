@@ -44,6 +44,9 @@ public class Order {
     private BigDecimal paidAmount = BigDecimal.ZERO;
     @Column(name = "debt_after", nullable = false)
     private BigDecimal debtAfter = BigDecimal.ZERO;
+    /** Khi huy: tien cua hang phai tra lai khach (khach da tra bot no cua hoa don nay truoc khi huy). */
+    @Column(name = "refund_amount", nullable = false)
+    private BigDecimal refundAmount = BigDecimal.ZERO;
     private String note;
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

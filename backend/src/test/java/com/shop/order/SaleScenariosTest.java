@@ -218,17 +218,46 @@ class SaleScenariosTest {
         assertLedgerMatches(reload(c));
     }
 
-    /**
-     * Hien trang (chua chot nghiep vu): khach mua chiu, tra het no, roi hoa don bi huy (tra hang) -> no thanh am.
-     * Test nay ghi lai hanh vi hien tai; doi khi chot cach xu ly (hoan tien / giu lam tien du / chan huy).
-     */
+    /** Nghiep vu da chot: huy sau khi khach da tra het no -> no ve 0, cua hang tra lai khach tien mat. */
     @Test
-    void huyDonSauKhiKhachDaTraNo_noBiAm() {
+    void huyDonSauKhiKhachDaTraHetNo_noVe0_traLaiTienMat() {
         Customer c = customer("Khách trả hàng", "0");
         Order o = pay(service.addItem(service.createDraft("thu").getId(), item(hopSat, "2", 0, null, null)), c, "0", "0"); // no 570000
         debts.pay(c.getId(), d("570000"), "Tra het");
-        service.cancel(o.getId());
-        eq("-570000", reload(c).getDebt(), "No sau huy (hien trang)");
+
+        OrderService.CancelEffect e = service.cancelPreview(o.getId());
+        eq("0", e.debtReversal(), "Xem truoc: khong con no de tru");
+        eq("570000", e.refund(), "Xem truoc: tra lai khach");
+        eq("0", reload(c).getDebt(), "Xem truoc khong doi du lieu");
+
+        Order cancelled = service.cancel(o.getId());
+        eq("0", reload(c).getDebt(), "No sau huy");
+        eq("570000", cancelled.getRefundAmount(), "Tien tra lai luu tren hoa don");
+        assertLedgerMatches(reload(c));
+        DebtLedger last = ledger.findByCustomerIdOrderByIdDesc(c.getId()).get(0);
+        assertTrue(last.getNote().contains("tra lai khach 570000"), last.getNote());
+    }
+
+    @Test
+    void huyDonSauKhiKhachTraMotPhan_truPhanConNo_traLaiPhanDu() {
+        Customer c = customer("Khách trả bớt", "0");
+        Order o = pay(service.addItem(service.createDraft("thu").getId(), item(hopSat, "2", 0, null, null)), c, "0", "0"); // no 570000
+        debts.pay(c.getId(), d("400000"), "Tra bot"); // con no 170000
+        Order cancelled = service.cancel(o.getId());
+        eq("0", reload(c).getDebt(), "No sau huy");
+        eq("400000", cancelled.getRefundAmount(), "Tra lai dung phan khach da tra cho hoa don nay");
+        assertLedgerMatches(reload(c));
+    }
+
+    @Test
+    void huyDon_khachVanConNoKhac_khongPhaiTraLai() {
+        Customer c = customer("Khách nợ nhiều", "1000000");
+        Order o = pay(service.addItem(service.createDraft("thu").getId(), item(hopSat, "2", 0, null, null)), c, "0", "0"); // no 1570000
+        debts.pay(c.getId(), d("570000"), "Tra 570k"); // con no 1000000 >= 570000 cua hoa don
+        Order cancelled = service.cancel(o.getId());
+        eq("430000", reload(c).getDebt(), "No tru du 570000");
+        eq("0", cancelled.getRefundAmount(), "Khong phai tra lai");
+        assertLedgerMatches(reload(c));
     }
 
     /** Mo phong 300 thao tac ngau nhien, sau moi buoc kiem tra bat bien ve tien. */
@@ -279,11 +308,13 @@ class SaleScenariosTest {
                 if (o.getCustomerId() != null) {
                     Customer oc = customers.findById(o.getCustomerId()).orElseThrow();
                     BigDecimal net = o.getDebtAfter().subtract(o.getPreviousDebt());
-                    // CHUA CHOT NGHIEP VU: huy don sau khi khach da tra bot no cua chinh don do -> no am.
-                    // Tam bo qua truong hop nay trong mo phong; xem test huyDonSauKhiKhachDaTraNo_noBiAm.
-                    if (oc.getDebt().compareTo(net) < 0) continue;
-                    service.cancel(id);
-                    eq(oc.getDebt().subtract(net).toPlainString(), reload(oc).getDebt(), "Huy don buoc " + step);
+                    // no ve toi da 0; phan vuot = tien tra lai khach
+                    BigDecimal expectDebt = net.signum() > 0 ? oc.getDebt().subtract(net).max(BigDecimal.ZERO) : oc.getDebt().subtract(net);
+                    BigDecimal expectRefund = net.signum() > 0 ? net.subtract(oc.getDebt()).max(BigDecimal.ZERO) : BigDecimal.ZERO;
+                    assertEquals(0, expectRefund.compareTo(service.cancelPreview(id).refund()), "Xem truoc tien tra lai buoc " + step);
+                    Order cancelled = service.cancel(id);
+                    eq(expectDebt.toPlainString(), reload(oc).getDebt(), "Huy don buoc " + step);
+                    eq(expectRefund.toPlainString(), cancelled.getRefundAmount(), "Tien tra lai buoc " + step);
                 }
             }
             for (Customer x : cs) assertLedgerMatches(reload(x));

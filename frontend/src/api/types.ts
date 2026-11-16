@@ -7,9 +7,10 @@ export interface OrderItem { id: number; productId: number; productName: string;
 export interface Order {
   id: number; code: string; status: 'DRAFT' | 'PAID' | 'CANCELLED'
   customerId: number | null; customerName: string | null; customerAddress: string | null; customerPhone: string | null; staffName: string | null
-  itemsTotal: number; shippingFee: number; previousDebt: number; totalPayable: number; paidAmount: number; debtAfter: number
+  itemsTotal: number; shippingFee: number; previousDebt: number; totalPayable: number; paidAmount: number; debtAfter: number; refundAmount: number
   note: string | null; createdAt: string; checkedOutAt: string | null; items: OrderItem[]
 }
+export interface CancelEffect { debtReversal: number; refund: number; debtBefore: number; debtAfter: number }
 export interface DayRevenue { day: string; orders: number; revenue: number; collected: number }
 export interface Period { current: number; previous: number }
 export interface Overview {

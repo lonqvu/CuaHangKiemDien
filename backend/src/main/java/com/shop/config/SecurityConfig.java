@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/customers/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/customers").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/cancel").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/orders/*/cancel-preview").hasRole("ADMIN")
                 .requestMatchers("/api/orders/**").authenticated()
                 // Con lai (sua san pham, cong no, bao cao, tai khoan...) la ADMIN
                 .anyRequest().hasRole("ADMIN"))

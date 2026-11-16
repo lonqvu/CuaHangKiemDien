@@ -216,6 +216,37 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   check('huy hoa don: CANCELLED', (await api('GET', `/orders/${o.id}`)).status === 'CANCELLED');
   check('huy hoa don: no khach giam dung phan hoa don lam tang', Number((await api('GET', '/customers?q=tuan'))[0].debt) === before8 - net, `${before8} - ${net}`);
 
+  // ===== 9. Huy hoa don sau khi khach da tra het no -> no ve 0, bao tra lai tien mat =====
+  const khach9 = await api('POST', '/customers', { name: 'Khách trả hàng', phone: '0977000999', address: null, initialDebt: 0 });
+  await page.goto(UI + '/sale'); await page.waitForTimeout(1200);
+  await pick('hop 40x80 1,4'); await addLine('2'); // 570.000
+  { const r = page.waitForResponse((x) => x.url().includes('/api/customers?q=')); await page.keyboard.press('F4'); await page.keyboard.type('khach tra hang'); await r; await page.waitForTimeout(200); await page.keyboard.press('Enter'); await page.waitForTimeout(300); }
+  const id9 = await draftId();
+  await page.click('.cta'); await page.waitForTimeout(800);
+  const o9 = await api('GET', `/orders/${id9}`);
+  check('ban chiu 570.000', Number(o9.debtAfter) === 570000);
+  await api('POST', `/customers/${khach9.id}/debt-payments`, { amount: 570000, note: 'Tra het' });
+  await page.goto(UI + '/orders'); await page.waitForTimeout(1000);
+  await page.click(`text=${o9.code}`); await page.waitForTimeout(500);
+  await page.click('.el-drawer >> text=Hủy hóa đơn'); await page.waitForTimeout(500);
+  const confirmText = await page.evaluate(() => document.querySelector('.el-message-box__message')?.innerText);
+  check('xac nhan huy bao truoc "TRA LAI KHACH 570.000"', confirmText?.includes('TRẢ LẠI KHÁCH 570.000'), confirmText?.replace(/\n+/g, ' | '));
+  await page.click('.el-message-box >> button >> text=Hủy hóa đơn'); await page.waitForTimeout(800);
+  const alertText = await page.evaluate(() => document.querySelector('.el-message-box')?.innerText);
+  check('sau khi huy: hop thong bao bat buoc "Tra lai ... 570.000"', alertText?.includes('570.000') && alertText?.includes('Đã trả tiền cho khách'), alertText?.replace(/\n+/g, ' | '));
+  await page.click('.el-message-box >> text=Đã trả tiền cho khách'); await page.waitForTimeout(300);
+  const c9 = (await api('GET', '/customers?q=khach tra hang'))[0];
+  const oc9 = await api('GET', `/orders/${o9.id}`);
+  check('no khach ve 0 (khong am)', Number(c9.debt) === 0, `${c9.debt}`);
+  check('hoa don luu tien tra lai 570.000', oc9.status === 'CANCELLED' && Number(oc9.refundAmount) === 570000, `${oc9.refundAmount}`);
+  const led9 = await api('GET', `/customers/${khach9.id}/debt-ledger`);
+  check('so no ghi chu tra lai tien mat, tong = no', led9[0].note.includes('tra lai khach 570000') && sum(led9.map((l) => Number(l.amount))) === 0, led9[0].note);
+  await page.click('text=Đã hủy'); await page.waitForTimeout(600);
+  await page.click(`text=${o9.code}`); await page.waitForTimeout(500);
+  const drawer9 = await page.evaluate(() => document.querySelector('.el-drawer .refund')?.innerText);
+  check('chi tiet hoa don da huy hien "Da tra lai khach khi huy 570.000"', drawer9?.includes('570.000'), drawer9?.replace(/\n/g, ' '));
+  await page.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + '/cancel-refund.png' : '/dev/null' }).catch(() => {});
+
   await browser.close();
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} PASS`);

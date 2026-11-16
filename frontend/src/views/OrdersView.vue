@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Printer, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Order } from '../api/types'
-import { dateOnly, dt, num, qty } from '../format'
+import type { CancelEffect, Order } from '../api/types'
+import { dateOnly, dt, money, num, qty } from '../format'
 import PageHeader from '../components/PageHeader.vue'
 import { openPdf } from '../api/pdf'
 
@@ -36,13 +36,27 @@ async function load() {
 }
 
 async function cancel(o: Order) {
-  await ElMessageBox.confirm(
-    `Hóa đơn ${o.code} sẽ chuyển sang "Đã hủy" và công nợ của khách được hoàn lại. Không xóa dữ liệu.`,
-    'Hủy hóa đơn', { confirmButtonText: 'Hủy hóa đơn', cancelButtonText: 'Không', type: 'warning' })
-  await http.post(`/orders/${o.id}/cancel`)
-  ElMessage.success(`Đã hủy ${o.code}`)
+  // Xem truoc: no khach giam bao nhieu, cua hang phai tra lai bao nhieu tien mat (khach da tra no cua hoa don nay)
+  const e = (await http.get<CancelEffect>(`/orders/${o.id}/cancel-preview`)).data
+  const lines = [`Hóa đơn ${o.code} sẽ chuyển sang "Đã hủy" (không xóa dữ liệu).`]
+  if (o.customerId) {
+    if (Number(e.debtReversal) > 0) lines.push(`Nợ của ${o.customerName}: ${money(e.debtBefore)} → ${money(e.debtAfter)}.`)
+    else if (Number(e.debtReversal) < 0) lines.push(`Nợ của ${o.customerName} tăng lại: ${money(e.debtBefore)} → ${money(e.debtAfter)} (hóa đơn này đã trừ bớt nợ cũ).`)
+    if (Number(e.refund) > 0) lines.push(`Khách đã trả nợ của hóa đơn này nên cửa hàng phải TRẢ LẠI KHÁCH ${money(e.refund)} tiền mặt.`)
+  }
+  await ElMessageBox.confirm(lines.join('\n\n'), 'Hủy hóa đơn', {
+    confirmButtonText: 'Hủy hóa đơn', cancelButtonText: 'Không', type: 'warning', customClass: 'pre-line',
+  })
+  const { data } = await http.post<Order>(`/orders/${o.id}/cancel`)
   detail.value = null
   load()
+  if (Number(data.refundAmount) > 0) {
+    // bat buoc bam xac nhan: viec tra tien mat nam ngoai phan mem, de khong bi quen
+    await ElMessageBox.alert(`Trả lại ${data.customerName} ${money(data.refundAmount)} tiền mặt.\n\nNợ của khách đã về 0. Số tiền này được ghi trên hóa đơn ${data.code} và trong sổ công nợ.`,
+      `Đã hủy ${data.code}: cần trả lại khách`, { confirmButtonText: 'Đã trả tiền cho khách', type: 'warning', customClass: 'pre-line', showClose: false })
+  } else {
+    ElMessage.success(`Đã hủy ${data.code}`)
+  }
 }
 
 // In lai hoa don bang mau Jasper cu (Bill.jrxml)
@@ -108,6 +122,7 @@ onMounted(load)
         <div class="b"><dt>Tổng thanh toán</dt><dd class="num">{{ num(detail.totalPayable) }}</dd></div>
         <div><dt>Khách trả</dt><dd class="num tone-money">{{ num(detail.paidAmount) }}</dd></div>
         <div class="b"><dt>Còn lại</dt><dd class="num" :class="{ 'tone-debt': Number(detail.debtAfter) > 0 }">{{ num(detail.debtAfter) }}</dd></div>
+        <div v-if="Number(detail.refundAmount) > 0" class="b refund"><dt>Đã trả lại khách khi hủy</dt><dd class="num">{{ num(detail.refundAmount) }}</dd></div>
       </dl>
     </template>
     <template #footer>
@@ -127,4 +142,5 @@ onMounted(load)
 .sum div { display: flex; justify-content: space-between; padding: 4px 0; }
 .sum dd { margin: 0; }
 .sum .b { font-weight: 600; border-top: 1px solid var(--steel-200); }
+.sum .refund { color: var(--danger); }
 </style>
