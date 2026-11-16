@@ -54,6 +54,13 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>
   </dependencies>
+  <repositories>
+    <!-- jasperreports 5.5.0 can com.lowagie:itext:2.1.7.js2, chi co o repo cua Jaspersoft (repo http cu bi Maven chan) -->
+    <repository>
+      <id>jaspersoft-third-party</id>
+      <url>https://jaspersoft.jfrog.io/artifactory/third-party-ce-artifacts/</url>
+    </repository>
+  </repositories>
   <build>
     <plugins>
       <plugin>
