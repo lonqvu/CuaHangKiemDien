@@ -45,3 +45,62 @@ export const isoDate = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
+
+/**
+ * Doc so nguoi dung go vao o nhap.
+ * - integer (tien, so tam): bo moi dau ngan cach -> "95.000" = "95,000" = 95000
+ * - decimal (so luong, he so): dau phay hay dau cham deu la dau thap phan -> "4,2" = "4.2" = 4.2;
+ *   neu co ca hai ("1.234,5") thi dau dung sau cung la dau thap phan, cac dau con lai la ngan cach nghin.
+ * Tra ve null khi khong co chu so nao.
+ */
+export function parseNumber(text: string, kind: 'decimal' | 'integer'): number | null {
+  const t = text.replace(/\s/g, '')
+  if (kind === 'integer') {
+    const d = t.replace(/\D/g, '')
+    return d ? Number(d) : null
+  }
+  if (!/\d/.test(t)) return null
+  const last = Math.max(t.lastIndexOf(','), t.lastIndexOf('.'))
+  const int = (last < 0 ? t : t.slice(0, last)).replace(/\D/g, '')
+  const frac = last < 0 ? '' : t.slice(last + 1).replace(/\D/g, '')
+  const n = Number(`${int || '0'}.${frac || '0'}`)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Hien so trong o nhap: so le dung dau phay (4,2), khong co dau ngan cach nghin. */
+export function formatInput(v: number | string | null | undefined, kind: 'decimal' | 'integer', precision = 3) {
+  const n = Number(v ?? 0)
+  if (!Number.isFinite(n)) return ''
+  if (kind === 'integer') return String(Math.round(n))
+  return String(+n.toFixed(precision)).replace('.', ',')
+}
+
+/** Bo dau tieng Viet + chu thuong, giu nguyen do dai tung ky tu (de to dam dung cho). */
+export function foldChar(c: string) {
+  return c.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
+}
+
+/**
+ * Tach ten thanh cac doan de to dam phan khop voi cau tim (khong dau, theo tung tu),
+ * vd highlight("Tôn lạnh 0,4 ly", "ton 0,4") -> [{t:'Tôn',m:true},{t:' lạnh ',m:false},{t:'0,4',m:true},{t:' ly',m:false}]
+ */
+export function highlight(name: string, query: string): { t: string; m: boolean }[] {
+  const chars = [...name]
+  const folded = chars.map((c) => foldChar(c).charAt(0) || c)
+  const hay = folded.join('')
+  const mark = new Array(chars.length).fill(false)
+  for (const tok of query.split(/\s+/).map((w) => [...w].map(foldChar).join('')).filter(Boolean)) {
+    let i = hay.indexOf(tok)
+    while (i >= 0) {
+      for (let k = i; k < i + tok.length; k++) mark[k] = true
+      i = hay.indexOf(tok, i + tok.length)
+    }
+  }
+  const out: { t: string; m: boolean }[] = []
+  chars.forEach((c, i) => {
+    const last = out[out.length - 1]
+    if (last && last.m === mark[i]) last.t += c
+    else out.push({ t: c, m: mark[i] })
+  })
+  return out
+}

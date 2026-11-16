@@ -1,6 +1,7 @@
 package com.shop.customer;
 
 import com.shop.common.ApiException;
+import com.shop.common.TextSearch;
 import com.shop.order.Order;
 import com.shop.order.OrderRepository;
 import jakarta.validation.Valid;
@@ -35,7 +36,8 @@ public class CustomerController {
 
     @GetMapping
     public List<Customer> list(@RequestParam(defaultValue = "") String q) {
-        return customers.search(q);
+        // khong dau, theo tu: "tuan han" thay "Anh Tuấn thợ hàn"; so dien thoai tim theo doan so
+        return TextSearch.filter(customers.findByActiveTrueOrderByName(), q, c -> new String[]{c.getName(), c.getPhone()});
     }
 
     /** App cu: khong cho trung ten khach; duoc nhap no ban dau khi tao. */

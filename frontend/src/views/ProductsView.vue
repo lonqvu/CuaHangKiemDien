@@ -7,6 +7,7 @@ import http from '../api/http'
 import type { Category, Product } from '../api/types'
 import { debounce, num } from '../format'
 import PageHeader from '../components/PageHeader.vue'
+import NumberField from '../components/NumberField.vue'
 
 // Thay man Product cu
 const rows = ref<Product[]>([])
@@ -109,7 +110,7 @@ onMounted(load)
         <el-form-item label="Đơn vị tính" prop="unit"><el-input v-model="form.unit" placeholder="m, kg, cây, tấm" /></el-form-item>
       </div>
       <el-form-item label="Giá bán (₫)" prop="price">
-        <el-input-number v-model="form.price" :min="0" :step="1000" :controls="false" style="width: 100%" class="money-input" />
+        <NumberField v-model="form.price" kind="integer" :step="1000" align="left" />
         <span v-if="form.price >= 1000" class="echo">= {{ num(form.price) }} ₫</span>
       </el-form-item>
     </el-form>
@@ -122,5 +123,4 @@ onMounted(load)
 
 <style scoped>
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
-.money-input :deep(input) { text-align: left; font-family: var(--font-mono); }
 </style>

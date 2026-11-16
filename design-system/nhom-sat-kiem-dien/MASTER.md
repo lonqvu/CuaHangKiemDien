@@ -257,3 +257,5 @@ Quy tắc dùng chung:
 - Vùng bấm tối thiểu 28px (nút `small`, nút link); không dùng nút `small` cho thao tác chính.
 - Bảng chính phải vừa khung ở 1366px không cần cuộn ngang: cột quan trọng (khách, thành tiền) đứng trước, cột phụ đưa vào ngăn chi tiết.
 - Lưới chứa bảng dùng `minmax(0, 1fr)` (không dùng `1fr` trần) để bảng cuộn bên trong, không đẩy tràn trang.
+- **Không dùng `el-input-number`** (nó hiểu "4,2" thành 42). Mọi ô nhập số dùng `components/NumberField.vue`: `kind="decimal"` cho số lượng/hệ số (dấu phẩy hay chấm đều là dấu thập phân), `kind="integer"` cho tiền/số tấm (bỏ mọi dấu ngăn cách).
+- Ô tìm sản phẩm/khách: tìm không dấu, theo từng từ, không cần đúng thứ tự (backend `TextSearch`); Enter chọn kết quả đầu rồi nhảy sang ô tiếp theo; tô đậm phần khớp; khi không thấy thì nói rõ và đưa lối tạo mới.

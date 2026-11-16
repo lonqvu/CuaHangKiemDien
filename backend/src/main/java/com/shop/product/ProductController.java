@@ -1,6 +1,7 @@
 package com.shop.product;
 
 import com.shop.common.ApiException;
+import com.shop.common.TextSearch;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -35,7 +36,10 @@ public class ProductController {
     @GetMapping("/products")
     @Transactional(readOnly = true)
     public List<ProductDto> list(@RequestParam(defaultValue = "") String q) {
-        return products.findByActiveTrueAndNameContainingIgnoreCaseOrderByName(q).stream().map(this::dto).toList();
+        // khong dau, theo tu, khong can dung thu tu; tim ca theo ten loai hang ("nhom" -> moi mat hang loai Nhôm)
+        return TextSearch.filter(products.findByActiveTrueOrderByName(), q,
+                p -> new String[]{p.getName(), p.getCategory() == null ? null : p.getCategory().getName()})
+                .stream().map(this::dto).toList();
     }
 
     @PostMapping("/products")

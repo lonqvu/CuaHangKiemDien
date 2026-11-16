@@ -4,8 +4,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Customer, Order, OrderItem, Product } from '../api/types'
-import { debounce, money, num, previewLine, qty } from '../format'
+import type { Category, Customer, Order, OrderItem, Product } from '../api/types'
+import { debounce, highlight, money, num, previewLine, qty } from '../format'
+import NumberField from '../components/NumberField.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
@@ -21,6 +22,7 @@ const customer = ref<Customer | null>(null)
 const busy = ref(false)
 const loadError = ref(false)
 const productSelect = ref()
+const qtyField = ref()
 
 const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 const pay = reactive({ shippingFee: 0, paidAmount: 0, note: '', walkInName: '', walkInPhone: '' })
@@ -64,12 +66,57 @@ async function newInvoice() {
 }
 
 // ---------- them dong hang (ProductDialog cu) ----------
-const searchProducts = debounce(async (q: string) => {
-  products.value = (await http.get<Product[]>('/products', { params: { q } })).data
-})
+// Tim khong dau, theo tu (backend). Bo qua ket qua cu ve muon hon ket qua moi.
+const productQuery = ref('')
+const productLoading = ref(false)
+let productSeq = 0
+const fetchProducts = debounce(async (q: string, seq: number) => {
+  try {
+    const data = (await http.get<Product[]>('/products', { params: { q } })).data
+    if (seq === productSeq) products.value = data
+  } finally {
+    if (seq === productSeq) productLoading.value = false
+  }
+}, 200)
+function searchProducts(q: string) {
+  productQuery.value = q
+  productLoading.value = true
+  fetchProducts(q, ++productSeq)
+}
 
-function onPickProduct() {
+// Chon xong (Enter chon luon ket qua dau) -> nhay sang So luong, boi den san de go de
+async function onPickProduct() {
+  if (!line.productId) return
   line.unitPrice = Number(picked.value?.price ?? 0)
+  await nextTick()
+  qtyField.value?.focus()
+}
+
+// ---------- them nhanh san pham khi tim khong thay (chi quan tri) ----------
+const newProd = reactive({ open: false, name: '', unit: '', price: 0, categoryId: null as number | null })
+const newProdForm = ref<FormInstance>()
+const newProdUnit = ref()
+const categories = ref<Category[]>([])
+async function openNewProduct() {
+  const q = productQuery.value.trim()
+  Object.assign(newProd, { open: true, name: q.charAt(0).toUpperCase() + q.slice(1), unit: '', price: 0, categoryId: null })
+  productSelect.value?.blur()
+  if (!categories.value.length) categories.value = (await http.get<Category[]>('/categories')).data
+}
+async function createProduct() {
+  if (!(await newProdForm.value?.validate().catch(() => false))) return
+  const { open, ...body } = newProd
+  const { data } = await http.post<Product>('/products', body)
+  products.value = [data, ...products.value]
+  line.productId = data.id
+  newProd.open = false
+  line.unitPrice = Number(data.price)
+  ElMessage.success(`Đã thêm sản phẩm "${data.name}"`)
+}
+// dong hop thoai: da tao -> sang So luong; huy -> quay lai o tim
+function afterNewProduct() {
+  if (line.productId) qtyField.value?.focus()
+  else productSelect.value?.focus()
 }
 
 function resetLine() {
@@ -153,10 +200,10 @@ const blockReason = computed(() => {
 async function editOldDebt() {
   const c = customer.value!
   const { value } = await ElMessageBox.prompt(`Nợ hiện tại của ${c.name}: ${money(c.debt)}. Nhập số nợ đúng:`, 'Cập nhật nợ cũ', {
-    inputValue: String(Number(c.debt)), inputPattern: /^\d+$/, inputErrorMessage: 'Nhập số tiền (chỉ chữ số)',
+    inputValue: String(Number(c.debt)), inputPattern: /^[\d.,\s]*\d[\d.,\s]*$/, inputErrorMessage: 'Nhập số tiền, ví dụ 12450000 hoặc 12.450.000',
     confirmButtonText: 'Cập nhật', cancelButtonText: 'Hủy',
   })
-  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value), note: 'Cập nhật nợ cũ khi bán hàng' })
+  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value.replace(/\D/g, '')), note: 'Cập nhật nợ cũ khi bán hàng' })
   customer.value = data
   customers.value = customers.value.map((x) => (x.id === data.id ? data : x))
   ElMessage.success('Đã cập nhật nợ cũ')
@@ -230,28 +277,48 @@ onBeforeUnmount(() => {
         <div class="f product">
           <label for="pick-product">Sản phẩm</label>
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
-                     placeholder="Gõ tên để tìm" :disabled="!!done" @change="onPickProduct">
+                     default-first-option :loading="productLoading" placeholder="Gõ tên, không cần dấu (vd: ton 0,4)"
+                     :disabled="!!done" popper-class="product-popper" @change="onPickProduct">
             <el-option v-for="p in products" :key="p.id" :value="p.id" :label="p.name">
-              <div class="opt"><span>{{ p.name }}</span><span class="num muted">{{ num(p.price) }} / {{ p.unit || 'đv' }}</span></div>
+              <div class="opt">
+                <span class="opt-name">
+                  <template v-for="(seg, i) in highlight(p.name, productQuery)" :key="i"><mark v-if="seg.m">{{ seg.t }}</mark><template v-else>{{ seg.t }}</template></template>
+                  <small v-if="p.categoryName" class="muted"> · {{ p.categoryName }}</small>
+                </span>
+                <span class="num muted">{{ num(p.price) }} / {{ p.unit || 'đv' }}</span>
+              </div>
             </el-option>
+            <template #loading><div class="pick-empty muted">Đang tìm…</div></template>
+            <template #empty>
+              <div class="pick-empty">
+                <template v-if="productLoading"><span class="muted">Đang tìm…</span></template>
+                <template v-else>
+                  <span>Không thấy sản phẩm <b>“{{ productQuery }}”</b>.</span>
+                  <span class="muted">Thử gõ ít chữ hơn, ví dụ chỉ loại hàng và quy cách.</span>
+                  <el-button v-if="auth.isAdmin && productQuery.trim()" type="primary" plain :icon="Plus" @mousedown.prevent @click="openNewProduct">
+                    Thêm sản phẩm “{{ productQuery.trim() }}”
+                  </el-button>
+                  <span v-else-if="!auth.isAdmin" class="muted">Báo quản trị để thêm sản phẩm mới.</span>
+                </template>
+              </div>
+            </template>
           </el-select>
         </div>
         <div class="f">
           <label for="q">Số lượng</label>
-          <el-input-number id="q" v-model="line.quantity" :min="0" :step="1" controls-position="right" :disabled="!!done" />
+          <NumberField id="q" ref="qtyField" v-model="line.quantity" kind="decimal" :disabled="!!done" />
         </div>
         <div class="f">
           <label for="s">Số tấm</label>
-          <el-input-number id="s" v-model="line.sheets" :min="0" :step="1" controls-position="right" :disabled="!!done" />
+          <NumberField id="s" v-model="line.sheets" kind="integer" :disabled="!!done" />
         </div>
         <div class="f">
           <label for="k">Hệ số</label>
-          <el-input-number id="k" v-model="line.factor" :min="0" :step="0.01" controls-position="right"
-                           :placeholder="line.sheets ? '1,08' : '0'" :disabled="!!done" />
+          <NumberField id="k" v-model="line.factor" kind="decimal" :step="0.01" :precision="4" :disabled="!!done" />
         </div>
         <div class="f">
           <label for="p">Đơn giá</label>
-          <el-input-number id="p" v-model="line.unitPrice" :min="0" :step="1000" controls-position="right" :disabled="!!done" />
+          <NumberField id="p" v-model="line.unitPrice" kind="integer" :step="1000" :disabled="!!done" />
         </div>
         <div class="calc" aria-live="polite">
           <span class="muted">Tổng SL</span>
@@ -323,7 +390,7 @@ onBeforeUnmount(() => {
         <div>
           <dt><label for="ship">Phí vận chuyển</label></dt>
           <dd class="input-dd">
-            <el-input-number id="ship" v-model="pay.shippingFee" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" />
+            <NumberField id="ship" v-model="pay.shippingFee" kind="integer" :step="10000" :disabled="!!done" class="mini" />
             <span v-if="pay.shippingFee >= 1000" class="echo">= {{ num(pay.shippingFee) }}</span>
           </dd>
         </div>
@@ -335,7 +402,7 @@ onBeforeUnmount(() => {
         <div>
           <dt><label for="paid">Khách trả</label></dt>
           <dd class="input-dd">
-            <el-input-number id="paid" v-model="pay.paidAmount" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" />
+            <NumberField id="paid" v-model="pay.paidAmount" kind="integer" :step="10000" :disabled="!!done" class="mini" />
             <span v-if="pay.paidAmount >= 1000" class="echo">= {{ num(pay.paidAmount) }}</span>
           </dd>
         </div>
@@ -377,15 +444,41 @@ onBeforeUnmount(() => {
 
     <el-dialog v-model="edit.open" :title="`Sửa: ${edit.name}`" width="440px">
       <el-form label-position="top" class="edit-grid">
-        <el-form-item label="Số lượng"><el-input-number v-model="edit.quantity" :min="0" controls-position="right" /></el-form-item>
-        <el-form-item label="Số tấm"><el-input-number v-model="edit.sheets" :min="0" controls-position="right" /></el-form-item>
-        <el-form-item label="Hệ số"><el-input-number v-model="edit.factor" :min="0" :step="0.01" controls-position="right" /></el-form-item>
-        <el-form-item label="Đơn giá"><el-input-number v-model="edit.unitPrice" :min="0" :step="1000" controls-position="right" /></el-form-item>
+        <el-form-item label="Số lượng" for="e-q"><NumberField id="e-q" v-model="edit.quantity" kind="decimal" /></el-form-item>
+        <el-form-item label="Số tấm" for="e-s"><NumberField id="e-s" v-model="edit.sheets" kind="integer" /></el-form-item>
+        <el-form-item label="Hệ số" for="e-k"><NumberField id="e-k" v-model="edit.factor" kind="decimal" :step="0.01" :precision="4" /></el-form-item>
+        <el-form-item label="Đơn giá" for="e-p"><NumberField id="e-p" v-model="edit.unitPrice" kind="integer" :step="1000" /></el-form-item>
       </el-form>
       <p class="muted">Tổng SL <b class="num">{{ qty(editPreview.totalQuantity) }}</b> · Thành tiền <b class="num">{{ money(editPreview.lineTotal) }}</b></p>
       <template #footer>
         <el-button @click="edit.open = false">Hủy</el-button>
         <el-button type="primary" @click="saveEdit">Lưu dòng</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="newProd.open" title="Thêm sản phẩm mới" width="440px" @opened="newProdUnit?.focus()" @closed="afterNewProduct">
+      <el-form ref="newProdForm" :model="newProd" label-position="top" @submit.prevent="createProduct">
+        <el-form-item label="Tên sản phẩm" prop="name" :rules="[{ required: true, message: 'Nhập tên sản phẩm', trigger: 'blur' }]">
+          <el-input v-model="newProd.name" />
+        </el-form-item>
+        <div class="edit-grid">
+          <el-form-item label="Đơn vị tính" prop="unit" :rules="[{ required: true, message: 'Nhập đơn vị (m, kg, cây...)', trigger: 'blur' }]">
+            <el-input ref="newProdUnit" v-model="newProd.unit" placeholder="m, kg, cây, tấm" />
+          </el-form-item>
+          <el-form-item label="Giá bán (₫)" for="np-price">
+            <NumberField id="np-price" v-model="newProd.price" kind="integer" :step="1000" />
+            <span v-if="newProd.price >= 1000" class="echo">= {{ num(newProd.price) }}</span>
+          </el-form-item>
+        </div>
+        <el-form-item label="Loại hàng">
+          <el-select v-model="newProd.categoryId" clearable placeholder="Chưa phân loại" style="width: 100%">
+            <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="newProd.open = false">Hủy</el-button>
+        <el-button type="primary" @click="createProduct">Lưu và chọn</el-button>
       </template>
     </el-dialog>
 
@@ -425,14 +518,16 @@ onBeforeUnmount(() => {
 .entry.disabled { opacity: 0.6; }
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
-.f :deep(.el-input-number), .f :deep(.el-select) { width: 100%; }
-.f :deep(.el-input-number input) { text-align: right; font-family: var(--font-mono); }
+.f :deep(.el-select) { width: 100%; }
 .calc { grid-column: 1 / -3; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm) var(--space-md); font-size: 14px; padding-top: var(--space-sm); }
 .calc b { font-size: 16px; }
 .calc .small { font-size: 12px; }
 .calc .sep { width: 1px; height: 14px; background: var(--steel-200); margin: 0 var(--space-sm); }
 .add { grid-column: -3 / -1; }
 .opt { display: flex; justify-content: space-between; gap: var(--space-lg); }
+.opt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.opt-name mark { background: #FEF3C7; color: inherit; font-weight: 600; border-radius: 2px; padding: 0 1px; }
+.pick-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); font-size: 14px; }
 
 /* phieu: diem nhan duy nhat cua man - nhu to hoa don xe rang cua */
 .ticket { position: sticky; top: var(--space-xl); padding: var(--space-xl); display: flex; flex-direction: column; gap: var(--space-lg); border-top: 4px solid var(--steel-800); }
@@ -450,7 +545,7 @@ onBeforeUnmount(() => {
 .sum dt { font-size: 14px; color: #334155; }
 .sum dd { margin: 0; font-size: 15px; }
 .mini { width: 140px; }
-.mini :deep(input) { text-align: right; font-family: var(--font-mono); }
+
 .total { border-top: 1px solid var(--steel-200); border-bottom: 1px solid var(--steel-200); margin: var(--space-sm) 0; padding: var(--space-sm) 0; }
 .total dt { font-weight: 600; color: var(--ink); }
 .total dd { font-size: 22px; font-weight: 600; }
@@ -469,7 +564,7 @@ onBeforeUnmount(() => {
 .done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
 .done-actions .el-button + .el-button { margin-left: 0; }
 .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-lg); }
-.edit-grid :deep(.el-input-number) { width: 100%; }
+
 
 @media (max-width: 1180px) {
   .sale { grid-template-columns: 1fr; }

@@ -1,0 +1,87 @@
+<script setup lang="ts">
+/*
+ * O nhap so cho nguoi Viet. el-input-number cua Element Plus hieu "4,2" thanh 42 (bo dau phay)
+ * -> nhap 4,2 m tinh tien gap 10 lan. O nay:
+ *  - kind="decimal" (so luong, he so): dau phay hoac dau cham deu la dau thap phan -> 4,2 = 4.2 = 4,2
+ *  - kind="integer" (tien, so tam): chi lay chu so -> "95.000" hay "95,000" deu = 95000
+ *  - hien so le bang dau phay (4,2), khong hien dau cham ngan cach (tranh doc 1.000 thanh mot)
+ *  - focus thi boi den san de go de; mui ten len/xuong de tang/giam theo step
+ */
+import { computed, ref, watch } from 'vue'
+import { parseNumber, formatInput } from '../format'
+
+const props = withDefaults(defineProps<{
+  modelValue: number | null | undefined
+  kind?: 'decimal' | 'integer'
+  min?: number
+  max?: number
+  step?: number
+  precision?: number
+  id?: string
+  placeholder?: string
+  disabled?: boolean
+  align?: 'left' | 'right'
+}>(), { kind: 'decimal', min: 0, step: 1, precision: 3, align: 'right' })
+
+const emit = defineEmits<{ 'update:modelValue': [number] }>()
+const inputRef = ref()
+const text = ref(formatInput(props.modelValue, props.kind, props.precision))
+const editing = ref(false)
+
+// gia tri doi tu ben ngoai (reset dong, nut "Tra du"...) -> cap nhat chu, tru khi dang go
+watch(() => props.modelValue, (v) => {
+  if (!editing.value || parseNumber(text.value, props.kind) !== Number(v ?? 0)) {
+    text.value = formatInput(v, props.kind, props.precision)
+  }
+})
+
+const clamp = (n: number) => {
+  let v = Math.max(props.min, n)
+  if (props.max !== undefined) v = Math.min(props.max, v)
+  return props.kind === 'integer' ? Math.round(v) : +v.toFixed(props.precision)
+}
+
+function onInput(raw: string) {
+  // chi giu ky tu hop le de khong go nham chu cai
+  const allowed = props.kind === 'integer' ? /[^\d.,\s]/g : /[^\d.,]/g
+  text.value = raw.replace(allowed, '')
+  const n = parseNumber(text.value, props.kind)
+  if (n !== null) emit('update:modelValue', clamp(n))
+  else if (text.value.trim() === '') emit('update:modelValue', clamp(0))
+}
+
+function onBlur() {
+  editing.value = false
+  text.value = formatInput(props.modelValue, props.kind, props.precision)
+}
+
+function onFocus(e: FocusEvent) {
+  editing.value = true
+  ;(e.target as HTMLInputElement).select()
+}
+
+function stepBy(dir: 1 | -1) {
+  if (props.disabled) return
+  const v = clamp(Number(props.modelValue ?? 0) + dir * props.step)
+  emit('update:modelValue', v)
+  text.value = formatInput(v, props.kind, props.precision)
+}
+
+const cls = computed(() => ['number-field', `align-${props.align}`])
+
+defineExpose({ focus: () => inputRef.value?.focus(), select: () => inputRef.value?.select() })
+</script>
+
+<template>
+  <el-input
+    :id="id" ref="inputRef" :class="cls" :model-value="text" :placeholder="placeholder" :disabled="disabled"
+    :inputmode="kind === 'integer' ? 'numeric' : 'decimal'" autocomplete="off"
+    @update:model-value="onInput" @focus="onFocus" @blur="onBlur"
+    @keydown.up.prevent="stepBy(1)" @keydown.down.prevent="stepBy(-1)"
+  />
+</template>
+
+<style scoped>
+.number-field :deep(input) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.align-right :deep(input) { text-align: right; }
+</style>

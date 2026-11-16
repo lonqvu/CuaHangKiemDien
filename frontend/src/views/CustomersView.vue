@@ -8,6 +8,7 @@ import http from '../api/http'
 import type { Customer, LedgerRow } from '../api/types'
 import { debounce, dt, money, num } from '../format'
 import PageHeader from '../components/PageHeader.vue'
+import NumberField from '../components/NumberField.vue'
 import { openPdf } from '../api/pdf'
 
 // Thay Customers + ThanhToanNo cu
@@ -87,10 +88,10 @@ async function collect() {
 async function setDebt() {
   const c = current.value!
   const { value } = await ElMessageBox.prompt(`Nợ hiện tại: ${money(c.debt)}. Nhập số nợ đúng:`, 'Sửa số nợ', {
-    inputValue: String(Number(c.debt)), inputPattern: /^\d+$/, inputErrorMessage: 'Nhập số tiền (chỉ chữ số)',
+    inputValue: String(Number(c.debt)), inputPattern: /^[\d.,\s]*\d[\d.,\s]*$/, inputErrorMessage: 'Nhập số tiền, ví dụ 12450000 hoặc 12.450.000',
     confirmButtonText: 'Lưu', cancelButtonText: 'Hủy',
   })
-  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value), note: 'Sửa số nợ' })
+  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value.replace(/\D/g, '')), note: 'Sửa số nợ' })
   ElMessage.success(`Đã đặt nợ thành ${money(data.debt)}`)
   await load()
   await open(data)
@@ -149,7 +150,7 @@ onMounted(load)
         <form v-if="Number(current.debt) > 0" class="pay" @submit.prevent="collect">
           <label for="amt" class="lbl">Thu nợ</label>
           <div class="pay-row">
-            <el-input-number id="amt" v-model="payForm.amount" :min="0" :max="Number(current.debt)" :step="100000" :controls="false" class="amt" />
+            <NumberField id="amt" v-model="payForm.amount" kind="integer" :max="Number(current.debt)" :step="100000" class="amt" />
             <el-button @click="payForm.amount = Number(current.debt)">Trả hết</el-button>
           </div>
           <span v-if="payForm.amount >= 1000" class="echo">= {{ money(payForm.amount) }}</span>
@@ -179,7 +180,7 @@ onMounted(load)
       <el-form-item label="Số điện thoại"><el-input v-model="form.phone" inputmode="tel" /></el-form-item>
       <el-form-item label="Địa chỉ"><el-input v-model="form.address" /></el-form-item>
       <el-form-item v-if="!dialog.id" label="Nợ ban đầu (₫)">
-        <el-input-number v-model="form.initialDebt" :min="0" :step="100000" :controls="false" style="width: 100%" />
+        <NumberField v-model="form.initialDebt" kind="integer" :step="100000" />
         <span v-if="form.initialDebt >= 1000" class="echo">= {{ money(form.initialDebt) }}</span>
       </el-form-item>
     </el-form>
@@ -201,7 +202,6 @@ onMounted(load)
 .pay { display: flex; flex-direction: column; gap: var(--space-sm); }
 .pay-row { display: flex; gap: var(--space-sm); }
 .amt { flex: 1; }
-.amt :deep(input) { text-align: right; font-family: var(--font-mono); }
 .lbl { font-size: 13px; font-weight: 500; }
 .ledger-title { font-size: 15px; margin-bottom: var(--space-md); }
 @media (max-width: 560px) { .collect { grid-template-columns: 1fr; } }
