@@ -167,7 +167,9 @@ onMounted(load)
           <el-button @click="openForm(current)">Sửa thông tin</el-button>
           <el-button @click="adjustOpen = true">Điều chỉnh nợ</el-button>
           <el-button @click="openStatement">In sao kê</el-button>
-          <el-button type="danger" plain @click="hide(current)">Ẩn khách</el-button>
+          <el-tooltip :disabled="!(Number(current.debt) > 0)" content="Khách còn nợ: thu hết hoặc điều chỉnh nợ về 0 (ghi lý do) rồi mới ẩn được" placement="bottom">
+            <span><el-button type="danger" plain :disabled="Number(current.debt) > 0" @click="hide(current)">Ẩn khách</el-button></span>
+          </el-tooltip>
         </div>
       </div>
 

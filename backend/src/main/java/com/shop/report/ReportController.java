@@ -137,23 +137,41 @@ public class ReportController {
                 ((Number) r[2]).longValue(), bd(r[3]))).toList();
     }
 
-    /** Phan bo theo loai hang: so mat hang trong loai, tong SL ban, doanh thu (bieu do tron cu). */
+    /**
+     * Phan bo theo loai hang: so mat hang DANG BAN trong loai, tong SL ban, doanh thu (bieu do tron cu).
+     * Hang chua phan loai gom thanh dong "Chua phan loai" -> tong doanh thu cac dong = tong doanh thu (ty trong du 100%).
+     */
     @GetMapping("/categories")
     @SuppressWarnings("unchecked")
     public List<CategoryStat> categories(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        String sales = """
+                (select i.product_id pid, sum(i.total_quantity) q, sum(i.line_total) r
+                 from order_item i join orders o on o.id = i.order_id
+                 where o.status = 'PAID' and o.checked_out_at >= :f and o.checked_out_at < :t
+                 group by i.product_id) s""";
         List<Object[]> rows = range(em.createNativeQuery("""
-                select cat.name, count(distinct p.id),
+                select cat.name, count(distinct case when p.active then p.id end),
                        coalesce(sum(s.q),0), coalesce(sum(s.r),0)
                 from category cat
                 left join product p on p.category_id = cat.id
-                left join (select i.product_id pid, sum(i.total_quantity) q, sum(i.line_total) r
-                           from order_item i join orders o on o.id = i.order_id
-                           where o.status = 'PAID' and o.checked_out_at >= :f and o.checked_out_at < :t
-                           group by i.product_id) s on s.pid = p.id
-                group by cat.name order by 4 desc
+                left join """ + sales + """
+                 on s.pid = p.id
+                group by cat.name
                 """), from, to).getResultList();
-        return rows.stream().map(r -> new CategoryStat((String) r[0], ((Number) r[1]).longValue(), bd(r[2]), bd(r[3]))).toList();
+        List<CategoryStat> out = new ArrayList<>(rows.stream()
+                .map(r -> new CategoryStat((String) r[0], ((Number) r[1]).longValue(), bd(r[2]), bd(r[3]))).toList());
+        Object[] none = (Object[]) range(em.createNativeQuery("""
+                select coalesce(sum(s.q),0), coalesce(sum(s.r),0) from """ + sales + """
+                 left join product p on p.id = s.pid
+                where p.id is null or p.category_id is null
+                """), from, to).getSingleResult();
+        long noneCount = ((Number) em.createNativeQuery("select count(*) from product where active = true and category_id is null")
+                .getSingleResult()).longValue();
+        if (noneCount > 0 || bd(none[1]).signum() != 0)
+            out.add(new CategoryStat("Chưa phân loại", noneCount, bd(none[0]), bd(none[1])));
+        out.sort(java.util.Comparator.comparing(CategoryStat::revenue).reversed());
+        return out;
     }
 
     @GetMapping("/customers")

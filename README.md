@@ -62,6 +62,7 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - Frontend: `cd frontend && npm test` (cung 419 case tinh tien voi backend + doc so `4,2` / `95.000`).
 - Bo case tinh tien dung chung: `backend/src/test/resources/line-cases.json`, sinh bang `python3 scripts/gen-line-cases.py` (ket qua tinh doc lap bang Decimal).
 - E2E man Ban hang tren backend that: `scripts/e2e-ban-hang.cjs` (xem huong dan dau file).
+- IT toan he thong (dang nhap/phan quyen, tai khoan, danh muc, khach, hoa don + ban in, loc hoa don, bao cao doi chieu doc lap, mo tung trang voi 2 vai tro): `scripts/it-toan-he-thong.cjs`. Chay moi script tren mot DB trong rieng.
 
 ## In hoa don / bien lai (JasperReports cu)
 - Mau in: `backend/src/main/resources/reports/Bill.jrxml` (lay nguyen tu app cu), `PhieuThuNo.jrxml` (phieu thu / sao ke, dau trang lay tu mau bien lai cu), anh logo/QR o `reports/images/`.

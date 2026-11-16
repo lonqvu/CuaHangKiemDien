@@ -48,6 +48,9 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 | Chốt đơn làm nợ về 0 chỉ ẩn dòng lịch sử vừa ghi | Kết thúc cả chu kỳ biên lai (giống màn Thu nợ) | App cũ in lại các lần trả của chu kỳ trước |
 | Số lượng nhập 0 vẫn thêm được | Số lượng phải > 0 | Dòng 0 đồng vô nghĩa |
 | Sửa nợ không cần quyền | Chỉ quản trị | Tránh nhân viên sửa nợ |
+| Thống kê theo loại hàng: bỏ sót hàng chưa phân loại, "số mặt hàng" đếm cả hàng đã xóa | Thêm dòng "Chưa phân loại"; chỉ đếm mặt hàng đang bán | Tổng các loại = tổng doanh thu, tỷ trọng đủ 100% |
+| Xóa khách (kể cả đang nợ) | Không ẩn được khách còn nợ (thu hết / điều chỉnh về 0 có lý do trước) | Nợ không biến khỏi "Khách đang nợ" |
+| Nhân viên vào màn Bán hàng (`HomeUser`) | Server chặn nhân viên đọc sổ nợ, sao kê, danh sách hóa đơn, báo cáo (403); khóa tài khoản có hiệu lực ngay cả với phiên đang đăng nhập | Phân quyền ở server, không chỉ ẩn menu |
 
 ## 3. Biên lai công nợ: thay hẳn cách làm của app cũ
 

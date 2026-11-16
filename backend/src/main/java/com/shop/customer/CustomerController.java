@@ -68,17 +68,25 @@ public class CustomerController {
     @Transactional
     public Customer update(@PathVariable Long id, @Valid @RequestBody CustomerRequest r) {
         Customer c = customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
+        if (customers.existsByActiveTrueAndNameIgnoreCaseAndIdNot(r.name().trim(), id)) throw ApiException.conflict("Ten khach hang da ton tai");
         c.setName(r.name().trim());
         c.setAddress(r.address());
         c.setPhone(r.phone());
         return c;
     }
 
-    /** Xoa mem. Khong xoa hoa don/lich su cua khach. */
+    /**
+     * Xoa mem. Khong xoa hoa don/lich su cua khach. Khach con no thi khong an duoc: no se bien khoi "Khach dang no"
+     * va khong ai thu duoc nua -> thu het, hoac dieu chinh ve 0 (co ly do, vd "No kho doi") truoc.
+     */
     @DeleteMapping("/{id}")
     @Transactional
     public void delete(@PathVariable Long id) {
-        customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang")).setActive(false);
+        Customer c = customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
+        if (c.getDebt().signum() > 0)
+            throw ApiException.conflict("Khach con no " + c.getDebt().stripTrailingZeros().toPlainString()
+                    + ". Thu het hoac dieu chinh no ve 0 (ghi ly do) truoc khi an");
+        c.setActive(false);
     }
 
     @GetMapping("/{id}")

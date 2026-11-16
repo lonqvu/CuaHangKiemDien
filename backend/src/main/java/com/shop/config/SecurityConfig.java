@@ -34,11 +34,17 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(a -> a
+                // trang loi noi bo (/error) khong kiem tra lai quyen: neu khong, 403 bi doi thanh 401 (mat dang nhap o luot
+                // dispatch loi) va giao dien tuong het phien -> dang xuat nhan vien chi vi bam nham chuc nang bi cam
+                .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/login", "/actuator/health").permitAll()
                 .requestMatchers("/api/auth/change-password").permitAll() // nhu app cu: doi tu man dang nhap
-                // Nhan vien: chi ban hang (xem san pham/khach, tao khach, lam hoa don)
-                .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/customers/**").authenticated()
+                // Nhan vien: chi ban hang (xem san pham, tim/chon/tao khach, lam + in hoa don).
+                // So no, sao ke, phieu thu, danh sach hoa don, huy hoa don: chi quan tri.
+                .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/customers", "/api/customers/{id:\\d+}").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/customers").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/orders").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/cancel").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/orders/*/cancel-preview").hasRole("ADMIN")
                 .requestMatchers("/api/orders/**").authenticated()
