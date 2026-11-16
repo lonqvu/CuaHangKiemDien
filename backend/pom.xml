@@ -35,6 +35,8 @@
       <version>5.5.0</version>
       <exclusions>
         <exclusion><groupId>eclipse</groupId><artifactId>jdtcore</artifactId></exclusion>
+        <!-- itext 2.1.7.js2 chi co tren kho Jaspersoft (khai bao http, Maven 3.8+ chan) -> CI/Docker khong tai duoc -->
+        <exclusion><groupId>com.lowagie</groupId><artifactId>itext</artifactId></exclusion>
         <exclusion><groupId>xml-apis</groupId><artifactId>xml-apis</artifactId></exclusion>
         <exclusion><groupId>org.codehaus.castor</groupId><artifactId>castor</artifactId></exclusion>
         <exclusion><groupId>commons-logging</groupId><artifactId>commons-logging</artifactId></exclusion>
@@ -44,6 +46,9 @@
         <exclusion><groupId>org.bouncycastle</groupId><artifactId>bctsp-jdk14</artifactId></exclusion>
       </exclusions>
     </dependency>
+    <!-- Ban itext goc tren Maven Central; .js2 chi la ban va nho cua Jaspersoft tren cung 2.1.7, cung API.
+         Da kiem tra: xuat hoa don + bien lai PDF day du tieng Viet (ReportTemplatesTest). -->
+    <dependency><groupId>com.lowagie</groupId><artifactId>itext</artifactId><version>2.1.7</version></dependency>
     <!-- 3.2.1 cua Jasper co lo hong deserialization -> dung 3.2.2 -->
     <dependency><groupId>commons-collections</groupId><artifactId>commons-collections</artifactId><version>3.2.2</version></dependency>
     <!-- Font DejaVu Sans cho Jasper (app cu cung dung jasperreports-fonts-6.0.0) -->

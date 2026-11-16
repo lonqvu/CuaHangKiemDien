@@ -651,6 +651,9 @@ ORDER BY b.Products_Name DESC, b.Bill_HeSo, b.Bill_SoTam, b.Bill_ID]]>
 			</staticText>
 			<textField isBlankWhenNull="true">
 				<reportElement x="2" y="27" width="227" height="108" uuid="09b3323c-c763-4338-a67d-ab8c07d0452e"/>
+				<textElement>
+					<font fontName="DejaVu Sans"/>
+				</textElement>
 				<textFieldExpression><![CDATA[$F{Note}]]></textFieldExpression>
 			</textField>
 			<image>

@@ -57,6 +57,8 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 ## In hoa don / bien lai (JasperReports cu)
 - Mau in: `backend/src/main/resources/reports/Bill.jrxml`, `ThanhToanNoReport.jrxml` (lay nguyen tu app cu), anh logo/QR o `reports/images/`.
 - Server nap ban da bien dich san `*.jasper` (JasperReports 5.5.0, giong app cu) -> `GET /api/orders/{id}/invoice.pdf`, `GET /api/customers/{id}/payment-receipt.pdf`.
+- Thu vien PDF: `com.lowagie:itext:2.1.7` tu Maven Central (ban `2.1.7.js2` Jasper keo theo chi co tren kho Jaspersoft, CI/Docker khong tai duoc).
+- O chu trong mau in phai dat font `DejaVu Sans`; de font mac dinh thi chu co dau (ư, ề, ạ...) bi mat khi xuat PDF.
 - Sua `.jrxml` xong phai bien dich lai: `cd backend && mvn test -Dtest=ReportTemplatesTest -Dreports.compile=true`.
 - Dinh dang so: bien `REPORT_LOCALE` (mac dinh `en-US` -> 1,234,567; `vi-VN` -> 1.234.567). Gio: `APP_TZ` (mac dinh Asia/Ho_Chi_Minh).
 

@@ -126,7 +126,10 @@ public class OrderService {
 
     private void recalc(Order o) {
         o.setItemsTotal(o.getItems().stream().map(OrderItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add));
-        orders.saveAndFlush(o); // de moi dong moi co id tra ve cho client
+        // o dang duoc quan ly trong transaction -> chi flush: cascade PERSIST luu dong moi va gan id cho client.
+        // Khong goi save()/saveAndFlush(): voi entity da co id, Spring Data goi merge -> Hibernate tao ban sao cua
+        // dong moi, con list items van giu ban goc chua luu -> TransientObjectException khi flush.
+        orders.flush();
     }
 
     /**
