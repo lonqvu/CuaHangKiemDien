@@ -252,3 +252,8 @@ Quy tắc dùng chung:
 - Không hiển thị số lẻ dạng `1.000` trong ô nhập (người Việt đọc thành một nghìn).
 - Công nợ luôn màu hổ phách **kèm chữ** ("Còn nợ", "nợ 12.450.000"), không chỉ dựa vào màu.
 - Mỗi màn chỉ 1 điểm nhấn: màn Bán hàng là "phiếu thanh toán" bên phải; màn Tổng quan là ô "Khách đang nợ".
+- Ô nhập tiền: dưới ô hiện dòng đọc lại có dấu chấm (`class="echo"`, vd "= 12.450.000"), để không gõ nhầm số chữ số.
+- Nút bị khóa phải nói lý do ngay cạnh nút (vd "Chọn khách hàng hoặc nhập tên khách lẻ để chốt"), không chỉ làm mờ.
+- Vùng bấm tối thiểu 28px (nút `small`, nút link); không dùng nút `small` cho thao tác chính.
+- Bảng chính phải vừa khung ở 1366px không cần cuộn ngang: cột quan trọng (khách, thành tiền) đứng trước, cột phụ đưa vào ngăn chi tiết.
+- Lưới chứa bảng dùng `minmax(0, 1fr)` (không dùng `1fr` trần) để bảng cuộn bên trong, không đẩy tràn trang.

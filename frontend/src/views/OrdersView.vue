@@ -61,7 +61,7 @@ onMounted(load)
     </el-radio-group>
     <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" format="DD/MM/YYYY" range-separator="–"
                     start-placeholder="Từ ngày" end-placeholder="Đến ngày" style="max-width: 280px" @change="load" />
-    <el-input v-model="q" :prefix-icon="Search" placeholder="Tìm mã, khách, SĐT, nhân viên" clearable style="max-width: 320px" aria-label="Tìm hóa đơn" />
+    <el-input v-model="q" :prefix-icon="Search" placeholder="Tìm mã, khách, SĐT, nhân viên, ghi chú" clearable style="max-width: 320px" aria-label="Tìm hóa đơn" />
     <span class="grow" />
     <span class="muted">{{ filtered.length }} hóa đơn · tiền hàng <b class="num">{{ num(totals.goods) }}</b> · đã thu <b class="num tone-money">{{ num(totals.paid) }}</b></span>
   </div>
@@ -69,21 +69,19 @@ onMounted(load)
   <div class="panel">
     <!-- Cot giong bang OrderHistory cu -->
     <el-table v-loading="loading" :data="filtered" empty-text="Không có hóa đơn" row-class-name="clickable" @row-click="(r: Order) => (detail = r)">
-      <el-table-column type="index" label="STT" width="56" />
-      <el-table-column label="Mã HĐ" width="120"><template #default="{ row }"><span class="mono">{{ row.code }}</span></template></el-table-column>
+      <el-table-column label="Mã HĐ" width="112"><template #default="{ row }"><span class="mono">{{ row.code }}</span></template></el-table-column>
       <el-table-column label="Ngày" width="96"><template #default="{ row }">{{ dateOnly(row.createdAt) }}</template></el-table-column>
-      <el-table-column prop="staffName" label="Nhân viên" width="120" show-overflow-tooltip />
-      <el-table-column label="Tiền hàng" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template></el-table-column>
-      <el-table-column label="Nợ cũ" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.previousDebt) }}</span></template></el-table-column>
-      <el-table-column label="Tổng thanh toán" width="136" align="right"><template #default="{ row }"><span class="num">{{ num(row.totalPayable) }}</span></template></el-table-column>
-      <el-table-column label="Khách trả" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template></el-table-column>
-      <el-table-column label="Còn lại" width="120" align="right">
+      <el-table-column label="Khách hàng" min-width="150" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.customerName || 'Khách lẻ' }}</template>
+      </el-table-column>
+      <el-table-column label="SĐT" width="116"><template #default="{ row }"><span class="num">{{ row.customerPhone }}</span></template></el-table-column>
+      <el-table-column label="Tiền hàng" width="112" align="right"><template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template></el-table-column>
+      <el-table-column label="Nợ cũ" width="112" align="right"><template #default="{ row }"><span class="num">{{ num(row.previousDebt) }}</span></template></el-table-column>
+      <el-table-column label="Tổng thanh toán" width="130" align="right"><template #default="{ row }"><span class="num">{{ num(row.totalPayable) }}</span></template></el-table-column>
+      <el-table-column label="Khách trả" width="112" align="right"><template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template></el-table-column>
+      <el-table-column label="Còn lại" width="112" align="right">
         <template #default="{ row }"><span class="num" :class="{ 'tone-debt': Number(row.debtAfter) > 0 }">{{ num(row.debtAfter) }}</span></template>
       </el-table-column>
-      <el-table-column prop="customerName" label="Khách hàng" min-width="150" show-overflow-tooltip />
-      <el-table-column label="SĐT" width="128"><template #default="{ row }"><span class="num">{{ row.customerPhone }}</span></template></el-table-column>
-      <el-table-column prop="customerAddress" label="Địa chỉ" min-width="130" show-overflow-tooltip />
-      <el-table-column prop="note" label="Ghi chú" min-width="120" show-overflow-tooltip />
     </el-table>
   </div>
 
@@ -93,6 +91,7 @@ onMounted(load)
         <div><dt>Trạng thái</dt><dd><el-tag :type="detail.status === 'PAID' ? 'success' : 'info'">{{ detail.status === 'PAID' ? 'Đã thanh toán' : 'Đã hủy' }}</el-tag></dd></div>
         <div><dt>Ngày lập / chốt</dt><dd>{{ dateOnly(detail.createdAt) }} · {{ dt(detail.checkedOutAt) }}</dd></div>
         <div><dt>Khách</dt><dd>{{ detail.customerName || 'Khách lẻ' }}<br v-if="detail.customerPhone" /><span class="muted">{{ detail.customerPhone }}</span></dd></div>
+        <div v-if="detail.customerAddress"><dt>Địa chỉ</dt><dd>{{ detail.customerAddress }}</dd></div>
         <div><dt>Nhân viên</dt><dd>{{ detail.staffName }}</dd></div>
         <div v-if="detail.note"><dt>Ghi chú</dt><dd>{{ detail.note }}</dd></div>
       </dl>

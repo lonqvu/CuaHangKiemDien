@@ -10,6 +10,13 @@ const auth = useAuth()
 const route = useRoute()
 const router = useRouter()
 const drawer = ref(false)
+const mainEl = ref<HTMLElement>()
+
+function focusMain() {
+  // uu tien o nhap dau tien cua man (vd o San pham o man Ban hang)
+  const first = mainEl.value?.querySelector<HTMLElement>('input:not([disabled]), textarea:not([disabled])')
+  ;(first ?? mainEl.value)?.focus()
+}
 
 const groups = computed(() => {
   const g = [
@@ -45,7 +52,8 @@ function logout() {
 
 <template>
   <div class="shell">
-    <aside class="sidebar" :class="{ open: drawer }" aria-label="Điều hướng chính">
+    <a href="#main" class="skip-link" @click.prevent="focusMain">Bỏ qua menu, tới nội dung</a>
+    <aside class="sidebar" tabindex="-1" :class="{ open: drawer }" aria-label="Điều hướng chính">
       <div class="brand">
         <span class="mark" aria-hidden="true">NS</span>
         <div><b>Nhôm Sắt Kiểm Diên</b><small>Quản lý bán hàng</small></div>
@@ -75,7 +83,7 @@ function logout() {
         <el-button text :icon="MenuIcon" aria-label="Mở menu" @click="drawer = true" />
         <b>{{ route.meta.title }}</b>
       </div>
-      <main class="content"><router-view /></main>
+      <main id="main" ref="mainEl" class="content" tabindex="-1"><router-view /></main>
     </div>
   </div>
 </template>
@@ -113,6 +121,7 @@ nav h2 { font-size: 12px; font-weight: 500; color: var(--steel-400); padding: va
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { display: none; }
 .content { padding: var(--space-2xl); max-width: 1440px; width: 100%; }
+.content:focus { outline: none; }
 .scrim { display: none; }
 
 @media (max-width: 960px) {

@@ -109,10 +109,10 @@ onMounted(async () => {
 
     <section class="panel panel-pad block">
       <div class="head">
-        <h2>Doanh thu <span class="muted">(triệu đồng)</span></h2>
+        <h2>Doanh thu <span class="muted">(triệu đồng, {{ chartMode === 'day' ? 'khoảng đã chọn' : 'năm nay' }})</span></h2>
         <el-radio-group v-model="chartMode" size="small">
-          <el-radio-button value="day">Theo ngày (khoảng đã chọn)</el-radio-button>
-          <el-radio-button value="month">Theo tháng (năm nay)</el-radio-button>
+          <el-radio-button value="day">Theo ngày</el-radio-button>
+          <el-radio-button value="month">Theo tháng</el-radio-button>
         </el-radio-group>
       </div>
       <BarChart :data="chart" :caption="chartMode === 'day' ? 'Doanh thu theo ngày' : 'Doanh thu theo tháng'" />
@@ -173,8 +173,9 @@ onMounted(async () => {
 
 <style scoped>
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg); }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg); }
 .block { margin-bottom: var(--space-lg); }
+.head > * { min-width: 0; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-lg); }
 h2 { font-size: 16px; }
 .block > h2 { margin-bottom: var(--space-lg); }
@@ -183,5 +184,5 @@ h2 .muted { font-weight: 400; font-size: 13px; }
 p.small { margin: var(--space-md) 0 0; }
 .share { display: inline-block; width: 110px; height: 8px; background: var(--steel-100); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
 .share span { display: block; height: 100%; background: var(--steel-800); }
-@media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: minmax(0, 1fr); } }
 </style>

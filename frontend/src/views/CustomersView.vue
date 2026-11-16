@@ -134,10 +134,10 @@ onMounted(load)
       <div class="info">
         <p class="muted">{{ current.phone || 'Chưa có SĐT' }}<span v-if="current.address"> · {{ current.address }}</span></p>
         <div class="actions">
-          <el-button size="small" @click="openForm(current)">Sửa thông tin</el-button>
-          <el-button size="small" @click="setDebt">Sửa số nợ</el-button>
-          <el-button size="small" @click="printReceipt">In biên lai công nợ</el-button>
-          <el-button size="small" type="danger" plain @click="hide(current)">Ẩn khách</el-button>
+          <el-button @click="openForm(current)">Sửa thông tin</el-button>
+          <el-button @click="setDebt">Sửa số nợ</el-button>
+          <el-button @click="printReceipt">In biên lai công nợ</el-button>
+          <el-button type="danger" plain @click="hide(current)">Ẩn khách</el-button>
         </div>
       </div>
 
@@ -152,8 +152,11 @@ onMounted(load)
             <el-input-number id="amt" v-model="payForm.amount" :min="0" :max="Number(current.debt)" :step="100000" :controls="false" class="amt" />
             <el-button @click="payForm.amount = Number(current.debt)">Trả hết</el-button>
           </div>
+          <span v-if="payForm.amount >= 1000" class="echo">= {{ money(payForm.amount) }}</span>
           <el-input v-model="payForm.note" placeholder="Ghi chú (tiền mặt, chuyển khoản...)" aria-label="Ghi chú thu nợ" />
-          <el-button type="success" native-type="submit" :loading="paying">Ghi nhận thu {{ money(payForm.amount) }}</el-button>
+          <el-button type="success" native-type="submit" :loading="paying" :disabled="!(payForm.amount > 0)">
+            {{ payForm.amount > 0 ? `Ghi nhận thu ${money(payForm.amount)}` : 'Nhập số tiền khách trả' }}
+          </el-button>
         </form>
       </section>
 
@@ -177,6 +180,7 @@ onMounted(load)
       <el-form-item label="Địa chỉ"><el-input v-model="form.address" /></el-form-item>
       <el-form-item v-if="!dialog.id" label="Nợ ban đầu (₫)">
         <el-input-number v-model="form.initialDebt" :min="0" :step="100000" :controls="false" style="width: 100%" />
+        <span v-if="form.initialDebt >= 1000" class="echo">= {{ money(form.initialDebt) }}</span>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -188,6 +192,8 @@ onMounted(load)
 
 <style scoped>
 :deep(.clickable) { cursor: pointer; }
+.info .actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.info .actions .el-button + .el-button { margin-left: 0; }
 .info { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-lg); }
 .info p { margin: 0; }
 .collect { display: grid; grid-template-columns: 1fr 1.4fr; gap: var(--space-xl); padding: var(--space-lg); background: var(--steel-50); border-radius: var(--radius-lg); margin-bottom: var(--space-xl); }

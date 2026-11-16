@@ -110,6 +110,7 @@ onMounted(load)
       </div>
       <el-form-item label="Giá bán (₫)" prop="price">
         <el-input-number v-model="form.price" :min="0" :step="1000" :controls="false" style="width: 100%" class="money-input" />
+        <span v-if="form.price >= 1000" class="echo">= {{ num(form.price) }} ₫</span>
       </el-form-item>
     </el-form>
     <template #footer>

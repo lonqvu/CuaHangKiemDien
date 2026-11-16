@@ -19,6 +19,7 @@ const products = ref<Product[]>([])
 const customers = ref<Customer[]>([])
 const customer = ref<Customer | null>(null)
 const busy = ref(false)
+const loadError = ref(false)
 const productSelect = ref()
 
 const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
@@ -141,6 +142,12 @@ const payable = computed(() => itemsTotal.value + Number(pay.shippingFee || 0) +
 const remain = computed(() => Math.max(0, payable.value - Number(pay.paidAmount || 0)))
 const change = computed(() => Math.max(0, Number(pay.paidAmount || 0) - payable.value))
 const needName = computed(() => !customer.value && !pay.walkInName.trim())
+// ly do nut Chot bi khoa - hien ngay tren nut, khong chi lam mo nut
+const blockReason = computed(() => {
+  if (!order.value?.items.length) return 'Thêm ít nhất 1 mặt hàng để chốt hóa đơn.'
+  if (needName.value) return 'Chọn khách hàng hoặc nhập tên khách lẻ để chốt.'
+  return ''
+})
 
 // Nut "Cap nhat" no cu trong PayDialog cu: dat lai so no cua khach (chi quan tri)
 async function editOldDebt() {
@@ -182,11 +189,21 @@ async function checkout() {
 // In hoa don bang mau Jasper cu (Bill.jrxml) - backend tra ve PDF
 function print() { openPdf(`/orders/${done.value!.id}/invoice.pdf`) }
 
-onMounted(async () => {
-  await resume()
+async function init() {
+  loadError.value = false
+  try {
+    await resume()
+  } catch {
+    loadError.value = true
+    return
+  }
   searchProducts('')
   searchCustomers('')
-})
+  await nextTick()
+  productSelect.value?.focus() // vao man la go ten san pham ngay
+}
+
+onMounted(init)
 
 // Roi man hinh khi hoa don nhap con trong thi xoa luon
 onBeforeUnmount(() => {
@@ -249,20 +266,25 @@ onBeforeUnmount(() => {
 
       <div class="panel">
         <el-table :data="order.items" empty-text="Chưa có mặt hàng. Chọn sản phẩm ở trên rồi bấm Thêm (hoặc Enter)." style="width: 100%">
-          <el-table-column type="index" label="#" width="48" />
-          <el-table-column label="Mặt hàng" min-width="180">
+          <el-table-column type="index" label="#" width="40" />
+          <el-table-column label="Mặt hàng" min-width="160">
             <template #default="{ row }">{{ row.productName }}<span v-if="row.unit" class="muted"> · {{ row.unit }}</span></template>
           </el-table-column>
-          <el-table-column label="SL" width="80" align="right"><template #default="{ row }"><span class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
-          <el-table-column label="Tấm" width="64" align="right"><template #default="{ row }"><span class="num">{{ row.sheets || '' }}</span></template></el-table-column>
-          <el-table-column label="Hệ số" width="72" align="right"><template #default="{ row }"><span class="num">{{ Number(row.factor) ? qty(row.factor) : '' }}</span></template></el-table-column>
-          <el-table-column label="Tổng SL" width="90" align="right"><template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span></template></el-table-column>
-          <el-table-column label="Đơn giá" width="110" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" width="128" align="right"><template #default="{ row }"><b class="num">{{ num(row.lineTotal) }}</b></template></el-table-column>
-          <el-table-column v-if="!done" width="96" align="center">
+          <el-table-column label="SL" width="72" align="right"><template #default="{ row }"><span class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
+          <el-table-column label="Tổng SL" width="112" align="right">
             <template #default="{ row }">
+              <span class="num">{{ qty(row.totalQuantity) }}</span>
+              <div v-if="row.sheets" class="formula num" :title="`Số tấm ${row.sheets}, hệ số ${qty(row.factor)}`">× {{ row.sheets }} tấm × {{ qty(row.factor) }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="Đơn giá" width="100" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
+          <el-table-column label="Thành tiền" width="120" align="right"><template #default="{ row }"><b class="num">{{ num(row.lineTotal) }}</b></template></el-table-column>
+          <el-table-column v-if="!done" label="Sửa / xóa" width="104" align="center">
+            <template #default="{ row }">
+              <div class="row-actions">
               <el-button text :icon="Edit" :aria-label="`Sửa ${row.productName}`" @click="openEdit(row)" />
               <el-button text type="danger" :icon="Delete" :aria-label="`Xóa ${row.productName}`" @click="removeItem(row)" />
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -274,7 +296,7 @@ onBeforeUnmount(() => {
       <div class="block">
         <div class="row-between">
           <label class="lbl" for="cus">Khách hàng</label>
-          <el-button v-if="!done" link type="primary" @click="newCus.open = true">+ Khách mới</el-button>
+          <el-button v-if="!done" link type="primary" :icon="Plus" @click="newCus.open = true">Khách mới</el-button>
         </div>
         <el-select id="cus" v-model="customer" value-key="id" filterable remote clearable :remote-method="searchCustomers"
                    placeholder="Khách lẻ (không ghi nợ)" :disabled="!!done" style="width: 100%">
@@ -285,8 +307,14 @@ onBeforeUnmount(() => {
         </el-select>
         <p v-if="customer" class="cus-meta muted">{{ customer.phone || 'Chưa có SĐT' }}<span v-if="customer.address"> · {{ customer.address }}</span></p>
         <div v-else-if="!done" class="walkin">
-          <el-input v-model="pay.walkInName" placeholder="Tên khách lẻ *" aria-label="Tên khách lẻ (bắt buộc)" />
-          <el-input v-model="pay.walkInPhone" placeholder="SĐT" aria-label="Số điện thoại khách lẻ" />
+          <div class="f">
+            <label for="walkin-name">Tên khách lẻ <span class="req" aria-hidden="true">*</span></label>
+            <el-input id="walkin-name" v-model="pay.walkInName" aria-required="true" />
+          </div>
+          <div class="f">
+            <label for="walkin-phone">SĐT</label>
+            <el-input id="walkin-phone" v-model="pay.walkInPhone" inputmode="tel" />
+          </div>
         </div>
       </div>
 
@@ -294,7 +322,10 @@ onBeforeUnmount(() => {
         <div><dt>Tiền hàng <span class="muted">({{ order.items.length }} dòng)</span></dt><dd class="num">{{ num(itemsTotal) }}</dd></div>
         <div>
           <dt><label for="ship">Phí vận chuyển</label></dt>
-          <dd><el-input-number id="ship" v-model="pay.shippingFee" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" /></dd>
+          <dd class="input-dd">
+            <el-input-number id="ship" v-model="pay.shippingFee" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" />
+            <span v-if="pay.shippingFee >= 1000" class="echo">= {{ num(pay.shippingFee) }}</span>
+          </dd>
         </div>
         <div>
           <dt>Nợ cũ <el-button v-if="customer && auth.isAdmin && !done" link type="primary" size="small" @click="editOldDebt">Cập nhật</el-button></dt>
@@ -303,7 +334,10 @@ onBeforeUnmount(() => {
         <div class="total"><dt>Tổng phải trả</dt><dd class="num">{{ num(payable) }}</dd></div>
         <div>
           <dt><label for="paid">Khách trả</label></dt>
-          <dd><el-input-number id="paid" v-model="pay.paidAmount" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" /></dd>
+          <dd class="input-dd">
+            <el-input-number id="paid" v-model="pay.paidAmount" :min="0" :step="10000" :controls="false" :disabled="!!done" class="mini" />
+            <span v-if="pay.paidAmount >= 1000" class="echo">= {{ num(pay.paidAmount) }}</span>
+          </dd>
         </div>
         <div v-if="!done" class="quick">
           <el-button size="small" @click="payAll">Trả đủ</el-button>
@@ -321,9 +355,16 @@ onBeforeUnmount(() => {
       <el-input v-model="pay.note" type="textarea" :rows="2" placeholder="Ghi chú (giao hàng, cắt theo kích thước...)" aria-label="Ghi chú" :disabled="!!done" />
 
       <template v-if="!done">
-        <el-button type="success" size="large" class="cta" :loading="busy" :disabled="!order.items.length || needName" @click="checkout">
-          Chốt hóa đơn · {{ money(pay.paidAmount || 0) }}
+        <p v-if="blockReason" id="block-reason" class="hint warn" role="status">{{ blockReason }}</p>
+        <el-button type="success" size="large" class="cta" :loading="busy" :disabled="!!blockReason"
+                   :aria-describedby="blockReason ? 'block-reason' : 'cta-note'" @click="checkout">
+          Chốt hóa đơn
         </el-button>
+        <p v-if="!blockReason" id="cta-note" class="cta-note">
+          Thu <b class="num">{{ money(pay.paidAmount || 0) }}</b>
+          <template v-if="remain > 0"> · {{ customer ? 'ghi nợ' : 'còn lại' }} <b class="num tone-debt">{{ money(remain) }}</b></template>
+          <template v-else-if="change > 0"> · trả lại khách <b class="num">{{ money(change) }}</b></template>
+        </p>
       </template>
       <div v-else class="done">
         <p><b>Đã chốt {{ done.code }}.</b> <span v-if="Number(done.debtAfter) > 0">Khách còn nợ <b class="num tone-debt">{{ money(done.debtAfter) }}</b>.</span></p>
@@ -363,6 +404,14 @@ onBeforeUnmount(() => {
     </el-dialog>
 
   </div>
+  <div v-else-if="loadError" class="state panel panel-pad" role="alert">
+    <h1>Không mở được hóa đơn</h1>
+    <p class="muted">Kiểm tra kết nối tới máy chủ rồi thử lại. Hóa đơn đang nhập dở (nếu có) vẫn được giữ.</p>
+    <el-button type="primary" @click="init">Thử lại</el-button>
+  </div>
+  <div v-else class="state panel panel-pad" aria-busy="true">
+    <el-skeleton :rows="6" animated />
+  </div>
 </template>
 
 <style scoped>
@@ -372,7 +421,7 @@ onBeforeUnmount(() => {
 .head h1 { font-size: 22px; }
 .head p { margin: 2px 0 0; font-size: 14px; }
 
-.entry { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(4, minmax(112px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
+.entry { display: grid; grid-template-columns: minmax(160px, 2fr) repeat(4, minmax(100px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
 .entry.disabled { opacity: 0.6; }
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
@@ -390,7 +439,12 @@ onBeforeUnmount(() => {
 .block { display: flex; flex-direction: column; gap: var(--space-sm); }
 .row-between { display: flex; justify-content: space-between; align-items: center; }
 .cus-meta { margin: 0; font-size: 13px; }
-.walkin { display: grid; grid-template-columns: 1fr 120px; gap: var(--space-sm); }
+.walkin { display: grid; grid-template-columns: 1fr 128px; gap: var(--space-sm); }
+.req { color: var(--danger); }
+.row-actions { display: flex; justify-content: center; gap: var(--space-xs); }
+.row-actions .el-button { width: 36px; height: 36px; margin: 0; }
+.formula { font-size: 11px; color: var(--ink-muted); line-height: 1.3; white-space: nowrap; }
+.input-dd { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 2px 0; }
 .sum { margin: 0; display: flex; flex-direction: column; border-top: 1px dashed var(--steel-200); padding-top: var(--space-md); }
 .sum > div { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); min-height: 34px; }
 .sum dt { font-size: 14px; color: #334155; }
@@ -405,6 +459,11 @@ onBeforeUnmount(() => {
 .remain dd { font-size: 18px; font-weight: 600; }
 .remain.owe dt, .remain.owe dd { color: var(--debt); }
 .hint { margin: 0; color: var(--ink-muted); font-size: 13px; }
+.hint.warn { color: var(--debt); font-weight: 500; }
+.cta-note { margin: calc(-1 * var(--space-sm)) 0 0; font-size: 13px; color: var(--ink-muted); text-align: center; }
+.state { max-width: 560px; display: flex; flex-direction: column; gap: var(--space-md); align-items: flex-start; }
+.state h1 { font-size: 20px; }
+.state p { margin: 0; }
 .cta { width: 100%; height: 52px; font-size: 16px; }
 .done p { margin: 0 0 var(--space-md); }
 .done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
