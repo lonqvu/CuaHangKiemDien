@@ -32,7 +32,7 @@ Thiet ke theo skill `ui-ux-pro-max`, design system o `design-system/nhom-sat-kie
 | `HomeUser` | Nhan vien vao thang man Ban hang | STAFF |
 | `Sale` + `ProductDialog` + `ModifyProduct` + `CustomerDialog` + `PayDialog` | Ban hang (`/sale`), in hoa don bang trinh duyet | tat ca |
 | `OrderHistory` + `OrderDetailDialog` | Hoa don (`/orders`) | ADMIN |
-| `Customers` + `ThanhToanNo` | Khach hang & cong no (`/customers`) | ADMIN |
+| `Customers` + `ThanhToanNo` | Khach hang & cong no (`/customers`): thu no, phieu thu, sao ke, dieu chinh no | ADMIN |
 | `Product` | San pham (`/products`) | ADMIN |
 | `Data` | Loai hang (`/categories`) | ADMIN |
 | `ThongKe` | Thong ke (`/reports`) | ADMIN |
@@ -50,6 +50,7 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - **Cong no**: moi thay doi (mua chiu, tra no, huy don) co 1 dong trong `debt_ledger` (so cai) de truy vet.
   Chot hoa don = 1 transaction (hoa don + cong no + so cai), loi la rollback het.
   Khach hang co khoa lac quan (`@Version`) chong 2 may ghi de cong no.
+- **Phieu thu no / sao ke**: in tu so cong no (moi dong Con no = dong tren + Tang - Giam), so phieu PT..., in lai ra y nguyen; huy phieu thu va dieu chinh no bat buoc ly do. Xem `docs/doi-chieu-nghiep-vu.md` muc 3.
 - **Huy hoa don** (chi ADMIN): giu hoa don o trang thai `CANCELLED` va hoan lai cong no (app cu xoa cung va lam lech no).
   Neu khach da tra bot/tra het no cua chinh hoa don do: no chi ve 0 (khong am), phan con lai cua hang **tra lai khach tien mat**
   (bao truoc khi huy, luu o `refund_amount` cua hoa don va ghi trong so cong no).
@@ -63,8 +64,8 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 - E2E man Ban hang tren backend that: `scripts/e2e-ban-hang.cjs` (xem huong dan dau file).
 
 ## In hoa don / bien lai (JasperReports cu)
-- Mau in: `backend/src/main/resources/reports/Bill.jrxml`, `ThanhToanNoReport.jrxml` (lay nguyen tu app cu), anh logo/QR o `reports/images/`.
-- Server nap ban da bien dich san `*.jasper` (JasperReports 5.5.0, giong app cu) -> `GET /api/orders/{id}/invoice.pdf`, `GET /api/customers/{id}/payment-receipt.pdf`.
+- Mau in: `backend/src/main/resources/reports/Bill.jrxml` (lay nguyen tu app cu), `PhieuThuNo.jrxml` (phieu thu / sao ke, dau trang lay tu mau bien lai cu), anh logo/QR o `reports/images/`.
+- Server nap ban da bien dich san `*.jasper` (JasperReports 5.5.0, giong app cu) -> `GET /api/orders/{id}/invoice.pdf`, `GET /api/customers/debt-payments/{ledgerId}/receipt.pdf` (phieu thu), `GET /api/customers/{id}/statement.pdf?from=&to=` (sao ke).
 - Thu vien PDF: `com.lowagie:itext:2.1.7` tu Maven Central (ban `2.1.7.js2` Jasper keo theo chi co tren kho Jaspersoft, CI/Docker khong tai duoc).
 - O chu trong mau in phai dat font `DejaVu Sans`; de font mac dinh thi chu co dau (ư, ề, ạ...) bi mat khi xuat PDF.
 - Sua `.jrxml` xong phai bien dich lai: `cd backend && mvn test -Dtest=ReportTemplatesTest -Dreports.compile=true`.

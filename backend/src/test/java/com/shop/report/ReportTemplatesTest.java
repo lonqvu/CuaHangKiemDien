@@ -1,7 +1,7 @@
 package com.shop.report;
 
 import com.shop.report.jasper.BillReportData;
-import com.shop.report.jasper.DebtReceiptData;
+import com.shop.customer.DebtStatementService;
 import com.shop.report.jasper.JasperReportService;
 import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.JasperCompileManager;
@@ -44,8 +44,14 @@ class ReportTemplatesTest {
         byte[] bill = svc.invoice(header(), List.of(
                 new BillReportData.Line(1, 1L, "Nhôm Xingfa hệ 55", "cây", d("2"), 0, d("0"), d("485000"), d("2"), d("970000"))));
         assertTrue(new String(bill, 0, 4, StandardCharsets.US_ASCII).startsWith("%PDF"));
-        byte[] receipt = svc.debtReceipt(1, "Anh Tuấn", "Thôn Đông", "0912", d("700000"),
-                List.of(new DebtReceiptData.Payment(LocalDateTime.now(), d("1000000"), d("300000"), d("700000"))), 300000d);
+        var lines = List.of(
+                new DebtStatementService.Line(1L, LocalDateTime.of(2026, 11, 1, 8, 0), "Điều chỉnh: Nợ ban đầu", d("1000000"), null, d("1000000"), false),
+                new DebtStatementService.Line(2L, LocalDateTime.of(2026, 11, 3, 9, 0), "Thu nợ PT000001", null, d("300000"), d("700000"), true));
+        byte[] receipt = svc.debtDoc(new DebtStatementService.Doc("PHIẾU THU NỢ", "Số: PT000001", LocalDateTime.of(2026, 11, 3, 9, 0),
+                1L, "Anh Tuấn", "Thôn Đông", "0912", "Nguyễn Thị Thu", "Tiền mặt", true, "Thu nhầm số tiền", lines, List.of(
+                new DebtStatementService.Total("Nợ trước khi thu", d("1000000"), false),
+                new DebtStatementService.Total("Số tiền thu (tiền mặt)", d("300000"), false),
+                new DebtStatementService.Total("Còn nợ", d("700000"), true))));
         assertTrue(new String(receipt, 0, 4, StandardCharsets.US_ASCII).startsWith("%PDF"));
     }
 
@@ -55,7 +61,7 @@ class ReportTemplatesTest {
     void compileTemplates() throws Exception {
         DefaultJasperReportsContext.getInstance().setProperty("net.sf.jasperreports.compiler.class",
                 "net.sf.jasperreports.engine.design.JRJdk13Compiler");
-        for (String n : new String[] {"Bill", "ThanhToanNoReport"}) {
+        for (String n : new String[] {"Bill", "PhieuThuNo"}) {
             String base = "src/main/resources/reports/" + n;
             JasperCompileManager.compileReportToFile(base + ".jrxml", base + ".jasper");
         }

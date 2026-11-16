@@ -1,8 +1,13 @@
 export interface Product { id: number; name: string; categoryId: number | null; categoryName: string | null; unit: string | null; price: number }
 export interface Category { id: number; name: string }
 export interface Customer { id: number; name: string; address: string | null; phone: string | null; debt: number }
-export interface ReceiptRow { date: string; oldDebt: number; amount: number; remainingDebt: number }
-export interface LedgerRow { id: number; type: 'ORDER' | 'PAYMENT' | 'ADJUST' | 'MANUAL'; amount: number; balanceAfter: number; note: string | null; createdAt: string }
+/** Mot dong so cong no, da dien giai san o backend (giong dong tren phieu thu / sao ke). */
+export interface LedgerRow {
+  id: number; type: 'ORDER' | 'PAYMENT' | 'ADJUST' | 'MANUAL' | 'VOID'; description: string
+  increase: number | null; decrease: number | null; balanceAfter: number; createdAt: string; createdBy: string | null
+  receiptNo: string | null; method: string | null; voided: boolean; canVoid: boolean
+}
+export interface PaymentResult { customer: Customer; ledgerId: number; receiptNo: string }
 export interface OrderItem { id: number; productId: number; productName: string; unit: string | null; unitPrice: number; quantity: number; sheets: number; factor: number; totalQuantity: number; lineTotal: number }
 export interface Order {
   id: number; code: string; status: 'DRAFT' | 'PAID' | 'CANCELLED'

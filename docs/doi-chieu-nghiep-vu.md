@@ -15,11 +15,10 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 | Còn lại | `max(0, Tổng thanh toán − Khách trả)`; trả dư thì còn lại 0, lưu nguyên số khách đưa | `checkout` |
 | Nợ khách sau đơn | = Còn lại | `checkout` + `debt_ledger` |
 | Khách lẻ | Bắt buộc có tên; được trả thiếu, phần còn lại chỉ ghi trên hóa đơn, không vào công nợ | `checkout` |
-| Cập nhật nợ cũ (PayDialog) / sửa ô Nợ (Customers) | Đặt lại số nợ của khách | `POST /customers/{id}/debt-adjustments` (ADMIN) |
+| Cập nhật nợ cũ (PayDialog) / sửa ô Nợ (Customers) | Đặt lại số nợ của khách | `POST /customers/{id}/debt-adjustments` (ADMIN, **bắt buộc lý do**) |
 | Nợ ban đầu khi thêm khách | Nhập được khi tạo khách | `POST /customers` `initialDebt` (ADMIN) |
 | Trùng tên khách | Không cho thêm khách trùng tên | `CustomerController.create` |
 | Thu nợ (ThanhToanNo) | Số tiền trả ≤ số nợ | `DebtService.pay` |
-| Biên lai công nợ (dùng nguyên `ThanhToanNoReport.jrxml`) | Các lần trả trong chu kỳ hiện tại (sau lần nợ về 0 / lần sửa nợ tay); dòng trả lúc chốt đơn có "Nợ cũ" = nợ trước hóa đơn | `GET /customers/{id}/payment-receipt`, `DebtReceiptPrint.vue` |
 | In hóa đơn (Bill.jrxml) | **Dùng chính JasperReports 5.5.0 và file `Bill.jrxml` của app cũ** (chỉ đổi đường dẫn ảnh `D:\...` thành tham số). Dữ liệu dựng giống câu SQL trong file: gộp dòng tôn → `(4.5 + 4.6) x 2 tấm`, sắp theo tên SP giảm dần, hệ số, số tấm. Locale en-US (`1,234,567`) | `report/jasper/*`, `resources/reports/` |
 | Sản phẩm | Bắt buộc tên, đơn vị, giá | `ProductController` |
 | Doanh thu | Tổng thành tiền dòng hàng (không gồm ship, nợ cũ) | `ReportController` |
@@ -50,9 +49,26 @@ Cột "Chỗ trong code" chỉ file của bản mới.
 | Số lượng nhập 0 vẫn thêm được | Số lượng phải > 0 | Dòng 0 đồng vô nghĩa |
 | Sửa nợ không cần quyền | Chỉ quản trị | Tránh nhân viên sửa nợ |
 
-## 3. Lỗi có sẵn trong mẫu in cũ (đang giữ nguyên)
+## 3. Biên lai công nợ: thay hẳn cách làm của app cũ
 
-- Ô **Ghi chú** trên hóa đơn (`$F{Note}`) không khai báo font nên Jasper dùng font mặc định (bảng mã Latin-1): chữ có dấu như ư, ặ, ả bị mất (`Giao trước` → `Giao trc`). App cũ cũng in như vậy. Sửa: thêm `fontName="DejaVu Sans"` cho ô này trong `Bill.jrxml` rồi biên dịch lại.
+App cũ (`ThanhToanNo` + `ThanhToanNoReport.jrxml`, bảng `PaymentHistory`) chỉ liệt kê các lần **trả**, theo "chu kỳ" từ lần nợ về 0 hoặc lần sửa nợ tay:
+không thấy khoản mua thêm nên dòng "Nợ cũ − Thanh toán ≠ Còn nợ"; trả hết nợ thì biên lai trống ("Không có bản ghi thanh toán nào");
+sửa SĐT khách cũng xóa lịch sử biên lai; in lại thì ra nội dung khác. Bản mới in **từ sổ công nợ** (`debt_ledger`):
+
+| Quy tắc | Chỗ trong code |
+|---|---|
+| Mỗi lần thu nợ có số phiếu `PT000001…`, hình thức (tiền mặt / chuyển khoản), người thu | `DebtService.pay`, migration `V3__debt_receipts.sql` |
+| Phiếu thu 5 cột Ngày / Nội dung / Tăng nợ / Giảm nợ / Còn nợ; mỗi dòng Còn nợ = dòng trên + Tăng − Giảm. Gồm các phát sinh từ sau lần gần nhất nợ = 0 **trước** lần thu đến hết lần thu (trả hết nợ vẫn có phiếu); > 15 dòng thì gộp "Số dư mang sang" | `DebtStatementService.receipt`, `PhieuThuNo.jrxml` |
+| In lại luôn ra y nguyên (chỉ dùng các dòng sổ cái tới lần thu đó); phiếu bị hủy có dấu "ĐÃ HỦY" + lý do | `DebtStatementService.receipt` |
+| Trả lúc mua hàng: không có phiếu riêng (hóa đơn đã ghi), hiện trên phiếu / sao kê là "Trả khi mua HĐ …" với số tiền **thực trừ vào nợ** (không gồm tiền thối) | `DebtStatementService.describe` |
+| Hủy phiếu thu nhập nhầm: thêm dòng đảo ngược (bắt buộc lý do), không xóa; mỗi phiếu hủy 1 lần | `DebtService.voidPayment` |
+| Điều chỉnh nợ: bắt buộc lý do, hiện thành dòng "Điều chỉnh: lý do", không cắt lịch sử | `DebtService.setDebt`, `DebtAdjustDialog.vue` |
+| Sao kê theo khoảng ngày: số dư đầu kỳ + từng phát sinh + tổng tăng / giảm + số dư cuối kỳ | `DebtStatementService.statement` |
+| Chốt đơn gửi kèm nợ cũ đang hiện; máy khác vừa đổi nợ thì chặn (409) và tải lại, để nợ trên hóa đơn / phiếu khớp với số đã đọc cho khách | `OrderService.checkout` (`expectedPreviousDebt`) |
+
+Kiểm thử: `DebtReceiptTest` (cộng trừ khớp từng dòng, in lại giống hệt, ngẫu nhiên 250 thao tác), E2E `scripts/e2e-ban-hang.cjs` mục 10–11.
+
+Lỗi ô **Ghi chú** mất dấu trên hóa đơn in (`Bill.jrxml` không khai báo font) đã sửa: đặt `DejaVu Sans` như các ô khác.
 
 ## 4. Chưa làm
 

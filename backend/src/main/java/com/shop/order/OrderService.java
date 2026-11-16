@@ -27,8 +27,18 @@ public class OrderService {
     }
 
     public record ItemRequest(Long productId, BigDecimal quantity, Integer sheets, BigDecimal factor, BigDecimal unitPrice) {}
+    /**
+     * @param expectedPreviousDebt no cu ma man hinh dang hien. Neu may khac vua doi no cua khach (thu no, sua no...)
+     *                             thi tu choi chot, de so tren hoa don / phieu thu dung voi so thu ngan da doc cho khach.
+     *                             null = khong kiem tra (goi noi bo, test cu).
+     */
     public record CheckoutRequest(Long customerId, String customerName, String customerAddress, String customerPhone,
-                                  BigDecimal shippingFee, BigDecimal paidAmount, String note) {}
+                                  BigDecimal shippingFee, BigDecimal paidAmount, String note, BigDecimal expectedPreviousDebt) {
+        public CheckoutRequest(Long customerId, String customerName, String customerAddress, String customerPhone,
+                               BigDecimal shippingFee, BigDecimal paidAmount, String note) {
+            this(customerId, customerName, customerAddress, customerPhone, shippingFee, paidAmount, note, null);
+        }
+    }
 
     private Order find(Long id) {
         return orders.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay hoa don"));
@@ -162,6 +172,10 @@ public class OrderService {
                     .filter(Customer::isActive)
                     .orElseThrow(() -> ApiException.badRequest("Khach hang khong ton tai"));
             BigDecimal previous = c.getDebt();
+            if (r.expectedPreviousDebt() != null && r.expectedPreviousDebt().compareTo(previous) != 0)
+                throw ApiException.conflict("No cu cua " + c.getName() + " vua thay doi: man hinh dang hien "
+                        + r.expectedPreviousDebt().stripTrailingZeros().toPlainString() + ", hien tai la "
+                        + previous.stripTrailingZeros().toPlainString() + ". Da tai lai, kiem tra roi chot lai.");
             BigDecimal payable = charge.add(previous);
             // Giong PayDialog cu: Con lai = max(0, Tong thanh toan - Khach tra); tra du -> con lai 0, luu nguyen so khach dua
             BigDecimal remain = payable.subtract(paid).max(BigDecimal.ZERO);

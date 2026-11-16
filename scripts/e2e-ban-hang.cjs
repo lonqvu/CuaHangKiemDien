@@ -10,6 +10,10 @@
  * Script tao san pham/khach moi moi lan chay -> chay tren DB trong (H2 nhu tren), KHONG chay tren DB that cua cua hang.
  */
 const { chromium } = require('playwright');
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const API = 'http://localhost:8080/api';
 const UI = 'http://localhost:5173';
 let token;
@@ -138,7 +142,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   const tuanNow = (await api('GET', '/customers?q=tuan'))[0];
   check('No khach = con no hoa don', Number(tuanNow.debt) === payable - 3000000, `${tuanNow.debt}`);
   const ledger = await api('GET', `/customers/${tuan.id}/debt-ledger`);
-  check('So no: tong = no hien tai', sum(ledger.map((l) => Number(l.amount))) === Number(tuanNow.debt));
+  check('So no: tong = no hien tai', sum(ledger.map((l) => Number(l.increase ?? 0) - Number(l.decrease ?? 0))) === Number(tuanNow.debt));
 
   // ===== 3. Bay nhap lieu =====
   await page.click('.done-actions >> text=Hóa đơn mới'); await page.waitForTimeout(800);
@@ -240,12 +244,101 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   check('no khach ve 0 (khong am)', Number(c9.debt) === 0, `${c9.debt}`);
   check('hoa don luu tien tra lai 570.000', oc9.status === 'CANCELLED' && Number(oc9.refundAmount) === 570000, `${oc9.refundAmount}`);
   const led9 = await api('GET', `/customers/${khach9.id}/debt-ledger`);
-  check('so no ghi chu tra lai tien mat, tong = no', led9[0].note.includes('tra lai khach 570000') && sum(led9.map((l) => Number(l.amount))) === 0, led9[0].note);
+  check('so no ghi "da tra lai khach", tong = no', led9[0].description.includes('đã trả lại khách 570,000') && sum(led9.map((l) => Number(l.increase ?? 0) - Number(l.decrease ?? 0))) === 0, led9[0].description);
   await page.click('text=Đã hủy'); await page.waitForTimeout(600);
   await page.click(`text=${o9.code}`); await page.waitForTimeout(500);
   const drawer9 = await page.evaluate(() => document.querySelector('.el-drawer .refund')?.innerText);
   check('chi tiet hoa don da huy hien "Da tra lai khach khi huy 570.000"', drawer9?.includes('570.000'), drawer9?.replace(/\n/g, ' '));
   await page.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + '/cancel-refund.png' : '/dev/null' }).catch(() => {});
+
+  // ===== 10. Phieu thu no / sao ke (in tu so cong no) =====
+  const pdfText = async (p) => { // tai PDF qua API, doc chu bang pdftotext
+    const r = await fetch(API + p, { headers: { Authorization: 'Bearer ' + token } });
+    const f = path.join(os.tmpdir(), 'e2e-' + Date.now() + '.pdf');
+    fs.writeFileSync(f, Buffer.from(await r.arrayBuffer()));
+    return { status: r.status, type: r.headers.get('content-type'), text: execFileSync('pdftotext', ['-layout', f, '-']).toString() };
+  };
+  const reconciles = (doc) => { // moi dong: con no truoc + tang - giam = con no
+    let prev = doc.lines[0].ledgerId == null ? Number(doc.lines[0].balance) : 0;
+    for (const l of doc.lines.slice(doc.lines[0].ledgerId == null ? 1 : 0)) {
+      if (prev + Number(l.increase ?? 0) - Number(l.decrease ?? 0) !== Number(l.balance)) return false;
+      prev = Number(l.balance);
+    }
+    return true;
+  };
+  const k10 = await api('POST', '/customers', { name: 'Khách sao kê', phone: '0911222333', address: 'Yên Mô', initialDebt: 1000000 });
+  await page.goto(UI + '/customers'); await page.waitForTimeout(1000);
+  await page.click('text=Khách sao kê'); await page.waitForTimeout(600);
+  await page.focus('#amt'); await page.keyboard.type('300.000'); await page.keyboard.press('Enter'); await page.waitForTimeout(700);
+  const paidDlg = await page.evaluate(() => document.querySelector('.el-dialog')?.innerText ?? '');
+  const pt1 = (paidDlg.match(/PT\d{6}/) || [])[0];
+  check('thu no xong: hien so phieu + nut In phieu thu', !!pt1 && paidDlg.includes('300.000') && paidDlg.includes('In phiếu thu'), paidDlg.replace(/\n+/g, ' | '));
+  const pdfResp = page.waitForResponse((r) => r.url().includes('/receipt.pdf'));
+  await page.click('.el-dialog >> text=In phiếu thu');
+  const pr = await pdfResp;
+  check('bam In phieu thu -> PDF', pr.status() === 200 && pr.headers()['content-type'].includes('pdf'));
+  // mua chiu 32.400? dung san pham Vit: 3 hop x 45.000 = 135.000, tra 100.000 luc mua
+  { const o = await api('POST', '/orders');
+    await api('POST', `/orders/${o.id}/items`, { productId: P['Vít bắn tôn'].id, quantity: 3, sheets: 0, factor: 0, unitPrice: 45000 });
+    await api('POST', `/orders/${o.id}/checkout`, { customerId: k10.id, shippingFee: 0, paidAmount: 100000, expectedPreviousDebt: 700000 }); }
+  // thu not bang chuyen khoan qua giao dien
+  await page.goto(UI + '/customers'); await page.waitForTimeout(900);
+  await page.click('text=Khách sao kê'); await page.waitForTimeout(600);
+  await page.click('.pay >> text=Chuyển khoản');
+  await page.click('.pay >> text=Trả hết'); await page.fill('.pay input[placeholder^="Ghi chú"]', 'Con trai chuyển hộ');
+  await page.click('.pay button[type=submit]'); await page.waitForTimeout(700);
+  await page.click('.el-dialog >> text=Đóng'); await page.waitForTimeout(400);
+  const led10 = await api('GET', `/customers/${k10.id}/debt-ledger`);
+  const last10 = led10[0];
+  check('thu het no: no ve 0, phieu ghi chuyen khoan + nguoi thu', Number((await api('GET', `/customers/${k10.id}`)).debt) === 0 && last10.method === 'Chuyển khoản' && !!last10.createdBy, `${last10.description} / ${last10.createdBy}`);
+  const doc10 = await api('GET', `/customers/debt-payments/${last10.id}/receipt`);
+  check('phieu tra het no van du dong (khong trong)', doc10.lines.length === 5, doc10.lines.map((l) => l.description).join(' | '));
+  check('phieu thu: moi dong cong tru khop', reconciles(doc10));
+  check('phieu thu: no truoc - thu = con no = 0', Number(doc10.totals[0].amount) - Number(doc10.totals[1].amount) === 0 && Number(doc10.totals[2].amount) === 0 && Number(doc10.totals[0].amount) === 735000, doc10.totals.map((t) => t.label + ' ' + t.amount).join(', '));
+  const t10 = await pdfText(`/customers/debt-payments/${last10.id}/receipt.pdf`);
+  check('PDF phieu thu: tieu de, so phieu, cac dong, tong ket', t10.status === 200 && t10.text.includes('PHIẾU THU NỢ') && t10.text.includes(last10.receiptNo)
+    && t10.text.includes('Mua HĐ') && t10.text.includes('Trả khi mua HĐ') && t10.text.includes("735,000") && t10.text.includes('Con trai chuyển hộ'), t10.text.split('\n').filter((x) => /Thu nợ|Mua|Trả|Còn nợ/.test(x)).join(' | ').replace(/\s+/g, ' ').slice(0, 300));
+  // huy phieu dau tien qua giao dien
+  await page.click(`.el-drawer button[aria-label="Hủy phiếu ${pt1}"]`); await page.waitForTimeout(400);
+  await page.fill('.el-message-box input', 'Thu nhầm, khách chưa đưa tiền');
+  await page.click('.el-message-box >> button >> text=Hủy phiếu thu'); await page.waitForTimeout(800);
+  check('huy phieu: no tang lai 300.000', Number((await api('GET', `/customers/${k10.id}`)).debt) === 300000);
+  const v10 = await pdfText(`/customers/debt-payments/${led10.find((l) => l.receiptNo === pt1).id}/receipt.pdf`);
+  check('in lai phieu da huy co dau "DA HUY" + ly do', v10.text.includes('ĐÃ HỦY') && v10.text.includes('Thu nhầm'), '');
+  check('phieu da huy: so lieu in lai giu nguyen (300,000 / 700,000)', v10.text.includes('300,000') && v10.text.includes('700,000'));
+  check('so no tren man hinh gach dong phieu da huy', await page.evaluate((no) => [...document.querySelectorAll('.el-drawer tr.voided')].some((tr) => tr.innerText.includes(no)), pt1));
+  // dieu chinh no: bat buoc ly do
+  await page.click('.el-drawer >> text=Điều chỉnh nợ'); await page.waitForTimeout(400);
+  await page.focus('#adj-debt'); await page.keyboard.press('Control+A'); await page.keyboard.type('250.000');
+  check('dieu chinh: chua co ly do -> nut Luu khoa', await page.evaluate(() => [...document.querySelectorAll('.el-dialog button')].find((b) => b.innerText.includes('Lưu điều chỉnh'))?.disabled));
+  await page.click('.el-dialog >> text=Giảm giá, bớt tiền cho khách');
+  await page.click('.el-dialog >> text=Lưu điều chỉnh'); await page.waitForTimeout(700);
+  const adj = (await api('GET', `/customers/${k10.id}/debt-ledger`))[0];
+  check('dieu chinh ghi dong "Dieu chinh: <ly do>", giam 50.000', adj.description === 'Điều chỉnh: Giảm giá, bớt tiền cho khách' && Number(adj.decrease) === 50000, adj.description);
+  // sao ke tu dau qua giao dien
+  await page.click('.el-drawer >> text=In sao kê'); await page.waitForTimeout(400);
+  await page.click('.el-dialog >> text=Từ đầu');
+  const stResp = page.waitForResponse((r) => r.url().includes('/statement.pdf'));
+  await page.click('.el-dialog >> button >> text=In sao kê');
+  check('in sao ke -> PDF', (await stResp).status() === 200);
+  const st10 = await api('GET', `/customers/${k10.id}/statement`);
+  check('sao ke: cong tru khop, cuoi ky = no hien tai 250.000', reconciles(st10) && Number(st10.totals[3].amount) === 250000
+    && Number(st10.totals[0].amount) + Number(st10.totals[1].amount) - Number(st10.totals[2].amount) === 250000, st10.totals.map((t) => t.label + ' ' + t.amount).join(', '));
+
+  // ===== 11. Hai may: may khac thu no trong luc dang ban -> chot bi chan, tai lai no cu =====
+  await page.goto(UI + '/sale'); await page.waitForTimeout(1200);
+  await pick('vit ban ton'); await addLine('1');
+  { const r = page.waitForResponse((x) => x.url().includes('/api/customers?q=')); await page.keyboard.press('F4'); await page.keyboard.type('khach sao ke'); await r; await page.waitForTimeout(200); await page.keyboard.press('Enter'); await page.waitForTimeout(300); }
+  const shown = await page.evaluate(() => [...document.querySelectorAll('.sum > div')].find((d) => d.innerText.startsWith('Nợ cũ'))?.querySelector('dd')?.innerText);
+  await api('POST', `/customers/${k10.id}/debt-payments`, { amount: 50000, method: 'CASH' }); // may khac
+  const id11 = await draftId();
+  await page.click('.cta'); await page.waitForTimeout(900);
+  check('chot khi no cu da doi -> bi chan, van la hoa don nhap', (await api('GET', `/orders/${id11}`)).status === 'DRAFT');
+  const shown2 = await page.evaluate(() => [...document.querySelectorAll('.sum > div')].find((d) => d.innerText.startsWith('Nợ cũ'))?.querySelector('dd')?.innerText);
+  check('phieu tu tai lai no cu moi (250.000 -> 200.000)', shown === '250.000' && shown2 === '200.000', `${shown} -> ${shown2}`);
+  await page.click('.cta'); await page.waitForTimeout(900);
+  const o11 = await api('GET', `/orders/${id11}`);
+  check('chot lai: PAID voi no cu dung 200.000', o11.status === 'PAID' && Number(o11.previousDebt) === 200000);
 
   await browser.close();
   const failed = results.filter((r) => !r.ok);

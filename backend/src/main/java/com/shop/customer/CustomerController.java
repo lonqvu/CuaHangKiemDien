@@ -2,8 +2,6 @@ package com.shop.customer;
 
 import com.shop.common.ApiException;
 import com.shop.common.TextSearch;
-import com.shop.order.Order;
-import com.shop.order.OrderRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -13,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -22,17 +19,24 @@ public class CustomerController {
     private final CustomerRepository customers;
     private final DebtLedgerRepository ledger;
     private final DebtService debts;
-    private final OrderRepository orders;
+    private final DebtStatementService statements;
 
-    public CustomerController(CustomerRepository customers, DebtLedgerRepository ledger, DebtService debts, OrderRepository orders) {
-        this.customers = customers; this.ledger = ledger; this.debts = debts; this.orders = orders;
+    public CustomerController(CustomerRepository customers, DebtLedgerRepository ledger, DebtService debts,
+                              DebtStatementService statements) {
+        this.customers = customers; this.ledger = ledger; this.debts = debts; this.statements = statements;
     }
 
     public record CustomerRequest(@NotBlank String name, String address, String phone, BigDecimal initialDebt) {}
-    public record PaymentRequest(@NotNull @DecimalMin("0.01") BigDecimal amount, String note) {}
+    public record PaymentRequest(@NotNull @DecimalMin("0.01") BigDecimal amount, String note, DebtLedger.Method method) {}
+    /** note = ly do dieu chinh (bat buoc). */
     public record SetDebtRequest(@NotNull @DecimalMin("0") BigDecimal debt, String note) {}
-    public record ReceiptRow(LocalDateTime date, BigDecimal oldDebt, BigDecimal amount, BigDecimal remainingDebt) {}
-    public record Receipt(Customer customer, BigDecimal currentDebt, List<ReceiptRow> rows) {}
+    public record VoidRequest(String reason) {}
+    /** Ket qua thu no: khach sau khi thu + so phieu de in ngay. */
+    public record PaymentResult(Customer customer, Long ledgerId, String receiptNo) {}
+    /** Mot dong so no tren man hinh: da dien giai san (giong dong tren phieu thu / sao ke). */
+    public record LedgerRow(Long id, DebtLedger.Type type, String description, BigDecimal increase, BigDecimal decrease,
+                            BigDecimal balanceAfter, LocalDateTime createdAt, String createdBy, String receiptNo,
+                            String method, boolean voided, boolean canVoid) {}
 
     @GetMapping
     public List<Customer> list(@RequestParam(defaultValue = "") String q) {
@@ -55,7 +59,7 @@ public class CustomerController {
         c.setPhone(r.phone());
         c = customers.save(c);
         if (r.initialDebt() != null && r.initialDebt().signum() > 0) {
-            debts.apply(c, DebtLedger.Type.MANUAL, r.initialDebt(), null, "No ban dau");
+            debts.apply(c, DebtLedger.Type.MANUAL, r.initialDebt(), null, "Nợ ban đầu");
         }
         return c;
     }
@@ -77,48 +81,58 @@ public class CustomerController {
         customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang")).setActive(false);
     }
 
+    @GetMapping("/{id}")
+    public Customer get(@PathVariable Long id) {
+        return customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
+    }
+
+    /** So no, moi nhat truoc, da dien giai (Mua HD..., Thu no PT..., Dieu chinh: ly do...). */
     @GetMapping("/{id}/debt-ledger")
-    public List<DebtLedger> history(@PathVariable Long id) {
-        return ledger.findByCustomerIdOrderByIdDesc(id);
+    @Transactional(readOnly = true)
+    public List<LedgerRow> history(@PathVariable Long id) {
+        List<DebtLedger> rows = ledger.findByCustomerIdOrderByIdDesc(id);
+        DebtStatementService.Lookup k = statements.lookup(rows);
+        return rows.stream().map(l -> {
+            BigDecimal a = l.getAmount();
+            boolean isReceipt = l.getType() == DebtLedger.Type.PAYMENT && l.getReceiptNo() != null;
+            boolean voided = k.voided().contains(l.getId());
+            return new LedgerRow(l.getId(), l.getType(), DebtStatementService.describe(l, k),
+                    a.signum() > 0 ? a : null, a.signum() < 0 ? a.negate() : null, l.getBalanceAfter(), l.getCreatedAt(),
+                    l.getCreatedBy(), l.getReceiptNo(), DebtStatementService.methodLabel(l.getMethod()), voided, isReceipt && !voided);
+        }).toList();
     }
 
-    /** Thay man ThanhToanNo cu: so tien tra <= so no. */
+    /** Thu no (man ThanhToanNo cu): so tien tra <= so no; tra ve so phieu de in. */
     @PostMapping("/{id}/debt-payments")
-    public Customer pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r) {
-        return debts.pay(id, r.amount(), r.note());
+    public PaymentResult pay(@PathVariable Long id, @Valid @RequestBody PaymentRequest r) {
+        DebtLedger l = debts.pay(id, r.amount(), r.note(), r.method());
+        return new PaymentResult(get(id), l.getId(), l.getReceiptNo());
     }
 
-    /** Sua so no truc tiep (o "No" man Customers, nut "Cap nhat" PayDialog cu). Chi ADMIN (SecurityConfig). */
+    /** Huy phieu thu nhap nham (chi ADMIN): them dong dao nguoc, khong xoa. */
+    @PostMapping("/debt-payments/{ledgerId}/void")
+    public Customer voidPayment(@PathVariable Long ledgerId, @RequestBody VoidRequest r) {
+        DebtLedger v = debts.voidPayment(ledgerId, r.reason());
+        return get(v.getCustomerId());
+    }
+
+    /** Dieu chinh so no (o "No" man Customers cu, nut "Cap nhat" PayDialog cu). Bat buoc ly do. Chi ADMIN (SecurityConfig). */
     @PostMapping("/{id}/debt-adjustments")
     public Customer setDebt(@PathVariable Long id, @Valid @RequestBody SetDebtRequest r) {
         return debts.setDebt(id, r.debt(), r.note());
     }
 
-    /**
-     * Du lieu "Bien lai thanh toan cong no" (ThanhToanNoReport.jrxml cu): cac lan tra no trong chu ky no hien tai.
-     * App cu danh dau Deleted=1 cho lich su khi no ve 0 hoac khi sua no tay -> chu ky bat dau sau lan gan nhat do.
-     * Cot "No cu" cua lan tra luc chot hoa don = no cu truoc hoa don (giong PaymentHistory.OldDebt cu).
-     */
-    @GetMapping("/{id}/payment-receipt")
-    @Transactional(readOnly = true)
-    public Receipt receipt(@PathVariable Long id) {
-        Customer c = customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
-        List<DebtLedger> all = ledger.findByCustomerIdOrderByIdDesc(id); // moi nhat truoc
-        List<ReceiptRow> rows = new ArrayList<>();
-        for (DebtLedger l : all) {
-            // het chu ky: lan gan nhat no ve 0, hoac lan sua no tay
-            if (l.getType() == DebtLedger.Type.MANUAL || l.getBalanceAfter().signum() == 0) break;
-            if (l.getType() == DebtLedger.Type.PAYMENT) {
-                BigDecimal amount = l.getAmount().negate();
-                BigDecimal oldDebt = l.getBalanceAfter().add(amount);
-                if (l.getOrderId() != null) {
-                    Order o = orders.findById(l.getOrderId()).orElse(null);
-                    if (o != null) { oldDebt = o.getPreviousDebt(); amount = o.getPaidAmount(); }
-                }
-                rows.add(new ReceiptRow(l.getCreatedAt(), oldDebt, amount, l.getBalanceAfter()));
-            }
-        }
-        java.util.Collections.reverse(rows); // app cu: ORDER BY PaymentDate ASC
-        return new Receipt(c, c.getDebt(), rows);
+    /** Du lieu phieu thu no (in / in lai, so lieu co dinh). */
+    @GetMapping("/debt-payments/{ledgerId}/receipt")
+    public DebtStatementService.Doc receipt(@PathVariable Long ledgerId) {
+        return statements.receipt(ledgerId);
+    }
+
+    /** Du lieu sao ke cong no theo khoang ngay. */
+    @GetMapping("/{id}/statement")
+    public DebtStatementService.Doc statement(@PathVariable Long id,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate from,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate to) {
+        return statements.statement(id, from, to);
     }
 }

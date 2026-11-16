@@ -3,12 +3,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Printer, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Customer, LedgerRow } from '../api/types'
-import { debounce, dt, money, num } from '../format'
+import type { Customer, LedgerRow, PaymentResult } from '../api/types'
+import { debounce, dt, isoDate, money, num } from '../format'
 import PageHeader from '../components/PageHeader.vue'
 import NumberField from '../components/NumberField.vue'
+import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
 import { openPdf } from '../api/pdf'
 
 // Thay Customers + ThanhToanNo cu
@@ -59,46 +60,74 @@ async function hide(c: Customer) {
 // ----- so no + thu no -----
 const current = ref<Customer | null>(null)
 const ledger = ref<LedgerRow[]>([])
-const payForm = reactive({ amount: 0, note: '' })
+const payForm = reactive({ amount: 0, note: '', method: 'CASH' as 'CASH' | 'TRANSFER' })
 const paying = ref(false)
-const typeLabel: Record<string, string> = { ORDER: 'Mua hàng', PAYMENT: 'Trả nợ', ADJUST: 'Hủy hóa đơn', MANUAL: 'Sửa nợ' }
+const adjustOpen = ref(false)
+// thu xong: hien so phieu + nut in ngay (khong tu mo ban in)
+const paid = ref<{ ledgerId: number; receiptNo: string; amount: number; debtAfter: number } | null>(null)
 
 async function open(c: Customer) {
   current.value = c
-  Object.assign(payForm, { amount: 0, note: '' })
+  Object.assign(payForm, { amount: 0, note: '', method: 'CASH' })
   ledger.value = (await http.get<LedgerRow[]>(`/customers/${c.id}/debt-ledger`)).data
+}
+
+async function refresh(c: Customer) {
+  await load()
+  await open(c)
 }
 
 async function collect() {
   const c = current.value!
   if (!(payForm.amount > 0)) return ElMessage.warning('Nhập số tiền khách trả')
   if (payForm.amount > Number(c.debt)) return ElMessage.warning('Số tiền lớn hơn số nợ hiện tại')
+  if (paying.value) return
   paying.value = true
   try {
-    const { data } = await http.post<Customer>(`/customers/${c.id}/debt-payments`, payForm)
-    ElMessage.success(`Đã thu ${money(payForm.amount)}. Còn nợ ${money(data.debt)}`)
-    await load()
-    await open(data)
+    const amount = payForm.amount
+    const { data } = await http.post<PaymentResult>(`/customers/${c.id}/debt-payments`, payForm)
+    paid.value = { ledgerId: data.ledgerId, receiptNo: data.receiptNo, amount, debtAfter: Number(data.customer.debt) }
+    await refresh(data.customer)
   } finally {
     paying.value = false
   }
 }
 
-// O "No" cua man Customers cu: sua thang so no
-async function setDebt() {
-  const c = current.value!
-  const { value } = await ElMessageBox.prompt(`Nợ hiện tại: ${money(c.debt)}. Nhập số nợ đúng:`, 'Sửa số nợ', {
-    inputValue: String(Number(c.debt)), inputPattern: /^[\d.,\s]*\d[\d.,\s]*$/, inputErrorMessage: 'Nhập số tiền, ví dụ 12450000 hoặc 12.450.000',
-    confirmButtonText: 'Lưu', cancelButtonText: 'Hủy',
-  })
-  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value.replace(/\D/g, '')), note: 'Sửa số nợ' })
-  ElMessage.success(`Đã đặt nợ thành ${money(data.debt)}`)
-  await load()
-  await open(data)
+const ledgerRowClass = ({ row }: { row: LedgerRow }) => (row.voided ? 'voided' : '')
+
+// Phieu thu no: in ngay sau khi thu hoac in lai tu so no (so lieu co dinh, in lai ra y nguyen)
+function printReceipt(ledgerId: number) { openPdf(`/customers/debt-payments/${ledgerId}/receipt.pdf`) }
+
+// Huy phieu thu nhap nham: them dong dao nguoc, phieu in lai co dau "DA HUY"
+async function voidReceipt(r: LedgerRow) {
+  const { value } = await ElMessageBox.prompt(
+    `Hủy phiếu thu ${r.receiptNo} (${money(r.decrease)})? Nợ của khách sẽ tăng lại ${money(r.decrease)}. Phiếu vẫn được giữ, in lại sẽ có dấu "ĐÃ HỦY".`,
+    'Hủy phiếu thu', { inputPlaceholder: 'Lý do (bắt buộc), VD: thu nhầm số tiền', inputPattern: /\S/, inputErrorMessage: 'Nhập lý do hủy',
+      confirmButtonText: 'Hủy phiếu thu', cancelButtonText: 'Không', type: 'warning' })
+  const { data } = await http.post<Customer>(`/customers/debt-payments/${r.id}/void`, { reason: value.trim() })
+  ElMessage.success(`Đã hủy ${r.receiptNo}. Nợ hiện tại ${money(data.debt)}`)
+  await refresh(data)
 }
 
-// Bien lai thanh toan cong no bang mau Jasper cu (ThanhToanNoReport.jrxml)
-function printReceipt() { openPdf(`/customers/${current.value!.id}/payment-receipt.pdf`) }
+// Sao ke cong no theo khoang ngay
+const stmt = reactive({ open: false, range: null as [string, string] | null })
+function openStatement() {
+  const now = new Date()
+  stmt.range = [isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), isoDate(now)]
+  stmt.open = true
+}
+function setRange(k: 'month' | 'lastMonth' | 'year' | 'all') {
+  const n = new Date()
+  stmt.range = k === 'all' ? null
+    : k === 'month' ? [isoDate(new Date(n.getFullYear(), n.getMonth(), 1)), isoDate(n)]
+    : k === 'lastMonth' ? [isoDate(new Date(n.getFullYear(), n.getMonth() - 1, 1)), isoDate(new Date(n.getFullYear(), n.getMonth(), 0))]
+    : [isoDate(new Date(n.getFullYear(), 0, 1)), isoDate(n)]
+}
+function printStatement() {
+  const q = stmt.range ? `?from=${stmt.range[0]}&to=${stmt.range[1]}` : ''
+  openPdf(`/customers/${current.value!.id}/statement.pdf${q}`)
+  stmt.open = false
+}
 
 onMounted(load)
 </script>
@@ -130,14 +159,14 @@ onMounted(load)
     </el-table>
   </div>
 
-  <el-drawer :model-value="!!current" :title="current?.name" size="min(620px, 100%)" @close="current = null">
+  <el-drawer :model-value="!!current" :title="current?.name" size="min(700px, 100%)" @close="current = null">
     <template v-if="current">
       <div class="info">
         <p class="muted">{{ current.phone || 'Chưa có SĐT' }}<span v-if="current.address"> · {{ current.address }}</span></p>
         <div class="actions">
           <el-button @click="openForm(current)">Sửa thông tin</el-button>
-          <el-button @click="setDebt">Sửa số nợ</el-button>
-          <el-button @click="printReceipt">In biên lai công nợ</el-button>
+          <el-button @click="adjustOpen = true">Điều chỉnh nợ</el-button>
+          <el-button @click="openStatement">In sao kê</el-button>
           <el-button type="danger" plain @click="hide(current)">Ẩn khách</el-button>
         </div>
       </div>
@@ -154,25 +183,70 @@ onMounted(load)
             <el-button @click="payForm.amount = Number(current.debt)">Trả hết</el-button>
           </div>
           <span v-if="payForm.amount >= 1000" class="echo">= {{ money(payForm.amount) }}</span>
-          <el-input v-model="payForm.note" placeholder="Ghi chú (tiền mặt, chuyển khoản...)" aria-label="Ghi chú thu nợ" />
+          <el-radio-group v-model="payForm.method" aria-label="Hình thức thu">
+            <el-radio-button value="CASH">Tiền mặt</el-radio-button>
+            <el-radio-button value="TRANSFER">Chuyển khoản</el-radio-button>
+          </el-radio-group>
+          <el-input v-model="payForm.note" placeholder="Ghi chú (in trên phiếu), VD: con trai trả hộ" aria-label="Ghi chú thu nợ" />
           <el-button type="success" native-type="submit" :loading="paying" :disabled="!(payForm.amount > 0)">
             {{ payForm.amount > 0 ? `Ghi nhận thu ${money(payForm.amount)}` : 'Nhập số tiền khách trả' }}
           </el-button>
         </form>
       </section>
 
-      <h3 class="ledger-title">Sổ công nợ</h3>
-      <el-table :data="ledger" size="small" empty-text="Chưa có phát sinh">
-        <el-table-column label="Thời gian" width="130"><template #default="{ row }">{{ dt(row.createdAt) }}</template></el-table-column>
-        <el-table-column label="Loại" width="100"><template #default="{ row }">{{ typeLabel[row.type] }}</template></el-table-column>
-        <el-table-column label="Phát sinh" width="120" align="right">
-          <template #default="{ row }"><span class="num" :class="Number(row.amount) < 0 ? 'tone-money' : 'tone-debt'">{{ Number(row.amount) > 0 ? '+' : '' }}{{ num(row.amount) }}</span></template>
+      <h3 class="ledger-title">Sổ công nợ <span class="muted">· mới nhất trước · Còn nợ = dòng dưới + Tăng − Giảm</span></h3>
+      <el-table :data="ledger" size="small" empty-text="Chưa có phát sinh" :row-class-name="ledgerRowClass">
+        <el-table-column label="Thời gian" width="100"><template #default="{ row }">{{ dt(row.createdAt) }}</template></el-table-column>
+        <el-table-column label="Nội dung" min-width="170">
+          <template #default="{ row }">
+            <span>{{ row.description }}</span>
+            <div v-if="row.createdBy" class="by muted">{{ row.createdBy }}</div>
+          </template>
         </el-table-column>
-        <el-table-column label="Còn nợ" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.balanceAfter) }}</span></template></el-table-column>
-        <el-table-column prop="note" label="Ghi chú" min-width="140" show-overflow-tooltip />
+        <el-table-column label="Tăng" width="86" align="right"><template #default="{ row }"><span v-if="row.increase" class="num tone-debt">{{ num(row.increase) }}</span></template></el-table-column>
+        <el-table-column label="Giảm" width="86" align="right"><template #default="{ row }"><span v-if="row.decrease" class="num tone-money">{{ num(row.decrease) }}</span></template></el-table-column>
+        <el-table-column label="Còn nợ" width="92" align="right"><template #default="{ row }"><span class="num">{{ num(row.balanceAfter) }}</span></template></el-table-column>
+        <el-table-column width="76" align="right">
+          <template #default="{ row }">
+            <template v-if="row.receiptNo">
+              <el-button link type="primary" :aria-label="`In phiếu ${row.receiptNo}`" @click="printReceipt(row.id)">In</el-button>
+              <el-button v-if="row.canVoid" link type="danger" :aria-label="`Hủy phiếu ${row.receiptNo}`" @click="voidReceipt(row)">Hủy</el-button>
+            </template>
+          </template>
+        </el-table-column>
       </el-table>
     </template>
   </el-drawer>
+
+  <!-- thu no xong: so phieu + in ngay -->
+  <el-dialog :model-value="!!paid" title="Đã thu nợ" width="420px" @close="paid = null">
+    <template v-if="paid">
+      <p class="paid-line">Phiếu <b class="mono">{{ paid.receiptNo }}</b>: thu <b class="num tone-money">{{ money(paid.amount) }}</b></p>
+      <p class="paid-line">Còn nợ: <b class="num" :class="{ 'tone-debt': paid.debtAfter > 0 }">{{ money(paid.debtAfter) }}</b></p>
+    </template>
+    <template #footer>
+      <el-button @click="paid = null">Đóng</el-button>
+      <el-button type="primary" :icon="Printer" autofocus @click="printReceipt(paid!.ledgerId); paid = null">In phiếu thu</el-button>
+    </template>
+  </el-dialog>
+
+  <DebtAdjustDialog v-model="adjustOpen" :customer="current" @saved="refresh" />
+
+  <el-dialog v-model="stmt.open" title="In sao kê công nợ" width="460px">
+    <p class="muted" style="margin-top: 0">Số dư đầu kỳ, từng lần mua / trả / điều chỉnh trong khoảng ngày, số dư cuối kỳ.</p>
+    <div class="presets">
+      <el-button size="small" @click="setRange('month')">Tháng này</el-button>
+      <el-button size="small" @click="setRange('lastMonth')">Tháng trước</el-button>
+      <el-button size="small" @click="setRange('year')">Năm nay</el-button>
+      <el-button size="small" @click="setRange('all')">Từ đầu</el-button>
+    </div>
+    <el-date-picker v-model="stmt.range" type="daterange" value-format="YYYY-MM-DD" format="DD/MM/YYYY" range-separator="–"
+                    start-placeholder="Từ đầu" end-placeholder="Đến nay" style="width: 100%" />
+    <template #footer>
+      <el-button @click="stmt.open = false">Hủy</el-button>
+      <el-button type="primary" :icon="Printer" @click="printStatement">In sao kê</el-button>
+    </template>
+  </el-dialog>
 
   <el-dialog v-model="dialog.open" :title="dialog.id ? 'Sửa khách hàng' : 'Thêm khách hàng'" width="440px">
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="save">
@@ -204,5 +278,12 @@ onMounted(load)
 .amt { flex: 1; }
 .lbl { font-size: 13px; font-weight: 500; }
 .ledger-title { font-size: 15px; margin-bottom: var(--space-md); }
+.ledger-title .muted { font-size: 12px; font-weight: 400; }
+.by { font-size: 11px; }
+:deep(.voided td) { color: var(--ink-muted); text-decoration: line-through; }
+:deep(.voided td:last-child) { text-decoration: none; }
+.paid-line { margin: 0 0 var(--space-sm); font-size: 15px; }
+.presets { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-md); }
+.presets .el-button + .el-button { margin-left: 0; }
 @media (max-width: 560px) { .collect { grid-template-columns: 1fr; } }
 </style>

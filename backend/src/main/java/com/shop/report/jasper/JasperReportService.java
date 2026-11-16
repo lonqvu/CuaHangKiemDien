@@ -66,12 +66,40 @@ public class JasperReportService {
         return render("Bill", p, BillReportData.rows(header, lines));
     }
 
-    /** Bien lai thanh toan cong no (ThanhToanNoReport.jrxml). */
-    public byte[] debtReceipt(long customerId, String name, String address, String phone,
-                              java.math.BigDecimal debt, List<DebtReceiptData.Payment> payments, Double lastPayment) {
+    /**
+     * Phieu thu no / sao ke cong no (PhieuThuNo.jrxml). Dau trang giong mau bien lai cu; bang 5 cot tu so cong no.
+     * Toi da 4 dong tong ket, dong cuoi in dam (Con no / So du cuoi ky) -> dien tu duoi len.
+     */
+    public byte[] debtDoc(com.shop.customer.DebtStatementService.Doc d) {
         Map<String, Object> p = new HashMap<>();
-        p.put("CustomerID", String.valueOf(customerId));
-        p.put("PaymentAmount", lastPayment);
-        return render("ThanhToanNoReport", p, DebtReceiptData.rows(customerId, name, address, phone, debt, payments));
+        p.put("TITLE", d.title());
+        p.put("DOC_NO", d.docNo());
+        p.put("DOC_DATE", d.date() == null ? null : java.sql.Timestamp.valueOf(d.date()));
+        p.put("CUSTOMER_NAME", d.customerName());
+        p.put("ADDRESS", d.address());
+        p.put("PHONE", d.phone());
+        p.put("COLLECTOR", d.collector());
+        p.put("METHOD", d.method());
+        p.put("VOIDED", d.voided());
+        p.put("VOID_REASON", d.voidReason());
+        p.put("SIGN_RIGHT", d.collector() == null ? "Người lập" : "Người thu tiền");
+        List<com.shop.customer.DebtStatementService.Total> t = d.totals();
+        for (int i = 0; i < t.size(); i++) {
+            int slot = 4 - t.size() + 1 + i;
+            p.put("T" + slot + "_LABEL", t.get(i).label());
+            p.put("T" + slot, t.get(i).amount());
+        }
+        List<Map<String, ?>> rows = new ArrayList<>();
+        for (var l : d.lines()) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("NGAY", l.date() == null ? null : java.sql.Timestamp.valueOf(l.date()));
+            r.put("NOI_DUNG", l.description());
+            r.put("TANG", l.increase());
+            r.put("GIAM", l.decrease());
+            r.put("CON_NO", l.balance());
+            r.put("DAM", l.highlight());
+            rows.add(r);
+        }
+        return render("PhieuThuNo", p, rows);
     }
 }

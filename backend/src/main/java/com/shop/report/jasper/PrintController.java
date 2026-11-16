@@ -1,7 +1,7 @@
 package com.shop.report.jasper;
 
 import com.shop.common.ApiException;
-import com.shop.customer.CustomerController;
+import com.shop.customer.DebtStatementService;
 import com.shop.order.Order;
 import com.shop.order.OrderService;
 import org.springframework.http.ContentDisposition;
@@ -10,22 +10,23 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDate;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** In PDF bang mau Jasper cu. Ten file giong app cu: HDxxxxxxxx.pdf, ThanhToanNo_{id}_{yyyyMMdd_HHmmss}.pdf */
+/** In PDF bang mau Jasper. Hoa don: HDxxxxxxxx.pdf (giong app cu); phieu thu: PhieuThu_PTxxxxxx.pdf; sao ke: SaoKe_{id}_{tu}_{den}.pdf */
 @RestController
 public class PrintController {
     private final OrderService orders;
-    private final CustomerController customers;
+    private final DebtStatementService statements;
     private final JasperReportService reports;
 
-    public PrintController(OrderService orders, CustomerController customers, JasperReportService reports) {
-        this.orders = orders; this.customers = customers; this.reports = reports;
+    public PrintController(OrderService orders, DebtStatementService statements, JasperReportService reports) {
+        this.orders = orders; this.statements = statements; this.reports = reports;
     }
 
     @GetMapping("/api/orders/{id}/invoice.pdf")
@@ -41,16 +42,20 @@ public class PrintController {
         return pdf(reports.invoice(h, lines), o.getCode() + ".pdf");
     }
 
-    @GetMapping("/api/customers/{id}/payment-receipt.pdf")
-    public ResponseEntity<byte[]> debtReceipt(@PathVariable Long id) {
-        CustomerController.Receipt r = customers.receipt(id);
-        if (r.rows().isEmpty()) throw ApiException.badRequest("Khong co ban ghi thanh toan nao de xuat hoa don!");
-        List<DebtReceiptData.Payment> pays = r.rows().stream()
-                .map(x -> new DebtReceiptData.Payment(x.date(), x.oldDebt(), x.amount(), x.remainingDebt())).toList();
-        Double last = pays.get(pays.size() - 1).amount().doubleValue();
-        byte[] pdf = reports.debtReceipt(id, r.customer().getName(), r.customer().getAddress(), r.customer().getPhone(),
-                r.currentDebt(), pays, last);
-        return pdf(pdf, "ThanhToanNo_" + id + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".pdf");
+    /** Phieu thu no (in ngay sau khi thu, in lai luc nao cung ra dung so lieu cu). */
+    @GetMapping("/api/customers/debt-payments/{ledgerId}/receipt.pdf")
+    public ResponseEntity<byte[]> debtReceipt(@PathVariable Long ledgerId) {
+        DebtStatementService.Doc d = statements.receipt(ledgerId);
+        return pdf(reports.debtDoc(d), "PhieuThu_" + d.docNo().replace("Số: ", "") + ".pdf");
+    }
+
+    /** Sao ke cong no theo khoang ngay. */
+    @GetMapping("/api/customers/{id}/statement.pdf")
+    public ResponseEntity<byte[]> statement(@PathVariable Long id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        DebtStatementService.Doc d = statements.statement(id, from, to);
+        return pdf(reports.debtDoc(d), "SaoKe_" + id + "_" + (from == null ? "dau" : from) + "_" + (to == null ? LocalDate.now() : to) + ".pdf");
     }
 
     private static ResponseEntity<byte[]> pdf(byte[] body, String filename) {

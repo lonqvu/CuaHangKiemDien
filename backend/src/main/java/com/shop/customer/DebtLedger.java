@@ -11,8 +11,14 @@ import java.time.LocalDateTime;
 @Table(name = "debt_ledger")
 @Getter @Setter
 public class DebtLedger {
-    /** ORDER: mua hang, PAYMENT: tra no, ADJUST: huy hoa don, MANUAL: nhap no ban dau / sua no tay (nut "Cap nhat" cu). */
-    public enum Type { ORDER, PAYMENT, ADJUST, MANUAL }
+    /**
+     * ORDER: mua hang, PAYMENT: tra no (luc mua hoac thu no), ADJUST: huy hoa don,
+     * MANUAL: nhap no ban dau / dieu chinh no (co ly do), VOID: huy phieu thu (dao nguoc mot PAYMENT).
+     */
+    public enum Type { ORDER, PAYMENT, ADJUST, MANUAL, VOID }
+
+    /** Hinh thuc thu tien. */
+    public enum Method { CASH, TRANSFER }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -29,6 +35,17 @@ public class DebtLedger {
     @Column(name = "order_id")
     private Long orderId;
     private String note;
+    /** So phieu thu (PT000001) - chi lan thu no o man Khach hang; tra luc mua hang da co hoa don. */
+    @Column(name = "receipt_no")
+    private String receiptNo;
+    @Enumerated(EnumType.STRING)
+    private Method method;
+    /** Nguoi thao tac (nguoi thu tien, nguoi sua no...). */
+    @Column(name = "created_by")
+    private String createdBy;
+    /** Dong VOID: id dong PAYMENT bi huy. */
+    @Column(name = "reversal_of")
+    private Long reversalOf;
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

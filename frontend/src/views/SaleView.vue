@@ -7,6 +7,7 @@ import http from '../api/http'
 import type { Category, Customer, Order, OrderItem, Product } from '../api/types'
 import { debounce, highlight, money, num, previewLine, qty } from '../format'
 import NumberField from '../components/NumberField.vue'
+import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
@@ -262,16 +263,11 @@ const blockReason = computed(() => {
 })
 
 // Nut "Cap nhat" no cu trong PayDialog cu: dat lai so no cua khach (chi quan tri)
-async function editOldDebt() {
-  const c = customer.value!
-  const { value } = await ElMessageBox.prompt(`Nợ hiện tại của ${c.name}: ${money(c.debt)}. Nhập số nợ đúng:`, 'Cập nhật nợ cũ', {
-    inputValue: String(Number(c.debt)), inputPattern: /^[\d.,\s]*\d[\d.,\s]*$/, inputErrorMessage: 'Nhập số tiền, ví dụ 12450000 hoặc 12.450.000',
-    confirmButtonText: 'Cập nhật', cancelButtonText: 'Hủy',
-  })
-  const { data } = await http.post<Customer>(`/customers/${c.id}/debt-adjustments`, { debt: Number(value.replace(/\D/g, '')), note: 'Cập nhật nợ cũ khi bán hàng' })
-  customer.value = data
-  customers.value = customers.value.map((x) => (x.id === data.id ? data : x))
-  ElMessage.success('Đã cập nhật nợ cũ')
+// Nut "Cap nhat" no cu (PayDialog cu): dieu chinh no co ly do (hien tren phieu thu / sao ke)
+const adjustOpen = ref(false)
+function setCustomer(c: Customer) {
+  customer.value = c
+  customers.value = customers.value.map((x) => (x.id === c.id ? c : x))
 }
 
 function payAll() { pay.paidAmount = payable.value }
@@ -289,10 +285,16 @@ async function checkout() {
       shippingFee: pay.shippingFee || 0,
       paidAmount: pay.paidAmount || 0,
       note: pay.note,
+      // no cu dang hien tren phieu: may khac vua doi no cua khach thi server tu choi (409), tranh hoa don sai no cu
+      expectedPreviousDebt: customer.value ? Number(customer.value.debt) : null,
     })
     done.value = data
     sessionStorage.removeItem(DRAFT_KEY)
     ElMessage.success(`Đã chốt ${data.code}`)
+  } catch (e: any) {
+    if (e?.response?.status === 409 && customer.value) {
+      setCustomer((await http.get<Customer>(`/customers/${customer.value.id}`)).data) // tai lai no cu, thu ngan xem lai roi chot
+    }
   } finally {
     busy.value = false
   }
@@ -462,7 +464,7 @@ onBeforeUnmount(() => {
           </dd>
         </div>
         <div>
-          <dt>Nợ cũ <el-button v-if="customer && auth.isAdmin && !done" link type="primary" size="small" @click="editOldDebt">Cập nhật</el-button></dt>
+          <dt>Nợ cũ <el-button v-if="customer && auth.isAdmin && !done" link type="primary" size="small" @click="adjustOpen = true">Cập nhật</el-button></dt>
           <dd class="num" :class="{ 'tone-debt': oldDebt > 0 }">{{ num(oldDebt) }}</dd>
         </div>
         <div class="total"><dt>Tổng phải trả</dt><dd class="num">{{ num(payable) }}</dd></div>
@@ -522,6 +524,8 @@ onBeforeUnmount(() => {
         <el-button type="primary" @click="saveEdit">Lưu dòng</el-button>
       </template>
     </el-dialog>
+
+    <DebtAdjustDialog v-model="adjustOpen" :customer="customer" @saved="setCustomer" />
 
     <el-dialog v-model="newProd.open" title="Thêm sản phẩm mới" width="440px" @opened="newProdUnit?.focus()" @closed="afterNewProduct">
       <el-form ref="newProdForm" :model="newProd" label-position="top" @submit.prevent="createProduct">

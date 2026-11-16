@@ -26,6 +26,7 @@ class CheckoutFlowTest {
     @Autowired DebtLedgerRepository ledger;
     @Autowired DebtService debts;
     @Autowired com.shop.customer.CustomerController customerController;
+    @Autowired com.shop.customer.DebtStatementService statements;
 
     Product product;
     Customer customer;
@@ -115,27 +116,33 @@ class CheckoutFlowTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(customers.findById(customer.getId()).orElseThrow().getDebt()));
     }
 
+    /** Vi du trong de xuat bien lai: moi dong cong tru khop, tra het no van in duoc phieu day du. */
     @Test
-    void manualDebt_thenPayments_receiptShowsCurrentCycle() {
+    void receipt_showsPurchasesBetweenPayments_andFullPayoff() {
         debts.setDebt(customer.getId(), new BigDecimal("1000000"), "No ban dau");
-        debts.pay(customer.getId(), new BigDecimal("300000"), null);
+        var first = debts.pay(customer.getId(), new BigDecimal("300000"), null, com.shop.customer.DebtLedger.Method.CASH);
         Order o = draftWithItem(); // 32400
         service.checkout(o.getId(), new OrderService.CheckoutRequest(
                 customer.getId(), null, null, null, BigDecimal.ZERO, new BigDecimal("100000"), null));
+        var last = debts.pay(customer.getId(), new BigDecimal("632400"), null, com.shop.customer.DebtLedger.Method.TRANSFER);
 
-        var rows = customerController.receipt(customer.getId()).rows();
-        assertEquals(2, rows.size());
-        // lan 1 (ThanhToanNo): no cu 1.000.000, tra 300.000, con 700.000
-        assertEquals(0, new BigDecimal("1000000").compareTo(rows.get(0).oldDebt()));
-        assertEquals(0, new BigDecimal("700000").compareTo(rows.get(0).remainingDebt()));
-        // lan 2 (luc chot hoa don): "No cu" = no truoc hoa don 700.000, tra 100.000, con 632.400
-        assertEquals(0, new BigDecimal("700000").compareTo(rows.get(1).oldDebt()));
-        assertEquals(0, new BigDecimal("100000").compareTo(rows.get(1).amount()));
-        assertEquals(0, new BigDecimal("632400").compareTo(rows.get(1).remainingDebt()));
+        var doc = statements.receipt(last.getId());
+        var lines = doc.lines();
+        assertEquals(5, lines.size());
+        assertEquals("Điều chỉnh: No ban dau", lines.get(0).description());
+        assertTrue(lines.get(1).description().startsWith("Thu nợ PT"));
+        assertTrue(lines.get(2).description().startsWith("Mua HĐ HD"));
+        assertTrue(lines.get(3).description().startsWith("Trả khi mua HĐ HD"));
+        assertTrue(lines.get(4).description().endsWith("(chuyển khoản)"));
+        assertTrue(lines.get(4).highlight());
+        long[] expect = {1000000, 700000, 732400, 632400, 0};
+        for (int i = 0; i < 5; i++) assertEquals(0, BigDecimal.valueOf(expect[i]).compareTo(lines.get(i).balance()), "dong " + i);
+        assertEquals(0, new BigDecimal("632400").compareTo(doc.totals().get(0).amount())); // no truoc khi thu
+        assertEquals(0, new BigDecimal("632400").compareTo(doc.totals().get(1).amount())); // thu
+        assertEquals(0, BigDecimal.ZERO.compareTo(doc.totals().get(2).amount()));           // con no
 
-        // tra het -> chu ky ket thuc, bien lai rong (app cu: "Khong co ban ghi thanh toan nao")
-        debts.pay(customer.getId(), new BigDecimal("632400"), null);
-        assertTrue(customerController.receipt(customer.getId()).rows().isEmpty());
+        // phieu lan thu dau: 2 dong
+        assertEquals(2, statements.receipt(first.getId()).lines().size());
     }
 
     @Test
