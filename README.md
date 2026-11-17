@@ -95,6 +95,7 @@ Bat bien: `on_hand = SUM(stock_movement.qty)` (co test).
 - Bo case tinh tien dung chung: `backend/src/test/resources/line-cases.json`, sinh bang `python3 scripts/gen-line-cases.py` (ket qua tinh doc lap bang Decimal).
 - E2E man Ban hang tren backend that: `scripts/e2e-ban-hang.cjs` (xem huong dan dau file).
 - IT toan he thong (dang nhap/phan quyen, tai khoan, danh muc, khach, hoa don + ban in, loc hoa don, bao cao doi chieu doc lap, mo tung trang voi 2 vai tro): `scripts/it-toan-he-thong.cjs`. Chay moi script tren mot DB trong rieng.
+- Mo phong thuc te (du lieu ngau nhien co seed, chay qua giao dien, do so phim / click / thoi gian, doi chieu so lieu, bat bien so no + so kho): `SEED=7 SALES=40 node scripts/mo-phong-thuc-te.cjs` tren backend `SEED_DEMO=true` (DB trong). Cho du lieu mau tao xong (log `SEED_DEMO: da tao`) roi moi chay.
 
 ## In hoa don / phieu thu (JasperReports cu)
 - Mau in: `backend/src/main/resources/reports/Bill.jrxml` (lay nguyen tu app cu), `PhieuThuNo.jrxml` (phieu thu / sao ke, dau trang lay tu mau bien lai cu), anh logo/QR o `reports/images/`.
