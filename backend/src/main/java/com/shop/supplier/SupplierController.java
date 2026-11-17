@@ -2,6 +2,7 @@ package com.shop.supplier;
 
 import com.shop.common.ApiException;
 import com.shop.common.PageDto;
+import com.shop.common.TextSearch;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 /** Nha cung cap + cong no NCC. Chi ADMIN (SecurityConfig: anyRequest ADMIN). */
@@ -36,11 +38,26 @@ public class SupplierController {
     public PageDto<Supplier> list(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "false") boolean debt,
                                   @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
                                   @RequestParam(defaultValue = "") String sort) {
-        String like = PageDto.like(q);
-        var p = suppliers.page(like, debt, PageDto.pageable(page, size, sort, SORTABLE, Sort.by("name").and(Sort.by("id"))));
-        Object[] s = suppliers.summary(like, debt).get(0);
-        return PageDto.of(p, x -> x, Map.of("count", s[0], "totalDebt", s[1],
-                "suppliersInDebt", s[2] == null ? 0 : ((Number) s[2]).longValue()));
+        if (q.isBlank()) {
+            var p = suppliers.page("", debt, PageDto.pageable(page, size, sort, SORTABLE, Sort.by("name").and(Sort.by("id"))));
+            Object[] s = suppliers.summary("", debt).get(0);
+            return PageDto.of(p, x -> x, Map.of("count", s[0], "totalDebt", s[1],
+                    "suppliersInDebt", s[2] == null ? 0 : ((Number) s[2]).longValue()));
+        }
+        // Co chu tim: khong dau, theo tu, xep hang nhu tim khach / san pham ("kho thep" thay "Kho thép Minh Long").
+        // NCC chi vai chuc - vai tram -> loc trong bo nho; summary tinh tren toan bo ket qua loc.
+        List<Supplier> all = suppliers.findAll(Sort.by("name").and(Sort.by("id"))).stream()
+                .filter(x -> x.isActive() && (!debt || x.getDebt().signum() > 0)).toList();
+        List<Supplier> hit = TextSearch.rank(all, q, x -> new String[]{x.getName(), x.getPhone(), x.getAddress()}, x -> 0L);
+        if (!sort.isBlank()) {
+            String[] sp = sort.split(",");
+            java.util.Comparator<Supplier> cmp = "debt".equals(sp[0]) ? java.util.Comparator.comparing(Supplier::getDebt)
+                    : java.util.Comparator.comparing(Supplier::getName, String.CASE_INSENSITIVE_ORDER);
+            hit = hit.stream().sorted(sp.length > 1 && "desc".equalsIgnoreCase(sp[1]) ? cmp.reversed() : cmp).toList();
+        }
+        BigDecimal total = hit.stream().map(Supplier::getDebt).reduce(BigDecimal.ZERO, BigDecimal::add);
+        long inDebt = hit.stream().filter(x -> x.getDebt().signum() > 0).count();
+        return PageDto.ofList(hit, page, size, x -> x, Map.of("count", (long) hit.size(), "totalDebt", total, "suppliersInDebt", inDebt));
     }
 
     @GetMapping("/{id}")

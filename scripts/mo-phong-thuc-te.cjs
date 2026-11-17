@@ -249,7 +249,7 @@ function queriesFor(name) {
       const old = cust ? N(cust.debt) : 0;
       const payable = items + ship + old;
       let paid;
-      const mode = walkIn ? pick(['du', 'du', 'tron', 'thieu-roi-sua']) : pick(['du', 'hang', 'mot-phan', 'ghi-no', 'thua']);
+      const mode = walkIn ? pick(['du', 'du', 'tron', 'thieu-roi-sua']) : pick(['du', 'hang', 'mot-phan', 'ghi-no', 'thua', 'quen']);
       if (mode === 'du') { await u.click('.quick >> text=Trả đủ'); paid = payable; }
       else if (mode === 'tron') { paid = Math.ceil(payable / 50000) * 50000; await u.fill('#paid', vn(paid)); }
       else if (mode === 'thieu-roi-sua') {
@@ -261,10 +261,17 @@ function queriesFor(name) {
       else if (mode === 'hang') { if (old > 0) { await u.click('.quick >> text=Trả tiền hàng'); paid = items + ship; } else { await u.click('.quick >> text=Trả đủ'); paid = payable; } }
       else if (mode === 'mot-phan') { paid = Math.round(payable * (0.2 + rnd() * 0.6) / 1000) * 1000; await u.fill('#paid', vn(paid)); }
       else if (mode === 'ghi-no') { await u.click('.quick >> text=Ghi nợ hết'); paid = 0; }
+      else if (mode === 'quen') { paid = 0; } // quen nhap tien khach tra: o Khach tra van 0
       else { paid = payable + int(1, 9) * 10000; await u.fill('#paid', vn(paid)); }
       // chot: F9 roi Enter (ban phim) hoac bam nut
       if (chance(0.5)) { await u.press('F9'); await u.press('Enter'); } else await u.click('.cta');
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(400);
+      const asked = await page.isVisible('.el-message-box');
+      if (mode === 'quen') {
+        check(`ban ${who}#${s}: quen nhap tien tra -> hoi ghi no het`, asked);
+        if (asked) { await u.press('Enter'); sale.notes.push('quen nhap tien tra -> hoi ghi no het, Enter dong y'); }
+      } else if (asked) check(`ban ${who}#${s}: khong hoi ghi no het khi da nhap tien (${mode})`, false);
+      await page.waitForTimeout(500);
       const msgs = await takeMsgs(page);
       const done = await api('GET', `/orders/${draftId}`);
       const ms = Date.now() - ts;
@@ -330,23 +337,26 @@ function queriesFor(name) {
     u.reset(); const ts = Date.now();
     await page.goto(UI + '/receipts/new'); await page.waitForTimeout(900);
     const sups = (await api('GET', '/suppliers?size=20')).items;
-    // man Nhap hang: Enter KHONG chon ket qua dau (khac man Ban hang) -> phai mui ten xuong roi Enter
-    if (sups.length) { await u.click('#sup'); await u.type(fold(sups[0].name).split(' ')[0]); await page.waitForTimeout(700); await u.press('ArrowDown'); await u.press('Enter'); await page.waitForTimeout(200); }
+    // man Nhap hang dung cung o tim voi man Ban hang: go + Enter chon ket qua dau; SL Enter -> Gia, Gia Enter -> dong moi
+    const waitQ = (pathname, q) => page.waitForResponse((r) => { const x = new URL(r.url()); return x.pathname === pathname && x.searchParams.get('q') === q; }, { timeout: 8000 }).catch(() => null);
+    if (sups.length) {
+      const q = fold(sups[0].name).split(' ').slice(0, 2).join(' ');
+      await page.focus('#sup'); const r = waitQ('/api/suppliers', q); await u.type(q); await r; await page.waitForTimeout(150);
+      await u.press('Enter'); await page.waitForTimeout(300);
+    } else await page.focus('.lines .el-select input');
     const added = [];
     for (let i = 0; i < lines.length; i++) {
       const p = lines[i];
-      const rows = await page.$$('.lines .el-table__body tr');
-      if (rows.length <= i) { await u.click('text=Thêm dòng'); await page.waitForTimeout(200); }
-      const rowSel = `.lines .el-table__body tr:nth-child(${i + 1})`;
-      const r = page.waitForResponse((x) => x.url().includes('/api/products?'), { timeout: 8000 }).catch(() => null);
-      await u.click(`${rowSel} .el-select`); await u.type(fold(p.name).split(' ').slice(0, 2).join(' ')); await r; await page.waitForTimeout(200);
+      const q = fold(p.name).split(' ').slice(0, 2).join(' ');
+      const r = waitQ('/api/products', q); await u.type(q); await r; await page.waitForTimeout(150);
       const opts = await page.evaluate(() => [...document.querySelectorAll('.el-select-dropdown__item')].filter((e) => e.offsetParent).map((e) => e.innerText));
-      const idx = opts.findIndex((o) => o.startsWith(p.name)); for (let a = 0; a <= Math.max(0, idx); a++) await u.press('ArrowDown');
+      const idx = opts.findIndex((o) => o.startsWith(p.name));
+      for (let a = 0; a < idx; a++) await u.press('ArrowDown');
       await u.press('Enter'); await page.waitForTimeout(500);
       const qty = p.unit === 'm' ? int(100, 400) : int(10, 60);
       const price = Math.round(N(p.price) * 0.8 / 1000) * 1000;
-      await u.fill(`${rowSel} input[aria-label="Số lượng nhập"]`, String(qty));
-      await u.fill(`${rowSel} input[aria-label="Giá nhập"]`, vn(price));
+      await u.type(String(qty)); await u.press('Enter');
+      await u.type(vn(price)); await u.press('Enter'); await page.waitForTimeout(300);
       added.push({ p, qty });
     }
     await u.click('text=Trả đủ');

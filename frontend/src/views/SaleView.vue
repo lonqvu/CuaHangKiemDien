@@ -12,6 +12,7 @@ import NumberField from '../components/NumberField.vue'
 import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
+import { useRemotePick } from '../composables/useRemotePick'
 
 const auth = useAuth()
 const route = useRoute()
@@ -21,7 +22,6 @@ const DRAFT_KEY = 'sale.draftId'
 
 const order = ref<Order | null>(null)
 const done = ref<Order | null>(null) // hoa don vua chot, de in
-const products = ref<Product[]>([])
 const customers = ref<Customer[]>([])
 const customer = ref<Customer | null>(null)
 const busy = ref(false)
@@ -35,7 +35,7 @@ const segField = ref()
 const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 const pay = reactive({ shippingFee: 0, paidAmount: 0, note: '', walkInName: '', walkInPhone: '' })
 
-const picked = computed(() => products.value.find((p) => p.id === line.productId) ?? null)
+const picked = computed<Product | null>(() => products.value.find((p: Product) => p.id === line.productId) ?? null)
 
 // App cu: go so tam khac 0 thi he so tu dien 1.08 (ProductDialog); man sua dong (ModifyProduct) dien 1
 // Xoa so tam ve 0 thi he so cung ve 0: neu khong, cong thuc cu (so tam 0, he so != 0) cho Tong SL = 0 -> dong 0 d
@@ -84,44 +84,19 @@ async function newInvoice() {
 }
 
 // ---------- them dong hang (ProductDialog cu) ----------
-// Tim khong dau, theo tu (backend). Bo qua ket qua cu ve muon hon ket qua moi.
-const productQuery = ref('')
-const productLoading = ref(false)
-let productSeq = 0
-// Go nhanh roi Enter truoc khi ket qua ve: nho lai, ket qua (cua dung cau vua go) ve thi chon luon ket qua dau.
-// Khong chon tu danh sach cu -> khong bao gio chon nham theo cau tim truoc.
-let enterPending = false
-const fetchProducts = debounce(async (q: string, seq: number) => {
-  try {
-    // Da chon khach: hang khach hay mua len dau; o tim trong: hang ban chay
-    const params = { q, size: 30, popular: true, customerId: customer.value?.id }
-    const data = (await http.get<Page<Product>>('/products', { params })).data.items
-    if (seq !== productSeq) return
-    // giu san pham dang chon tren dong nhap (neu khong con trong ket qua moi)
-    const cur = picked.value
-    products.value = cur && !data.some((p) => p.id === cur.id) ? [...data, cur] : data
-    if (enterPending) {
-      enterPending = false
-      if (data.length) {
-        line.productId = data[0].id
-        productSelect.value?.blur()
-        await onPickProduct()
-      }
-    }
-  } finally {
-    if (seq === productSeq) productLoading.value = false
-  }
-}, 200)
-function searchProducts(q: string) {
-  productQuery.value = q
-  productLoading.value = true
-  fetchProducts(q, ++productSeq)
-}
+// Tim khong dau, theo tu (backend); Enter chon ket qua dau (ke ca go nhanh truoc khi ket qua ve) - xem useRemotePick.
+// Da chon khach: hang khach hay mua len dau; o tim trong: hang ban chay. Giu san pham dang chon trong danh sach.
+const { options: products, loading: productLoading, query: productQuery, search: searchProducts, onEnter: onProductEnter } = useRemotePick<Product>(
+  async (q) => (await http.get<Page<Product>>('/products', { params: { q, size: 30, popular: true, customerId: customer.value?.id } })).data.items,
+  async (first) => {
+    line.productId = first.id
+    productSelect.value?.blur()
+    await onPickProduct()
+  },
+  { keep: (): Product | null => picked.value },
+)
 // Doi khach -> xep lai goi y theo hang khach do hay mua
 watch(() => customer.value?.id, () => searchProducts(productQuery.value))
-function onProductEnter() {
-  if (productLoading.value) enterPending = true
-}
 
 // Chon xong (Enter chon luon ket qua dau) -> nhay sang So luong, boi den san de go de
 async function onPickProduct() {
@@ -356,9 +331,23 @@ function setCustomer(c: Customer) {
 function payAll() { pay.paidAmount = payable.value }
 function payGoodsOnly() { pay.paidAmount = itemsTotal.value + Number(pay.shippingFee || 0) }
 
+// Bam "Ghi no het" = chu y ghi no toan bo -> khong hoi lai. Doi so tien / doi khach thi bo.
+const debtAllChosen = ref(false)
+watch(() => pay.paidAmount, (v) => { if (v) debtAllChosen.value = false })
+watch(() => customer.value?.id, () => { debtAllChosen.value = false })
+function debtAll() { pay.paidAmount = 0; debtAllChosen.value = true }
+
 async function checkout() {
   if (!order.value?.items.length || busy.value) return
   if (needName.value) return ElMessage.warning('Vui lòng chọn khách hàng hoặc nhập tên khách lẻ')
+  // Khach quen, o Khach tra van 0 (thu ngan co the quen nhap) -> hoi 1 lan truoc khi ghi no toan bo
+  if (customer.value && !Number(pay.paidAmount) && remain.value > 0 && !debtAllChosen.value) {
+    const ok = await ElMessageBox.confirm(
+      `Khách chưa trả đồng nào. Ghi nợ toàn bộ ${money(remain.value)} cho ${customer.value.name}?`,
+      'Ghi nợ hết', { confirmButtonText: 'Ghi nợ hết (Enter)', cancelButtonText: 'Nhập tiền khách trả', type: 'warning', distinguishCancelAndClose: true },
+    ).then(() => true, () => false)
+    if (!ok) return nextTick(() => document.getElementById('paid')?.focus())
+  }
   busy.value = true
   try {
     const { data } = await http.post<Order>(`/orders/${order.value.id}/checkout`, {
@@ -605,7 +594,7 @@ onBeforeUnmount(() => {
         <div v-if="!done" class="quick">
           <el-button size="small" @click="payAll">Trả đủ</el-button>
           <el-button v-if="oldDebt > 0" size="small" @click="payGoodsOnly">Trả tiền hàng</el-button>
-          <el-button v-if="customer" size="small" @click="pay.paidAmount = 0">Ghi nợ hết</el-button>
+          <el-button v-if="customer" size="small" @click="debtAll">Ghi nợ hết</el-button>
         </div>
         <div class="remain" :class="{ owe: remain > 0 }">
           <dt>{{ remain > 0 ? (customer ? 'Còn nợ sau đơn' : 'Còn thiếu') : 'Còn lại' }}</dt>

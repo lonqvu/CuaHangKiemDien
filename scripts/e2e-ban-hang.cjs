@@ -269,7 +269,10 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await pick('hop 40x80 1,4'); await addLine('2'); // 570.000
   { const r = page.waitForResponse((x) => x.url().includes('/api/customers?q=')); await page.keyboard.press('F4'); await page.keyboard.type('khach tra hang'); await r; await page.waitForTimeout(200); await page.keyboard.press('Enter'); await page.waitForTimeout(300); }
   const id9 = await draftId();
-  await page.click('.cta'); await page.waitForTimeout(800);
+  await page.click('.cta'); await page.waitForTimeout(500);
+  const box9 = await page.evaluate(() => document.querySelector('.el-message-box')?.innerText);
+  check('khach tra 0 -> hoi "Ghi no toan bo 570.000"', box9?.includes('Ghi nợ toàn bộ 570.000'), box9?.replace(/\n+/g, ' | '));
+  await page.keyboard.press('Enter'); await page.waitForTimeout(800); // Enter = dong y
   const o9 = await api('GET', `/orders/${id9}`);
   check('ban chiu 570.000', Number(o9.debtAfter) === 570000);
   await api('POST', `/customers/${khach9.id}/debt-payments`, { amount: 570000, note: 'Tra het' });
@@ -374,13 +377,58 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   const shown = await page.evaluate(() => [...document.querySelectorAll('.sum > div')].find((d) => d.innerText.startsWith('Nợ cũ'))?.querySelector('dd')?.innerText);
   await api('POST', `/customers/${k10.id}/debt-payments`, { amount: 50000, method: 'CASH' }); // may khac
   const id11 = await draftId();
+  await page.click('.quick >> text=Ghi nợ hết');
   await page.click('.cta'); await page.waitForTimeout(900);
+  check('da bam "Ghi no het" -> khong hoi lai', !(await page.isVisible('.el-message-box')));
   check('chot khi no cu da doi -> bi chan, van la hoa don nhap', (await api('GET', `/orders/${id11}`)).status === 'DRAFT');
   const shown2 = await page.evaluate(() => [...document.querySelectorAll('.sum > div')].find((d) => d.innerText.startsWith('Nợ cũ'))?.querySelector('dd')?.innerText);
   check('phieu tu tai lai no cu moi (250.000 -> 200.000)', shown === '250.000' && shown2 === '200.000', `${shown} -> ${shown2}`);
   await page.click('.cta'); await page.waitForTimeout(900);
   const o11 = await api('GET', `/orders/${id11}`);
   check('chot lai: PAID voi no cu dung 200.000', o11.status === 'PAID' && Number(o11.previousDebt) === 200000);
+
+  // ===== 12. Ghi no het: quen nhap tien khach tra -> hoi, chon "Nhap tien khach tra" -> ve o Khach tra, chua chot =====
+  await page.click('.done-actions >> text=Hóa đơn mới'); await page.waitForTimeout(800);
+  await pick('vit ban ton'); await addLine('2');
+  { const r = page.waitForResponse((x) => x.url().includes('/api/customers?q=')); await page.keyboard.press('F4'); await page.keyboard.type('khach sao ke'); await r; await page.waitForTimeout(200); await page.keyboard.press('Enter'); await page.waitForTimeout(300); }
+  const id12 = await draftId();
+  await page.keyboard.press('F9'); await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+  check('F9 Enter, khach tra 0 -> hoi ghi no het', await page.isVisible('.el-message-box'));
+  await page.click('.el-message-box >> text=Nhập tiền khách trả'); await page.waitForTimeout(400);
+  check('chon "Nhap tien khach tra" -> chua chot, con tro o Khach tra', (await api('GET', `/orders/${id12}`)).status === 'DRAFT' && (await focused()) === 'paid');
+  await page.keyboard.type('100.000'); await page.keyboard.press('F9'); await page.keyboard.press('Enter'); await page.waitForTimeout(800);
+  const o12 = await api('GET', `/orders/${id12}`);
+  check('co nhap tien tra -> chot ngay, khong hoi', o12.status === 'PAID' && Number(o12.paidAmount) === 100000, `${o12.status} ${o12.paidAmount}`);
+
+  // ===== 13. Nhap hang chi bang ban phim: Enter chon NCC / san pham, SL Enter -> Gia, Gia Enter -> dong moi =====
+  const ncc = await api('POST', '/suppliers', { name: 'Đại lý Tôn Hoa Sen Q7', phone: '0283777888', address: null });
+  await page.goto(UI + '/receipts/new'); await page.waitForTimeout(1200);
+  let keys13 = 0;
+  const k = async (key) => { keys13++; await page.keyboard.press(key); };
+  const t = async (txt) => { keys13 += [...txt].length; await page.keyboard.type(txt); };
+  const waitQ = (pathname, q) => page.waitForResponse((r) => { const u = new URL(r.url()); return u.pathname === pathname && u.searchParams.get('q') === q; });
+  await page.focus('#sup');
+  { const r = waitQ('/api/suppliers', 'hoa sen'); await t('hoa sen'); await r; await page.waitForTimeout(100); }
+  await k('Enter'); await page.waitForTimeout(300);
+  const supText = await page.evaluate(() => document.querySelector('#sup')?.closest('.el-select')?.innerText);
+  const onProduct = await page.evaluate(() => document.activeElement?.closest('.lines') != null && document.activeElement?.getAttribute('role') === 'combobox');
+  check('NCC: go + Enter -> chon, con tro sang o San pham', supText?.includes('Hoa Sen') && onProduct, supText);
+  { const r = waitQ('/api/products', 'ton lanh 0,4'); await t('ton lanh 0,4'); await r; await page.waitForTimeout(100); }
+  await k('Enter'); await page.waitForTimeout(500);
+  check('San pham: go + Enter -> chon ket qua dau, con tro sang SL nhap', await page.evaluate(() => document.activeElement?.closest('[aria-label="Số lượng nhập"]') != null || document.activeElement?.getAttribute('aria-label') === 'Số lượng nhập'));
+  await t('100'); await k('Enter'); await t('70.000'); await k('Enter'); await page.waitForTimeout(300);
+  // go nhanh roi Enter ngay (ket qua chua ve) van chon dung
+  await t('hop 40x80 1,4'); await k('Enter'); await page.waitForTimeout(1000);
+  await t('20'); await k('Enter'); await t('250.000'); await k('Enter'); await page.waitForTimeout(300);
+  await page.click('.quick >> text=Trả đủ'); await page.click('text=Ghi sổ, nhập kho'); await page.waitForTimeout(300);
+  await page.click('.el-message-box__btns >> text=Ghi sổ'); await page.waitForTimeout(1200);
+  const rid = Number(new URL(page.url()).pathname.split('/').pop());
+  const rc = rid ? await api('GET', `/receipts/${rid}`) : null;
+  check('phieu nhap: 2 dong dung san pham / SL / gia, da ghi so', rc?.status === 'POSTED' && rc.lines.length === 2
+    && rc.lines[0].productName === 'Tôn lạnh 0,4 ly' && Number(rc.lines[0].inputQty) === 100 && Number(rc.lines[0].inputPrice) === 70000
+    && rc.lines[1].productName === 'Hộp sắt 40x80 dày 1,4' && Number(rc.lines[1].inputQty) === 20 && Number(rc.lines[1].inputPrice) === 250000,
+    JSON.stringify(rc?.lines?.map((l) => [l.productName, l.inputQty, l.inputPrice])));
+  check(`phieu nhap 2 dong: ${keys13} phim, 0 mui ten, 0 lan bam chuot khi nhap dong (truoc: 59 phim + 10 lan bam)`, keys13 === 57, String(keys13));
 
   await browser.close();
   const failed = results.filter((r) => !r.ok);
