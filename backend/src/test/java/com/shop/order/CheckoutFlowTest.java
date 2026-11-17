@@ -185,4 +185,25 @@ class CheckoutFlowTest {
         assertEquals(0, new BigDecimal("32000").compareTo(customers.findById(customer.getId()).orElseThrow().getDebt()));
         assertThrows(ApiException.class, () -> debts.pay(customer.getId(), new BigDecimal("99999"), null));
     }
+
+    /** Nhap nhieu doan ton 1 lan: 4,7x2 4,5x2 3x1 -> 3 dong, he so 1.08, tong dung; 1 doan loi thi khong them dong nao. */
+    @Test
+    void addItems_batch_allOrNothing() {
+        Order o = service.createDraft("nv1");
+        var k = new BigDecimal("1.08");
+        o = service.addItems(o.getId(), java.util.List.of(
+                new OrderService.ItemRequest(product.getId(), new BigDecimal("4.7"), 2, k, new BigDecimal("1000")),
+                new OrderService.ItemRequest(product.getId(), new BigDecimal("4.5"), 2, k, new BigDecimal("1000")),
+                new OrderService.ItemRequest(product.getId(), new BigDecimal("3"), 1, k, new BigDecimal("1000"))));
+        assertEquals(3, o.getItems().size());
+        // (4.7*2 + 4.5*2 + 3*1) * 1.08 = 23.112 m -> 23.112 d
+        assertEquals(0, new BigDecimal("23112").compareTo(o.getItemsTotal()), o.getItemsTotal().toString());
+
+        Long id = o.getId();
+        assertThrows(ApiException.class, () -> service.addItems(id, java.util.List.of(
+                new OrderService.ItemRequest(product.getId(), new BigDecimal("2"), 1, k, null),
+                new OrderService.ItemRequest(product.getId(), BigDecimal.ZERO, 1, k, null))));
+        assertEquals(3, service.get(id).getItems().size(), "doan loi -> khong them doan nao");
+        assertThrows(ApiException.class, () -> service.addItems(id, java.util.List.of()));
+    }
 }

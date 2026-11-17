@@ -6,7 +6,7 @@ import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Category, Customer, Order, OrderItem, Page, Product } from '../api/types'
-import { debounce, highlight, money, num, orderMessage, previewLine, qty } from '../format'
+import { debounce, groupItems, highlight, money, num, orderMessage, parseSegments, plain, previewLine, qty } from '../format'
 import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import NumberField from '../components/NumberField.vue'
 import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
@@ -30,6 +30,7 @@ const productSelect = ref()
 const customerSelect = ref()
 const ctaButton = ref()
 const qtyField = ref()
+const segField = ref()
 
 const line = reactive({ productId: null as number | null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
 const pay = reactive({ shippingFee: 0, paidAmount: 0, note: '', walkInName: '', walkInPhone: '' })
@@ -127,7 +128,48 @@ async function onPickProduct() {
   if (!line.productId) return
   line.unitPrice = Number(picked.value?.price ?? 0)
   await nextTick()
-  qtyField.value?.focus()
+  focusEntry()
+}
+// hang ban theo met (ton, up noc, mang...): con tro vao o "Nhieu doan"; con lai: o So luong
+const isSheet = computed(() => (picked.value?.unit ?? '').trim().toLowerCase() === 'm')
+function focusEntry() {
+  if (isSheet.value) segField.value?.focus()
+  else qtyField.value?.focus()
+}
+
+// ---------- nhap nhieu doan 1 lan: "4,7x2 4,5x2 3" ----------
+const segText = ref('')
+const segParsed = computed(() => parseSegments(segText.value))
+const segFactor = computed(() => line.factor || 1.08) // he so dang nhap (neu co), mac dinh 1,08 nhu khi go so tam
+const segPreview = computed(() => {
+  const rows = segParsed.value.segments.map((g) => previewLine(g.quantity, g.sheets, g.sheets ? segFactor.value : 0, line.unitPrice || 0))
+  return {
+    sheets: segParsed.value.segments.reduce((a, g) => a + g.sheets, 0),
+    totalQuantity: rows.reduce((a, r) => a + r.totalQuantity, 0),
+    lineTotal: rows.reduce((a, r) => a + r.lineTotal, 0),
+  }
+})
+async function addSegments() {
+  if (!order.value || busy.value || !line.productId) return
+  if (!segText.value.trim()) return qtyField.value?.focus() // de trong + Enter: nhap tung dong
+  if (segParsed.value.error) return ElMessage.warning(segParsed.value.error)
+  if (!(line.unitPrice > 0)) {
+    const ok = await ElMessageBox.confirm(`Đơn giá đang là 0 ₫, các đoạn này sẽ thành 0 ₫. Vẫn thêm?`, 'Đơn giá 0 ₫', {
+      confirmButtonText: 'Vẫn thêm', cancelButtonText: 'Sửa đơn giá', type: 'warning',
+    }).then(() => true, () => false)
+    if (!ok) return document.getElementById('p')?.focus()
+  }
+  busy.value = true
+  try {
+    const body = segParsed.value.segments.map((g) => ({ productId: line.productId, quantity: g.quantity, sheets: g.sheets, factor: g.sheets ? segFactor.value : 0, unitPrice: line.unitPrice }))
+    order.value = (await http.post<Order>(`/orders/${order.value.id}/items/batch`, body)).data
+    segText.value = ''
+    Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
+    await nextTick()
+    segField.value?.focus()
+  } finally {
+    busy.value = false
+  }
 }
 
 // ---------- them nhanh san pham khi tim khong thay (chi quan tri) ----------
@@ -153,12 +195,13 @@ async function createProduct() {
 }
 // dong hop thoai: da tao -> sang So luong; huy -> quay lai o tim
 function afterNewProduct() {
-  if (line.productId) qtyField.value?.focus()
+  if (line.productId) focusEntry()
   else productSelect.value?.focus()
 }
 
 function resetLine() {
   Object.assign(line, { productId: null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
+  segText.value = ''
 }
 
 // Ly do khong them duoc dong dang nhap (hien ngay duoi o nhap, khong cho bam Them)
@@ -246,6 +289,27 @@ async function removeItem(i: OrderItem) {
     confirmButtonText: 'Xóa', cancelButtonText: 'Không', type: 'warning',
   })
   order.value = (await http.delete<Order>(`/orders/${order.value!.id}/items/${i.id}`)).data
+}
+
+// ---------- bang dong hang: gom cac doan cung san pham + don gia thanh 1 cum ----------
+// Cum co tong so tam / tong met / tong tien, mo ra de sua / xoa tung doan. Mat hang 1 dong thi hien nhu cu.
+const segLabel = (i: OrderItem) => (i.sheets ? `${plain(i.quantity).replace('.', ',')}×${i.sheets}` : plain(i.quantity).replace('.', ','))
+const tableRows = computed(() => groupItems(order.value?.items ?? []).map((g, n) => g.items.length === 1
+  ? { ...g.first, rowKey: `i${g.first.id}`, no: n + 1, isGroup: false }
+  : {
+      rowKey: `g${g.key}`, no: n + 1, isGroup: true, productName: g.first.productName, unit: g.first.unit, unitPrice: g.first.unitPrice,
+      count: g.items.length, sheets: g.sheets, totalQuantity: g.totalQuantity, lineTotal: g.lineTotal, items: g.items,
+      segs: g.items.map(segLabel).join(' + '),
+      children: g.items.map((it, k) => ({ ...it, rowKey: `i${it.id}`, no: null, isGroup: false, seg: k + 1 })),
+    }))
+
+const rowClass = ({ row }: { row: { isGroup?: boolean; seg?: number } }) => (row.isGroup ? 'group-row' : row.seg ? 'seg-row' : '')
+
+async function removeGroup(row: { productName: string; count: number; items: OrderItem[] }) {
+  await ElMessageBox.confirm(`Bỏ cả ${row.count} đoạn "${row.productName}" khỏi hóa đơn?`, 'Xóa cả cụm', {
+    confirmButtonText: 'Xóa cả cụm', cancelButtonText: 'Không', type: 'warning',
+  })
+  for (const it of row.items) order.value = (await http.delete<Order>(`/orders/${order.value!.id}/items/${it.id}`)).data
 }
 
 // ---------- khach hang (CustomerDialog cu) ----------
@@ -406,6 +470,21 @@ onBeforeUnmount(() => {
             </template>
           </el-select>
         </div>
+        <div v-if="isSheet && !done" class="f segs">
+          <label for="segs">Nhiều đoạn <span class="muted small">mét×tấm (vd 4,7x2), cách nhau dấu cách · Enter thêm hết · để trống + Enter / Tab: nhập từng dòng</span></label>
+          <div class="segs-row">
+            <el-input id="segs" ref="segField" v-model="segText" placeholder="vd: 4,7x2 4,5x2 3x1" autocomplete="off"
+                      @keydown.enter.prevent.stop="addSegments" />
+            <span v-if="segText.trim()" class="segs-preview" aria-live="polite">
+              <span v-if="segParsed.error" class="line-problem">{{ segParsed.error }}</span>
+              <template v-else>
+                {{ segParsed.segments.length }} đoạn<template v-if="segPreview.sheets"> · {{ segPreview.sheets }} tấm</template> · <b class="num">{{ qty(segPreview.totalQuantity) }}</b> m
+                · <b class="num">{{ money(segPreview.lineTotal) }}</b>
+                <span v-if="segPreview.sheets" class="muted small"> (hệ số {{ qty(segFactor) }})</span>
+              </template>
+            </span>
+          </div>
+        </div>
         <div class="f">
           <label for="q">Số lượng</label>
           <NumberField id="q" ref="qtyField" v-model="line.quantity" kind="decimal" :disabled="!!done" />
@@ -439,25 +518,35 @@ onBeforeUnmount(() => {
       </form>
 
       <div class="panel">
-        <el-table :data="order.items" empty-text="Chưa có mặt hàng. Chọn sản phẩm ở trên rồi bấm Thêm (hoặc Enter)." style="width: 100%">
-          <el-table-column type="index" label="#" width="40" />
+        <el-table :data="tableRows" row-key="rowKey" :tree-props="{ children: 'children' }" :indent="12"
+                  empty-text="Chưa có mặt hàng. Chọn sản phẩm ở trên rồi bấm Thêm (hoặc Enter)." style="width: 100%" :row-class-name="rowClass">
           <el-table-column label="Mặt hàng" min-width="160">
-            <template #default="{ row }">{{ row.productName }}<span v-if="row.unit" class="muted"> · {{ row.unit }}</span></template>
+            <template #default="{ row }">
+              <template v-if="row.seg"><span class="muted">Đoạn {{ row.seg }}</span></template>
+              <span v-else class="name-wrap">
+                <div class="one-line" :title="row.productName"><span class="muted no">{{ row.no }}.</span> {{ row.productName }}<span v-if="row.unit" class="muted"> · {{ row.unit }}</span></div>
+                <div v-if="row.isGroup" class="one-line segs-sum muted" :title="row.segs">{{ row.count }} đoạn: {{ row.segs }}</div>
+              </span>
+            </template>
           </el-table-column>
-          <el-table-column label="SL" width="72" align="right"><template #default="{ row }"><span class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
+          <el-table-column label="SL" width="72" align="right"><template #default="{ row }"><span v-if="!row.isGroup" class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
           <el-table-column label="Tổng SL" width="112" align="right">
             <template #default="{ row }">
               <span class="num">{{ qty(row.totalQuantity) }}</span>
-              <div v-if="row.sheets" class="formula num" :title="`Số tấm ${row.sheets}, hệ số ${qty(row.factor)}`">× {{ row.sheets }} tấm × {{ qty(row.factor) }}</div>
+              <div v-if="row.isGroup && row.sheets" class="formula num">{{ row.sheets }} tấm</div>
+              <div v-else-if="row.sheets" class="formula num" :title="`Số tấm ${row.sheets}, hệ số ${qty(row.factor)}`">× {{ row.sheets }} tấm × {{ qty(row.factor) }}</div>
             </template>
           </el-table-column>
           <el-table-column label="Đơn giá" width="100" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" width="120" align="right"><template #default="{ row }"><b class="num">{{ num(row.lineTotal) }}</b></template></el-table-column>
+          <el-table-column label="Thành tiền" width="120" align="right"><template #default="{ row }"><b class="num line-total">{{ num(row.lineTotal) }}</b></template></el-table-column>
           <el-table-column v-if="!done" label="Sửa / xóa" width="104" align="center">
             <template #default="{ row }">
-              <div class="row-actions">
-              <el-button text :icon="Edit" :aria-label="`Sửa ${row.productName}`" @click="openEdit(row)" />
-              <el-button text type="danger" :icon="Delete" :aria-label="`Xóa ${row.productName}`" @click="removeItem(row)" />
+              <div v-if="row.isGroup" class="group-actions">
+                <el-button text type="danger" :icon="Delete" :aria-label="`Xóa cả ${row.count} đoạn ${row.productName}`" @click="removeGroup(row)" />
+              </div>
+              <div v-else class="row-actions" :data-item="row.id">
+                <el-button text :icon="Edit" :aria-label="`Sửa ${row.productName}${row.seg ? ' đoạn ' + row.seg : ''}`" @click="openEdit(row)" />
+                <el-button text type="danger" :icon="Delete" :aria-label="`Xóa ${row.productName}${row.seg ? ' đoạn ' + row.seg : ''}`" @click="removeItem(row)" />
               </div>
             </template>
           </el-table-column>
@@ -631,7 +720,7 @@ onBeforeUnmount(() => {
 .head h1 { font-size: 22px; }
 .head p { margin: 2px 0 0; font-size: 14px; }
 
-.entry { display: grid; grid-template-columns: minmax(160px, 2fr) repeat(4, minmax(100px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
+.entry { display: grid; grid-auto-flow: row dense; grid-template-columns: minmax(160px, 2fr) repeat(4, minmax(100px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
 @container (max-width: 700px) {
   .entry { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .f.product { grid-column: 1 / -1; }
@@ -646,6 +735,17 @@ onBeforeUnmount(() => {
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
 .f :deep(.el-select) { width: 100%; }
+.segs { grid-column: 1 / -1; }
+.segs-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
+.segs-row .el-input { flex: 0 1 320px; }
+.segs-preview { font-size: 14px; }
+.segs label .small { font-weight: 400; font-size: 12px; }
+.name-wrap { display: inline-block; vertical-align: top; max-width: calc(100% - 24px); }
+.one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segs-sum { font-size: 12px; }
+.no { font-variant-numeric: tabular-nums; }
+:deep(.group-row) td { background: #F8FAFC; }
+:deep(.seg-row) td { font-size: 13px; }
 .calc { grid-column: 1 / -3; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm) var(--space-md); font-size: 14px; padding-top: var(--space-sm); }
 .calc b { font-size: 16px; }
 .calc .small { font-size: 12px; }

@@ -171,7 +171,24 @@ function queriesFor(name) {
         } else {
           sale.notes.push('giu san pham, khong tim lai');
         }
+        const fresh = prevProduct !== g.p.id;
         prevProduct = g.p.id;
+        // ton: phan lon go 1 lan "4,7x2 4,5x3 3" o o Nhieu doan (con tro dang o do sau khi chon); con lai Enter de nhap tung dong
+        if (g.isSheet && chance(0.75)) {
+          if (!fresh) await page.focus('#segs');
+          const segs = [];
+          for (let k = 0; k < g.segs; k++) {
+            const len = (int(150, 600) / 100).toFixed(chance(0.5) ? 1 : 2).replace(/0$/, '');
+            const sheets = int(1, 20);
+            segs.push({ product: g.p.name, price: curPrice, qty: len, sheets, factor: '1.08' });
+          }
+          await u.type(segs.map((x) => `${x.qty.replace('.', ',')}x${x.sheets}`).join(' '));
+          await u.press('Enter'); await page.waitForTimeout(350);
+          for (const line of segs) { Object.assign(line, exactLine(line.qty, line.sheets, '1.08', line.price)); sale.lines.push(line); }
+          sale.multi = (sale.multi ?? 0) + 1;
+          continue;
+        }
+        if ((await page.evaluate(() => document.activeElement?.id)) === 'segs') await u.press('Enter'); // o Nhieu doan trong + Enter -> sang So luong
         for (let k = 0; k < g.segs; k++) {
           const line = { product: g.p.name, price: curPrice };
           if (g.isSheet) {
@@ -202,7 +219,8 @@ function queriesFor(name) {
       if (order.items.length !== sale.lines.length) check(`ban ${who}#${s}: so dong da luu`, false, `${order.items.length} vs ${sale.lines.length}`);
       if (chance(0.12) && order.items.length > 1) {
         const i = int(0, order.items.length - 1);
-        await u.click(`.el-table__body tr:nth-child(${i + 1}) .row-actions button:nth-child(2)`); await page.waitForTimeout(250);
+        for (const ic of await page.$$('.group-row .el-table__expand-icon:not(.el-table__expand-icon--expanded)')) { await ic.click(); await page.waitForTimeout(150); }
+        await u.click(`.row-actions[data-item="${order.items[i].id}"] button:nth-child(2)`); await page.waitForTimeout(250);
         await u.click('.el-message-box__btns .el-button--primary'); await page.waitForTimeout(400);
         sale.lines.splice(i, 1); sale.notes.push('xoa 1 dong');
       }

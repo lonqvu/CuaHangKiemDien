@@ -154,3 +154,39 @@ export function datePresets(now = new Date()) {
     { key: 'year', label: 'Năm nay', from: d(y, 0, 1), to: d(y, m, t) },
   ]
 }
+
+/**
+ * Nhap nhieu doan ton 1 lan: "4,7x2 4,5x2 3" -> [{4.7,2},{4.5,2},{3,1}].
+ * Doan cach nhau bang khoang trang, ";" hoac "+"; "x" / "×" / "*" giua so met va so tam; khong co "x" = so met tron (nhu o So luong, khong nhan he so).
+ * Loi -> tra ve doan bi loi de bao dung cho, khong them doan nao.
+ */
+export function parseSegments(text: string): { segments: { quantity: number; sheets: number }[]; error: string } {
+  const norm = text.trim().replace(/\s*[x×*]\s*/gi, 'x').replace(/,(\s|$)/g, ' ')
+  const parts = norm.split(/[\s;+]+/).filter(Boolean)
+  const segments: { quantity: number; sheets: number }[] = []
+  for (const p of parts) {
+    const m = /^(\d+(?:[.,]\d*)?)(?:x(\d+))?$/i.exec(p) // "4," = 4
+    const quantity = m ? Number(m[1].replace(',', '.')) : NaN
+    const sheets = m?.[2] ? Number(m[2]) : 0
+    if (!m || !(quantity > 0) || (m[2] && !(sheets >= 1)) || sheets > 9999) return { segments: [], error: `Đoạn "${p}" không hợp lệ (vd: 4,7x2)` }
+    segments.push({ quantity, sheets })
+  }
+  if (segments.length > 50) return { segments: [], error: 'Tối đa 50 đoạn mỗi lần' }
+  return { segments, error: '' }
+}
+
+/** Gom cac dong cung san pham + don gia thanh 1 cum (theo thu tu xuat hien dau tien). */
+export function groupItems<T extends { productId: number; unitPrice: number | string; sheets: number; totalQuantity: number | string; lineTotal: number | string }>(items: T[]) {
+  const groups: { key: string; first: T; items: T[]; sheets: number; totalQuantity: number; lineTotal: number }[] = []
+  const byKey = new Map<string, (typeof groups)[number]>()
+  for (const it of items) {
+    const key = `${it.productId}:${Number(it.unitPrice)}`
+    let g = byKey.get(key)
+    if (!g) { g = { key, first: it, items: [], sheets: 0, totalQuantity: 0, lineTotal: 0 }; byKey.set(key, g); groups.push(g) }
+    g.items.push(it)
+    g.sheets += it.sheets
+    g.totalQuantity = roundHalfEven(g.totalQuantity + Number(it.totalQuantity), 3)
+    g.lineTotal += Number(it.lineTotal)
+  }
+  return groups
+}

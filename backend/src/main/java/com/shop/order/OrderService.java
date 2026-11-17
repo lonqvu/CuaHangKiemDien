@@ -106,6 +106,22 @@ public class OrderService {
         return o;
     }
 
+    /** Them nhieu dong mot lan (nhap nhieu doan ton "4,7x2 4,5x2 3x1"): loi 1 dong thi khong them dong nao. */
+    @Transactional
+    public Order addItems(Long orderId, java.util.List<ItemRequest> rs) {
+        if (rs == null || rs.isEmpty()) throw ApiException.badRequest("Chưa có dòng nào để thêm");
+        if (rs.size() > 50) throw ApiException.badRequest("Tối đa 50 đoạn mỗi lần");
+        Order o = findDraft(orderId);
+        for (ItemRequest r : rs) {
+            OrderItem it = new OrderItem();
+            it.setOrder(o);
+            fill(it, r);
+            o.getItems().add(it);
+        }
+        recalc(o);
+        return o;
+    }
+
     @Transactional
     public Order updateItem(Long orderId, Long itemId, ItemRequest r) {
         Order o = findDraft(orderId);

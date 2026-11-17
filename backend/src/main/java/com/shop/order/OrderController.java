@@ -90,6 +90,11 @@ public class OrderController {
         return dto(service.addItem(id, r));
     }
 
+    @PostMapping("/{id}/items/batch")
+    public OrderDto addItems(@PathVariable Long id, @RequestBody java.util.List<OrderService.ItemRequest> rs) {
+        return dto(service.addItems(id, rs));
+    }
+
     @PutMapping("/{id}/items/{itemId}")
     public OrderDto updateItem(@PathVariable Long id, @PathVariable Long itemId, @RequestBody OrderService.ItemRequest r) {
         return dto(service.updateItem(id, itemId, r));

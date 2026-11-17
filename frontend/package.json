@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --no-warnings --test tests/calc.test.ts tests/highlight.test.ts"
+    "test": "node --experimental-strip-types --no-warnings --test tests/calc.test.ts tests/highlight.test.ts tests/segments.test.ts"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

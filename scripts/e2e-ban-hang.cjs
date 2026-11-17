@@ -114,14 +114,23 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.goto(UI + '/sale'); await page.waitForTimeout(1200);
   const lines = [];
   await pick('ton lanh 0,4');
-  check('Enter chon san pham -> con tro sang So luong', (await focused()) === 'q');
-  await addLine('4,7', 2); lines.push(exactLine('4.7', 2, '0', 95000));
-  check('them xong: giu san pham, con tro o So luong', (await focused()) === 'q' && (await page.inputValue('#p')) === '95000');
-  await addLine('4,5', 2); lines.push(exactLine('4.5', 2, '0', 95000));
-  await addLine('3', 1); lines.push(exactLine('3', 1, '0', 95000));
+  check('chon ton (ban theo m) -> con tro o "Nhieu doan"', (await focused()) === 'segs');
+  // nhap nhieu doan 1 lan: doan sai -> bao loi, khong them doan nao
+  await page.keyboard.type('4,7x2 4,5y2'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
+  check('nhieu doan co doan sai -> khong them dong nao', (await draft()).items.length === 0);
+  await page.keyboard.press('Control+A'); await page.keyboard.type('4,7x2 4,5x2 3x1');
+  const segPrev = await page.evaluate(() => document.querySelector('.segs-preview')?.innerText);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+  lines.push(exactLine('4.7', 2, '0', 95000), exactLine('4.5', 2, '0', 95000), exactLine('3', 1, '0', 95000));
+  check('xem truoc nhieu doan: 3 doan, 5 tam, dung tong tien', segPrev?.includes('3 đoạn') && segPrev?.includes('5 tấm') &&
+    segPrev?.replace(/\./g, '').includes(String(sum(lines.map((l) => l.lineTotal)))), segPrev);
+  check('"4,7x2 4,5x2 3x1" + Enter -> 3 dong', (await draft()).items.length === 3);
+  check('them xong: giu san pham, o Nhieu doan trong, con tro o lai', (await focused()) === 'segs' && (await page.inputValue('#segs')) === '' && (await page.inputValue('#p')) === '95000');
   await pick('hop 40x80 1,4'); await addLine('6', undefined, undefined, '280.000'); lines.push(exactLine('6', 0, '0', 280000));
   await pick('xingfa'); await addLine('2,375'); lines.push(exactLine('2.375', 0, '0', 120000));
-  await pick('ton lanh 0,45'); await addLine('5,15', 3, '1,05'); lines.push(exactLine('5.15', 3, '1.05', 102000));
+  await pick('ton lanh 0,45'); await page.keyboard.press('Tab'); // quen tay go tung dong: Tab tu o Nhieu doan -> So luong (khong xuong bang)
+  check('Tab tu o Nhieu doan -> sang So luong', (await focused()) === 'q');
+  await addLine('5,15', 3, '1,05'); lines.push(exactLine('5.15', 3, '1.05', 102000));
   let o = await draft();
   check('6 dong hang da luu', o.items.length === 6, `${o.items.length} dong`);
   o.items.forEach((it, i) => check(`dong ${i + 1} ${it.productName}: Tong SL ${it.totalQuantity}, tien ${it.lineTotal}`,
@@ -131,8 +140,19 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   const uiItems = await page.evaluate(() => document.querySelector('.sum > div dd').innerText.replace(/\./g, ''));
   check('Tien hang tren phieu = server', Number(uiItems) === items, uiItems);
   // bang dong hang tren man hinh khop server
-  const uiLineTotals = await page.evaluate(() => [...document.querySelectorAll('.el-table__body tr')].map((tr) => tr.querySelectorAll('td')[5]?.innerText.replace(/\./g, '')));
-  check('Thanh tien tung dong tren bang = server', JSON.stringify(uiLineTotals.map(Number)) === JSON.stringify(o.items.map((i) => Number(i.lineTotal))), uiLineTotals.join(','));
+  // bang: 3 doan ton gop 1 cum (5 cum hien), tung doan van co dong rieng (an trong cum) khop server
+  const ui = await page.evaluate(() => ({
+    top: [...document.querySelectorAll('.el-table__body tr:not(.seg-row)')].map((tr) => tr.querySelector('.line-total')?.innerText.replace(/\./g, '')),
+    group: document.querySelector('.group-row')?.innerText,
+    items: Object.fromEntries([...document.querySelectorAll('.row-actions[data-item]')].map((d) => [d.dataset.item, d.closest('tr').querySelector('.line-total').innerText.replace(/\./g, '')])),
+  }));
+  const tonSum = sum(o.items.slice(0, 3).map((i) => Number(i.lineTotal)));
+  check('bang gop 3 doan ton thanh 1 cum -> 4 dong tren cung', ui.top.length === 4, ui.top.join(','));
+  check('cum ton: tong tien = tong 3 doan, ghi 3 doan + 5 tam', Number(ui.top[0]) === tonSum && ui.group?.includes('3 đoạn: 4,7×2 + 4,5×2 + 3×1') && ui.group?.includes('5 tấm'), ui.group);
+  check('Thanh tien tung doan / dong tren bang = server', o.items.every((i) => Number(ui.items[i.id]) === Number(i.lineTotal)), JSON.stringify(ui.items));
+  // mo cum -> sua / xoa duoc tung doan
+  await page.click('.group-row .el-table__expand-icon'); await page.waitForTimeout(300);
+  check('mo cum -> thay 3 doan', (await page.$$eval('.seg-row', (r) => r.filter((x) => x.offsetParent).length)) === 3);
 
   { const r = page.waitForResponse((x) => x.url().includes('/api/customers?q=tuan')); await page.keyboard.press('F4'); await page.keyboard.type('tuan'); await r; await page.waitForTimeout(150); await page.keyboard.press('Enter'); await page.waitForTimeout(300); }
   await typeIn('ship', '150.000'); await typeIn('paid', '3.000.000');
@@ -158,6 +178,11 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   // ===== 3. Bay nhap lieu =====
   await page.click('.done-actions >> text=Hóa đơn mới'); await page.waitForTimeout(800);
   await pick('ton lanh 0,4');
+  await page.keyboard.type('3'); await page.keyboard.press('Enter'); await page.waitForTimeout(500); // "3" khong co x = 3 m tron
+  { const it = (await draft()).items[0]; check('o Nhieu doan go "3" -> 3 m tron (khong nhan he so)', it && Number(it.totalQuantity) === 3 && it.sheets === 0, JSON.stringify(it)); }
+  await page.click('.row-actions button:nth-child(2)'); await page.click('.el-message-box__btns .el-button--primary'); await page.waitForTimeout(400);
+  await page.focus('#segs'); await page.keyboard.press('Enter');
+  check('o Nhieu doan trong + Enter -> sang So luong', (await focused()) === 'q');
   await page.keyboard.type('5'); await page.keyboard.press('Tab'); await page.keyboard.type('2');
   check('go so tam -> he so tu 1,08', (await page.inputValue('#k')) === '1,08');
   await page.keyboard.press('Backspace'); await page.waitForTimeout(100);
