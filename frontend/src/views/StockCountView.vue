@@ -115,17 +115,17 @@ onMounted(load)
     <div class="panel">
       <el-table :data="shown" row-key="id" :empty-text="q || onlyDiff ? 'Không có dòng khớp' : 'Phiếu trống'">
         <el-table-column prop="productName" label="Sản phẩm" min-width="220" />
-        <el-table-column :label="draft ? 'Sổ sách (hiện tại)' : 'Sổ sách lúc ghi'" width="150" align="right">
+        <el-table-column :label="draft ? 'Sổ sách (hiện tại)' : 'Sổ sách lúc ghi'" min-width="150" align="right">
           <template #default="{ row }"><span class="num">{{ row.systemQty == null ? '—' : qty(row.systemQty) }}</span> <span class="muted small">{{ row.unit }}</span></template>
         </el-table-column>
-        <el-table-column label="Đếm thực tế" width="150" align="right">
+        <el-table-column label="Đếm thực tế" min-width="150" align="right">
           <template #default="{ row }">
             <NumberField v-if="draft" v-model="row.countedQty" kind="decimal" nullable class="n" placeholder="Chưa đếm"
                          :aria-label="`Số đếm ${row.productName}`" @change="touch(row)" />
             <span v-else class="num">{{ row.countedQty == null ? 'Bỏ qua' : qty(row.countedQty) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Chênh lệch" width="120" align="right">
+        <el-table-column label="Chênh lệch" min-width="120" align="right">
           <template #default="{ row }">
             <template v-if="(draft ? diffOf(row) : row.diff) != null">
               <span v-if="Number(draft ? diffOf(row) : row.diff) === 0" class="muted">Khớp</span>
@@ -135,7 +135,7 @@ onMounted(load)
             </template>
           </template>
         </el-table-column>
-        <el-table-column label="Giá vốn phần thừa" width="170" align="right">
+        <el-table-column label="Giá vốn phần thừa" min-width="170" align="right">
           <template #default="{ row }">
             <NumberField v-if="draft && (diffOf(row) ?? 0) > 0" v-model="row.unitCost" kind="integer" nullable class="n"
                          placeholder="Theo giá vốn hiện tại" :aria-label="`Giá vốn ${row.productName}`" @change="touch(row)" />
@@ -157,7 +157,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.wrap { display: flex; flex-direction: column; gap: var(--space-lg); max-width: 1100px; }
+.wrap { display: flex; flex-direction: column; gap: var(--space-lg); }
 .top { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-lg); flex-wrap: wrap; }
 .top h1 { font-size: 22px; margin-top: var(--space-sm); }
 .top p { margin: 2px 0 0; font-size: 14px; }

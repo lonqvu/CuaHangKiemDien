@@ -56,7 +56,7 @@ onMounted(load)
     <el-button type="primary" :icon="Plus" @click="openForm()">Thêm tài khoản</el-button>
   </PageHeader>
 
-  <div class="panel" style="max-width: 920px">
+  <div class="panel">
     <el-table :data="rows">
       <el-table-column label="Tên đăng nhập" width="170"><template #default="{ row }"><span class="mono">{{ row.username }}</span></template></el-table-column>
       <el-table-column prop="fullName" label="Họ tên" min-width="180" />
@@ -66,7 +66,7 @@ onMounted(load)
       <el-table-column label="Trạng thái" width="120">
         <template #default="{ row }"><span :class="row.active ? 'tone-money' : 'muted'">{{ row.active ? 'Đang dùng' : 'Đã khóa' }}</span></template>
       </el-table-column>
-      <el-table-column width="190" align="right">
+      <el-table-column min-width="190" align="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openForm(row)">Sửa</el-button>
           <el-button link type="primary" @click="resetPassword(row)">Đặt lại mật khẩu</el-button>

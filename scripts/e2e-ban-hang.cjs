@@ -110,7 +110,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.goto(UI + '/sale'); await page.waitForTimeout(1200);
   await searchFor('ton', () => page.focus('#pick-product'));
   await page.keyboard.press('Control+A'); await page.keyboard.type('hop 40x80 1,4'); await page.keyboard.press('Enter'); await page.waitForTimeout(1000);
-  check('go nhanh + Enter ngay -> chon dung "Hop sat 40x80 day 1,4", sang So luong', (await page.inputValue('#p')) === '285000' && (await focused()) === 'q');
+  check('go nhanh + Enter ngay -> chon dung "Hop sat 40x80 day 1,4", sang So luong', (await page.inputValue('#p')) === '285.000' && (await focused()) === 'q');
 
   // ===== 2. Ban chiu: khach no cu, ton nhieu doan (giu san pham), gia thoa thuan, so le dau phay =====
   await page.goto(UI + '/sale'); await page.waitForTimeout(1200);
@@ -120,6 +120,8 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   // nhap nhieu doan 1 lan: doan sai -> bao loi, khong them doan nao
   await page.keyboard.type('4,7x2 4,5y2'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   check('nhieu doan co doan sai -> khong them dong nao', (await draft()).items.length === 0);
+  // chi 1 trong 2 cach: dang go Nhieu doan -> So luong + So tam bi khoa
+  check('dang go Nhieu doan -> khoa So luong, So tam', await page.isDisabled('#q') && await page.isDisabled('#s') && !(await page.isDisabled('#k')) && !(await page.isDisabled('#p')));
   await page.keyboard.press('Control+A'); await page.keyboard.type('4,7x2 4,5x2 3x1');
   const segPrev = await page.evaluate(() => document.querySelector('.segs-preview')?.innerText);
   await page.keyboard.press('Enter'); await page.waitForTimeout(500);
@@ -127,20 +129,20 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   check('xem truoc nhieu doan: 3 doan, 5 tam, dung tong tien', segPrev?.includes('3 đoạn') && segPrev?.includes('5 tấm') &&
     segPrev?.replace(/\./g, '').includes(String(sum(lines.map((l) => l.lineTotal)))), segPrev);
   check('"4,7x2 4,5x2 3x1" + Enter -> 3 dong', (await draft()).items.length === 3);
-  check('them xong: giu san pham, o Nhieu doan trong, con tro o lai', (await focused()) === 'segs' && (await page.inputValue('#segs')) === '' && (await page.inputValue('#p')) === '95000');
+  check('them xong: giu san pham, o Nhieu doan trong, con tro o lai', (await focused()) === 'segs' && (await page.inputValue('#segs')) === '' && (await page.inputValue('#p')) === '95.000');
   await page.keyboard.press('Enter'); await page.waitForTimeout(300); // lo bam Enter them lan nua
   check('Enter o Nhieu doan trong sau khi them: sang So luong, khong canh bao, khong them dong', (await focused()) === 'q' && (await warnings()).length === 0 && (await draft()).items.length === 3, (await warnings()).join('|'));
   await pick('hop 40x80 1,4'); await addLine('6', undefined, undefined, '280.000'); lines.push(exactLine('6', 0, '0', 280000));
   // 9. gia da sua: ghi chu canh o Don gia; tim lai cung san pham -> van gia da sua (giong giu san pham)
   const note9 = async () => page.evaluate(() => document.querySelector('.price-note')?.innerText ?? null);
-  check('giu san pham, gia da sua 280.000 -> ghi chu "niem yet 285.000"', (await page.inputValue('#p')) === '280000' && (await note9())?.includes('285.000'), await note9());
+  check('giu san pham, gia da sua 280.000 -> ghi chu "niem yet 285.000"', (await page.inputValue('#p')) === '280.000' && (await note9())?.includes('285.000'), await note9());
   await page.keyboard.press('Escape'); await pick('hop 40x80 1,4');
-  check('Esc roi tim lai cung san pham -> van gia da sua 280.000 + ghi chu', (await page.inputValue('#p')) === '280000' && (await note9())?.includes('285.000'), await page.inputValue('#p'));
+  check('Esc roi tim lai cung san pham -> van gia da sua 280.000 + ghi chu', (await page.inputValue('#p')) === '280.000' && (await note9())?.includes('285.000'), await page.inputValue('#p'));
   await page.focus('#k'); await page.keyboard.press('Tab');
   check('co ghi chu gia: Tab tu He so vao thang o Don gia (khong dung o nut ghi chu)', (await focused()) === 'p');
   await page.click('.price-note');
-  check('bam ghi chu -> ve gia niem yet 285.000, het ghi chu', (await page.inputValue('#p')) === '285000' && (await note9()) === null);
-  check('san pham chua co trong hoa don -> gia niem yet, khong ghi chu', await (async () => { await pick('xingfa'); return (await page.inputValue('#p')) === '120000' && (await note9()) === null; })());
+  check('bam ghi chu -> ve gia niem yet 285.000, het ghi chu', (await page.inputValue('#p')) === '285.000' && (await note9()) === null);
+  check('san pham chua co trong hoa don -> gia niem yet, khong ghi chu', await (async () => { await pick('xingfa'); return (await page.inputValue('#p')) === '120.000' && (await note9()) === null; })());
   await page.keyboard.press('Escape');
   await pick('xingfa'); await addLine('2,375'); lines.push(exactLine('2.375', 0, '0', 120000));
   await pick('ton lanh 0,45'); await page.keyboard.press('Tab'); // quen tay go tung dong: Tab tu o Nhieu doan -> So luong (khong xuong bang)
@@ -170,7 +172,13 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   check('mo cum -> thay 3 doan', (await page.$$eval('.seg-row', (r) => r.filter((x) => x.offsetParent).length)) === 3);
 
   { const r = page.waitForResponse((x) => x.url().includes('/api/customers?q=tuan')); await page.keyboard.press('F4'); await page.keyboard.type('tuan'); await r; await page.waitForTimeout(150); await page.keyboard.press('Enter'); await page.waitForTimeout(300); }
-  await typeIn('ship', '150.000'); await typeIn('paid', '3.000.000');
+  await typeIn('ship', '150.000'); await typeIn('paid', '3000000');
+  check('o tien tu nhom nghin khi go: "3000000" -> "3.000.000", "150.000" giu nguyen', (await page.inputValue('#paid')) === '3.000.000' && (await page.inputValue('#ship')) === '150.000', `${await page.inputValue('#paid')} / ${await page.inputValue('#ship')}`);
+  // sua giua so: con tro dat sau chu so vua go, khong nhay ve cuoi
+  await page.focus('#ship'); await page.keyboard.press('End'); for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft'); // con tro sau "15"
+  await page.keyboard.press('Backspace'); await page.keyboard.type('2');
+  check('sua giua so tien: 150.000 -> 120.000 (giu vi tri con tro)', (await page.inputValue('#ship')) === '120.000', await page.inputValue('#ship'));
+  await typeIn('ship', '150.000');
   const payable = items + 150000 + 12450000;
   const uiPayable = await page.evaluate(() => document.querySelector('.total dd').innerText.replace(/\./g, ''));
   check('Tong phai tra tren phieu = tien hang + ship + no cu', Number(uiPayable) === payable, `${uiPayable} vs ${payable}`);
@@ -199,6 +207,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.focus('#segs'); await page.keyboard.press('Enter');
   check('o Nhieu doan trong + Enter -> sang So luong', (await focused()) === 'q');
   await page.keyboard.type('5'); await page.keyboard.press('Tab'); await page.keyboard.type('2');
+  check('dang go So luong / So tam -> khoa o Nhieu doan', await page.isDisabled('#segs'));
   check('go so tam -> he so tu 1,08', (await page.inputValue('#k')) === '1,08');
   await page.keyboard.press('Backspace'); await page.waitForTimeout(100);
   check('xoa so tam -> he so tu ve 0', (await page.inputValue('#k')) === '0');

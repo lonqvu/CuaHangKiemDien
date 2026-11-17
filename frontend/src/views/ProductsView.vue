@@ -107,16 +107,16 @@ onMounted(() => { list.load(); loadCategories() })
       <el-table-column prop="name" label="Tên sản phẩm" min-width="240" sortable="custom" />
       <el-table-column label="Loại" width="180"><template #default="{ row }">{{ row.categoryName || 'Chưa phân loại' }}</template></el-table-column>
       <el-table-column prop="unit" label="Đơn vị" width="100" sortable="custom" />
-      <el-table-column label="Tồn kho" width="130" align="right">
+      <el-table-column label="Tồn kho" min-width="130" align="right">
         <template #default="{ row }">
           <router-link v-if="row.onHand != null" :to="`/inventory/${row.id}`" class="stock num"
                        :class="{ low: Number(row.minStock) > 0 && Number(row.onHand) <= Number(row.minStock), neg: Number(row.onHand) < 0 }">{{ qty(row.onHand) }}</router-link>
         </template>
       </el-table-column>
-      <el-table-column prop="price" label="Giá bán" width="150" align="right" sortable="custom">
+      <el-table-column prop="price" label="Giá bán" min-width="150" align="right" sortable="custom">
         <template #default="{ row }"><span class="num">{{ num(row.price) }}</span></template>
       </el-table-column>
-      <el-table-column width="170" align="right">
+      <el-table-column min-width="170" align="right">
         <template #default="{ row }">
           <template v-if="query.active">
             <el-button link type="primary" @click="openForm(row)">Sửa</el-button>

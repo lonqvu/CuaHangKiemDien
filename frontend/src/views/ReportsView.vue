@@ -144,8 +144,8 @@ onMounted(async () => {
         <el-table :data="top" size="small" empty-text="Chưa có số liệu">
           <el-table-column type="index" label="#" width="40" />
           <el-table-column prop="productName" label="Sản phẩm" min-width="160" show-overflow-tooltip />
-          <el-table-column label="Số lượng" width="100" align="right"><template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span></template></el-table-column>
-          <el-table-column label="Doanh thu" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.revenue) }}</span></template></el-table-column>
+          <el-table-column label="Số lượng" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span></template></el-table-column>
+          <el-table-column label="Doanh thu" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.revenue) }}</span></template></el-table-column>
         </el-table>
       </section>
       <section class="panel panel-pad">
@@ -159,8 +159,8 @@ onMounted(async () => {
         <el-table :data="topCus" size="small" empty-text="Chưa có số liệu">
           <el-table-column type="index" label="#" width="40" />
           <el-table-column prop="customerName" label="Khách hàng" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="orders" label="Số đơn" width="72" align="right" />
-          <el-table-column label="Tổng tiền" width="130" align="right"><template #default="{ row }"><span class="num">{{ num(row.totalAmount) }}</span></template></el-table-column>
+          <el-table-column prop="orders" label="Số đơn" min-width="120" align="right" />
+          <el-table-column label="Tổng tiền" min-width="130" align="right"><template #default="{ row }"><span class="num">{{ num(row.totalAmount) }}</span></template></el-table-column>
         </el-table>
         <p class="muted small">Tổng tiền = tổng "Tổng thanh toán" các hóa đơn (gồm cả nợ cũ), như app cũ.</p>
       </section>
@@ -170,9 +170,9 @@ onMounted(async () => {
       <h2>Theo loại hàng</h2>
       <el-table :data="cats" size="small" empty-text="Chưa có loại hàng">
         <el-table-column prop="category" label="Loại hàng" min-width="160" />
-        <el-table-column prop="productCount" label="Số mặt hàng" width="110" align="right" />
-        <el-table-column label="Số lượng bán" width="130" align="right"><template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span></template></el-table-column>
-        <el-table-column label="Doanh thu" width="150" align="right"><template #default="{ row }"><span class="num">{{ num(row.revenue) }}</span></template></el-table-column>
+        <el-table-column prop="productCount" label="Số mặt hàng" min-width="120" align="right" />
+        <el-table-column label="Số lượng bán" min-width="130" align="right"><template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span></template></el-table-column>
+        <el-table-column label="Doanh thu" min-width="150" align="right"><template #default="{ row }"><span class="num">{{ num(row.revenue) }}</span></template></el-table-column>
         <el-table-column label="Tỷ trọng" width="200">
           <template #default="{ row }">
             <div class="share"><span :style="{ width: `${totals.revenue ? (row.revenue / totals.revenue) * 100 : 0}%` }" /></div>
@@ -198,4 +198,5 @@ p.small { margin: var(--space-md) 0 0; }
 .share { display: inline-block; width: 110px; height: 8px; background: var(--steel-100); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
 .share span { display: block; height: 100%; background: var(--steel-800); }
 @media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .grid4 { grid-template-columns: minmax(0, 1fr); } } /* dien thoai: so lon (124.441.358 d) khong tran the */
 </style>

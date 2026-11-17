@@ -242,7 +242,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
         </el-select>
       </div>
       <div class="f">
-        <label for="note">Ghi chú</label>
+        <div class="row-between"><label for="note">Ghi chú</label></div>
         <el-input id="note" v-model="head.note" :disabled="!editable" placeholder="Số hóa đơn NCC, xe giao, người nhận..." />
       </div>
     </section>
@@ -275,19 +275,18 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
             <span v-else>{{ row.inputUnit }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="editable || !narrow" label="SL nhập" width="120" align="right">
+        <el-table-column v-if="editable || !narrow" label="SL nhập" min-width="120" align="right">
           <template #default="{ row }">
             <NumberField v-if="editable" :ref="setRef(qtyRefs, row.key)" v-model="row.inputQty" kind="decimal" class="n" aria-label="Số lượng nhập" :disabled="!row.productId"
                          @keydown.enter.prevent="priceRefs.get(row.key)?.focus()" />
             <span v-else class="num">{{ qty(row.inputQty) }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="editable || !narrow" label="Giá nhập" width="130" align="right">
+        <el-table-column v-if="editable || !narrow" label="Giá nhập" min-width="130" align="right">
           <template #default="{ row }">
-            <NumberField v-if="editable" :ref="setRef(priceRefs, row.key)" v-model="row.inputPrice" kind="integer" class="n" aria-label="Giá nhập" :disabled="!row.productId"
+            <NumberField v-if="editable" :ref="setRef(priceRefs, row.key)" v-model="row.inputPrice" kind="integer" class="n" aria-label="Giá nhập" :suffix="row.inputUnit ? `/${row.inputUnit}` : undefined" :disabled="!row.productId"
                          @keydown.enter.prevent="nextLine(row)" />
             <span v-else class="num">{{ num(row.inputPrice) }}</span>
-            <div v-if="row.inputUnit" class="muted small">/ {{ row.inputUnit }}</div>
           </template>
         </el-table-column>
         <el-table-column label="Vào kho (đơn vị gốc)" :width="narrow && !editable ? 110 : 170" align="right">
@@ -296,7 +295,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
               <NumberField v-if="editable && row.inputUnit !== row.baseUnit" v-model="row.qtyOverride" kind="decimal" nullable class="n"
                            :placeholder="qty(baseQty(row))" aria-label="Số lượng thực tế theo đơn vị gốc" />
               <span v-else class="num">{{ qty(baseQty(row)) }}</span>
-              <span class="muted small"> {{ row.baseUnit }}</span>
+              <span class="muted small">&nbsp;{{ row.baseUnit }}</span>
               <div v-if="row.inputUnit !== row.baseUnit" class="muted small">
                 {{ row.qtyOverride ? 'đo thực tế' : `= ${qty(row.inputQty)} × ${qty(ratioOf(row))}` }}
               </div>
@@ -307,7 +306,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
           <template #default="{ row }">
             <template v-if="row.productId">
               <b class="num">{{ num(lineTotal(row)) }}</b>
-              <div class="muted small num">{{ num(Math.round(unitCost(row))) }}/{{ row.baseUnit }}</div>
+              <div class="muted small num">{{ num(Math.round(unitCost(row))) }} ₫/{{ row.baseUnit }}</div>
             </template>
           </template>
         </el-table-column>
@@ -373,20 +372,25 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
 </template>
 
 <style scoped>
-.wrap { display: flex; flex-direction: column; gap: var(--space-lg); max-width: 1180px; }
+.wrap { display: flex; flex-direction: column; gap: var(--space-lg); }
 .top { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-lg); flex-wrap: wrap; }
 .top h1 { font-size: 22px; margin-top: var(--space-sm); }
 .top p { margin: 2px 0 0; font-size: 14px; }
 .back { font-size: 13px; color: var(--steel-800); text-decoration: none; }
 .back:hover { text-decoration: underline; }
-.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-lg) var(--space-xl); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-lg) var(--space-xl); align-items: end; }
+.row-between { min-height: 24px; }
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label { font-size: 13px; font-weight: 500; color: #334155; }
 .f .el-select { width: 100%; }
-.row-between { display: flex; justify-content: space-between; align-items: center; }
+.row-between { display: flex; justify-content: space-between; align-items: flex-end; }
 .opt { display: flex; justify-content: space-between; gap: var(--space-lg); }
 .opt mark { background: #FEF3C7; color: inherit; font-weight: 600; border-radius: 2px; padding: 0 1px; }
 .lines :deep(.el-select), .n { width: 100%; }
+/* o nhap moi cot cung 1 hang ngang: can tren, chu phu (quy doi, gia von) nam duoi */
+.lines :deep(td.el-table__cell) { vertical-align: top; }
+.lines :deep(td.el-table__cell .cell) { min-height: 32px; line-height: 32px; }
+.lines :deep(td.el-table__cell .cell .small) { line-height: 1.4; }
 .n :deep(input) { text-align: right; font-family: var(--font-mono); }
 .small { font-size: 12px; }
 .addrow { display: flex; align-items: center; gap: var(--space-lg); padding: var(--space-md) var(--space-xl) var(--space-lg); flex-wrap: wrap; }
@@ -398,7 +402,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
 .total dt { font-weight: 600; color: var(--ink); }
 .total dd { font-size: 22px; font-weight: 600; }
 .paid { width: 170px; }
-.quick { justify-content: flex-end !important; gap: var(--space-sm) !important; min-height: 0 !important; }
+.quick { justify-content: flex-end !important; gap: var(--space-sm) !important; min-height: 0 !important; margin: var(--space-sm) 0; }
 .quick .el-button + .el-button { margin-left: 0; }
 .remain { border-top: 1px solid var(--steel-200); }
 .remain dd { font-size: 18px; font-weight: 600; }

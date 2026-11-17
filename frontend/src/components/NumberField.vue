@@ -4,12 +4,13 @@
  * -> nhap 4,2 m tinh tien gap 10 lan. O nay:
  *  - kind="decimal" (so luong, he so): dau phay hoac dau cham deu la dau thap phan -> 4,2 = 4.2 = 4,2
  *  - kind="integer" (tien, so tam): chi lay chu so -> "95.000" hay "95,000" deu = 95000
- *  - hien so le bang dau phay (4,2), khong hien dau cham ngan cach (tranh doc 1.000 thanh mot)
+ *  - so nguyen (tien) tu nhom nghin bang dau cham khi go: 1000000 -> 1.000.000
+ *  - hien so le bang dau phay (4,2), khong ngan cach nghin (tranh doc 1.000 thanh mot)
  *  - focus thi boi den san de go de; mui ten len/xuong de tang/giam theo step
  *  - nullable: o rong = null (vd kiem ke "Chua dem" khac voi dem duoc 0), khong tu doi thanh 0
  */
-import { computed, ref, watch } from 'vue'
-import { parseNumber, formatInput } from '../format'
+import { computed, nextTick, ref, watch } from 'vue'
+import { parseNumber, formatInput, groupDigits } from '../format'
 
 const props = withDefaults(defineProps<{
   modelValue: number | string | null | undefined
@@ -23,6 +24,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   align?: 'left' | 'right'
   nullable?: boolean
+  suffix?: string // don vi hien trong o (vd "/ chai") - khong lam o cao len, giu thang hang voi o khac
 }>(), { kind: 'decimal', min: 0, step: 1, precision: 3, align: 'right', nullable: false })
 
 const emit = defineEmits<{ 'update:modelValue': [number | null]; change: [number | null] }>()
@@ -51,6 +53,19 @@ function onInput(raw: string) {
   // chi giu ky tu hop le de khong go nham chu cai
   const allowed = props.kind === 'integer' ? /[^\d.,\s]/g : /[^\d.,]/g
   text.value = raw.replace(allowed, '')
+  // so nguyen (tien): tu chen dau cham nghin ngay khi go (1000000 -> 1.000.000), giu con tro sau dung chu so dang go
+  if (props.kind === 'integer') {
+    const el: HTMLInputElement | undefined = inputRef.value?.input
+    const caret = el?.selectionStart ?? raw.length
+    const digitsBefore = raw.slice(0, caret).replace(/\D/g, '').length
+    const digits = text.value.replace(/\D/g, '')
+    text.value = digits ? groupDigits(digits) : ''
+    if (el) nextTick(() => {
+      let pos = 0
+      for (let seen = 0; pos < text.value.length && seen < digitsBefore; pos++) if (/\d/.test(text.value[pos])) seen++
+      el.setSelectionRange(pos, pos)
+    })
+  }
   const n = parseNumber(text.value, props.kind)
   if (n !== null) set(clamp(n))
   else if (text.value.trim() === '') set(props.nullable ? null : clamp(0))
@@ -80,14 +95,18 @@ defineExpose({ focus: () => inputRef.value?.focus(), select: () => inputRef.valu
 
 <template>
   <el-input
-    :id="id" ref="inputRef" :class="cls" :model-value="text" :placeholder="placeholder" :disabled="disabled"
+    :id="id" ref="inputRef" :key="suffix ? `s:${suffix}` : 'plain'" :class="cls" :model-value="text" :placeholder="placeholder" :disabled="disabled"
     :inputmode="kind === 'integer' ? 'numeric' : 'decimal'" autocomplete="off"
     @update:model-value="onInput" @focus="onFocus" @blur="onBlur"
     @keydown.up.prevent="stepBy(1)" @keydown.down.prevent="stepBy(-1)"
-  />
+  >
+    <!-- key theo suffix: el-input chi xet co slot suffix luc tao -> doi suffix (chon san pham) thi tao lai o -->
+    <template v-if="suffix" #suffix><span class="nf-suffix">{{ suffix }}</span></template>
+  </el-input>
 </template>
 
 <style scoped>
 .number-field :deep(input) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .align-right :deep(input) { text-align: right; }
+.nf-suffix { font-size: 12px; color: var(--steel-500, #64748b); white-space: nowrap; }
 </style>

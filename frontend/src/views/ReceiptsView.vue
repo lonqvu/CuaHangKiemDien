@@ -87,16 +87,16 @@ onMounted(list.load)
       <el-table-column prop="supplierName" label="Nhà cung cấp" min-width="190" sortable="custom">
         <template #default="{ row }">{{ row.supplierName || 'Không ghi NCC' }}</template>
       </el-table-column>
-      <el-table-column v-if="!narrow" label="Số dòng" width="90" align="right">
+      <el-table-column v-if="!narrow" label="Số dòng" min-width="120" align="right">
         <template #default="{ row }"><span class="num">{{ row.lineCount }}</span></template>
       </el-table-column>
-      <el-table-column prop="total" label="Tiền hàng" width="140" align="right" sortable="custom">
+      <el-table-column prop="total" label="Tiền hàng" min-width="140" align="right" sortable="custom">
         <template #default="{ row }"><span class="num">{{ num(row.total) }}</span></template>
       </el-table-column>
-      <el-table-column v-if="!narrow" label="Đã trả" width="130" align="right">
+      <el-table-column v-if="!narrow" label="Đã trả" min-width="130" align="right">
         <template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template>
       </el-table-column>
-      <el-table-column v-if="!narrow" label="Còn nợ NCC" width="130" align="right">
+      <el-table-column v-if="!narrow" label="Còn nợ NCC" min-width="130" align="right">
         <template #default="{ row }">
           <span v-if="Number(row.total) > Number(row.paidAmount)" class="num tone-debt">{{ num(Number(row.total) - Number(row.paidAmount)) }}</span>
           <span v-else class="muted">Đã trả đủ</span>

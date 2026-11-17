@@ -108,6 +108,7 @@ async function onPickProduct() {
   const last = [...(order.value?.items ?? [])].reverse().find((i) => i.productId === line.productId)
   line.unitPrice = Number(last?.unitPrice ?? picked.value?.price ?? 0)
   justAdded = false
+  singleTouched.value = false
   await nextTick()
   focusEntry()
 }
@@ -123,6 +124,14 @@ function focusEntry() {
 
 // ---------- nhap nhieu doan 1 lan: "4,7x2 4,5x2 3" ----------
 const segText = ref('')
+// Chi duoc nhap 1 trong 2 cach cho moi lan them: nhieu doan HOAC tung dong (So luong / So tam).
+// Dang go o Nhieu doan -> khoa So luong + So tam; dang go So luong / So tam -> khoa Nhieu doan. Xoa trang / them xong -> mo lai ca 2.
+const singleTouched = ref(false) // nguoi dung da go vao So luong / So tam (gan bang code khong tinh)
+const segsActive = computed(() => isSheet.value && segText.value.trim() !== '')
+const singleActive = computed(() => isSheet.value && singleTouched.value && (Number(line.quantity) > 0 || Number(line.sheets) > 0))
+function touchSingle() { singleTouched.value = true }
+// Enter / nut Them: dang nhap nhieu doan thi them cac doan, khong thi them 1 dong
+function onSubmit() { return segsActive.value ? addSegments() : addItem() }
 const segParsed = computed(() => parseSegments(segText.value))
 const segFactor = computed(() => line.factor || 1.08) // he so dang nhap (neu co), mac dinh 1,08 nhu khi go so tam
 const segPreview = computed(() => {
@@ -187,6 +196,7 @@ function afterNewProduct() {
 function resetLine() {
   Object.assign(line, { productId: null, quantity: 1, sheets: 0, factor: 0, unitPrice: 0 })
   segText.value = ''
+  singleTouched.value = false
 }
 
 // Ly do khong them duoc dong dang nhap (hien ngay duoi o nhap, khong cho bam Them)
@@ -223,6 +233,7 @@ async function addItem() {
     // Giu san pham + don gia de nhap tiep doan khac cung mat hang (ton: 4,7 m, 4,5 m, 3 m...).
     // So luong ve 0 de lo bam Enter them lan nua khong tao dong trung.
     Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
+    singleTouched.value = false
     await nextTick()
     qtyField.value?.focus()
     justAdded = true // sau focus: roi khung nhap (bam xoa, sang o khac...) thi het
@@ -455,7 +466,7 @@ onBeforeUnmount(() => {
         <el-button :icon="DocumentAdd" @click="newInvoice">Hóa đơn mới</el-button>
       </header>
 
-      <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="addItem" @keydown.esc="clearLine" @focusout="onEntryOut">
+      <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="onSubmit" @keydown.esc="clearLine" @focusout="onEntryOut">
         <div class="f product" @keydown.enter.capture="onProductEnter">
           <label for="pick-product">Sản phẩm <kbd>F2</kbd></label>
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
@@ -490,8 +501,10 @@ onBeforeUnmount(() => {
         <div v-if="isSheet && !done" class="f segs">
           <label for="segs">Nhiều đoạn <span class="muted small">mét×tấm (vd 4,7x2), cách nhau dấu cách · Enter thêm hết · để trống + Enter / Tab: nhập từng dòng</span></label>
           <div class="segs-row">
-            <el-input id="segs" ref="segField" v-model="segText" placeholder="vd: 4,7x2 4,5x2 3x1" autocomplete="off"
+            <el-input id="segs" ref="segField" v-model="segText" autocomplete="off" :disabled="singleActive"
+                      :placeholder="singleActive ? 'Đang nhập từng dòng (Số lượng / Số tấm)' : 'vd: 4,7x2 4,5x2 3x1'"
                       @keydown.enter.prevent.stop="addSegments" />
+            <span v-if="singleActive" class="muted small">Xóa Số lượng / Số tấm (hoặc thêm xong) để nhập nhiều đoạn</span>
             <span v-if="segText.trim()" class="segs-preview" aria-live="polite">
               <span v-if="segParsed.error" class="line-problem">{{ segParsed.error }}</span>
               <template v-else>
@@ -504,11 +517,11 @@ onBeforeUnmount(() => {
         </div>
         <div class="f">
           <label for="q">Số lượng</label>
-          <NumberField id="q" ref="qtyField" v-model="line.quantity" kind="decimal" :disabled="!!done" />
+          <NumberField id="q" ref="qtyField" v-model="line.quantity" kind="decimal" :disabled="!!done || segsActive" @update:model-value="touchSingle" />
         </div>
         <div class="f">
           <label for="s">Số tấm</label>
-          <NumberField id="s" v-model="line.sheets" kind="integer" :disabled="!!done" />
+          <NumberField id="s" v-model="line.sheets" kind="integer" :disabled="!!done || segsActive" @update:model-value="touchSingle" />
         </div>
         <div class="f">
           <label for="k">Hệ số</label>
@@ -522,7 +535,10 @@ onBeforeUnmount(() => {
           </label>
           <NumberField id="p" v-model="line.unitPrice" kind="integer" :step="1000" :disabled="!!done" />
         </div>
-        <div class="calc" aria-live="polite">
+        <div v-if="segsActive" class="calc muted small" aria-live="polite">
+          Đang nhập nhiều đoạn: Số lượng / Số tấm bị khóa. Xóa ô Nhiều đoạn để nhập từng dòng.
+        </div>
+        <div v-else class="calc" aria-live="polite">
           <span class="muted">Tổng SL</span>
           <b class="num">{{ qty(preview.totalQuantity) }}</b>
           <span v-if="line.sheets" class="muted small">= {{ qty(line.quantity) }} × {{ line.sheets }} tấm × {{ qty(preview.factor) }}</span>
@@ -535,7 +551,7 @@ onBeforeUnmount(() => {
           <span v-if="lineProblem" class="line-problem" role="alert">{{ lineProblem }}</span>
           <span v-else-if="line.productId && order.items.length" class="muted small keep-hint">Esc: chọn sản phẩm khác</span>
         </div>
-        <el-button type="primary" native-type="submit" :icon="Plus" :loading="busy" :disabled="!!done || !!lineProblem" class="add">Thêm vào hóa đơn</el-button>
+        <el-button type="primary" native-type="submit" :icon="Plus" :loading="busy" :disabled="!!done || (segsActive ? !!segParsed.error : !!lineProblem)" class="add">Thêm vào hóa đơn</el-button>
       </form>
 
       <div class="panel">
@@ -585,15 +601,15 @@ onBeforeUnmount(() => {
             </template>
           </el-table-column>
           <el-table-column label="SL" width="72" align="right"><template #default="{ row }"><span v-if="!row.isGroup" class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
-          <el-table-column label="Tổng SL" width="112" align="right">
+          <el-table-column label="Tổng SL" min-width="120" align="right">
             <template #default="{ row }">
               <span class="num">{{ qty(row.totalQuantity) }}</span>
               <div v-if="row.isGroup && row.sheets" class="formula num">{{ row.sheets }} tấm</div>
               <div v-else-if="row.sheets" class="formula num" :title="`Số tấm ${row.sheets}, hệ số ${qty(row.factor)}`">× {{ row.sheets }} tấm × {{ qty(row.factor) }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="Đơn giá" width="100" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" width="120" align="right"><template #default="{ row }"><b class="num line-total">{{ num(row.lineTotal) }}</b></template></el-table-column>
+          <el-table-column label="Đơn giá" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
+          <el-table-column label="Thành tiền" min-width="120" align="right"><template #default="{ row }"><b class="num line-total">{{ num(row.lineTotal) }}</b></template></el-table-column>
           <el-table-column v-if="!done" label="Sửa / xóa" width="104" align="center">
             <template #default="{ row }">
               <div v-if="row.isGroup" class="group-actions">
