@@ -663,11 +663,10 @@ onBeforeUnmount(() => {
           <dt><label for="ship">Phí vận chuyển</label></dt>
           <dd class="input-dd">
             <NumberField id="ship" v-model="pay.shippingFee" kind="integer" :step="10000" :disabled="!!done" class="mini" />
-            <span v-if="pay.shippingFee >= 1000" class="echo">= {{ num(pay.shippingFee) }}</span>
           </dd>
         </div>
-        <div>
-          <dt>Nợ cũ <el-button v-if="customer && auth.isAdmin && !done" link type="primary" size="small" @click="adjustOpen = true">Cập nhật</el-button></dt>
+        <div v-if="customer"><!-- khach le khong co cong no -> khong hien dong No cu 0 -->
+          <dt>Nợ cũ <el-button v-if="customer && auth.isAdmin && !done" link type="primary" size="small" class="adjust" @click="adjustOpen = true">Cập nhật</el-button></dt>
           <dd class="num" :class="{ 'tone-debt': oldDebt > 0 }">{{ num(oldDebt) }}</dd>
         </div>
         <div class="total"><dt>Tổng phải trả</dt><dd class="num">{{ num(payable) }}</dd></div>
@@ -675,7 +674,6 @@ onBeforeUnmount(() => {
           <dt><label for="paid">Khách trả</label></dt>
           <dd class="input-dd">
             <NumberField id="paid" v-model="pay.paidAmount" kind="integer" :step="10000" :disabled="!!done" class="mini" />
-            <span v-if="pay.paidAmount >= 1000" class="echo">= {{ num(pay.paidAmount) }}</span>
           </dd>
         </div>
         <div v-if="!done" class="quick">
@@ -855,6 +853,7 @@ kbd.on-dark { color: inherit; background: transparent; border-color: rgba(255, 2
 /* phieu: diem nhan duy nhat cua man - nhu to hoa don xe rang cua */
 .ticket { position: sticky; top: var(--space-xl); padding: var(--space-xl); display: flex; flex-direction: column; gap: var(--space-lg); border-top: 4px solid var(--steel-800); }
 .block { display: flex; flex-direction: column; gap: var(--space-sm); }
+.block + .sum { border-top: 1px solid var(--steel-100); padding-top: var(--space-md); }
 .row-between { display: flex; justify-content: space-between; align-items: center; }
 .cus-meta { margin: 0; font-size: 13px; }
 .walkin { display: grid; grid-template-columns: 1fr 128px; gap: var(--space-sm); }
@@ -862,18 +861,22 @@ kbd.on-dark { color: inherit; background: transparent; border-color: rgba(255, 2
 .row-actions { display: flex; justify-content: center; gap: var(--space-xs); }
 .row-actions .el-button { width: 36px; height: 36px; margin: 0; }
 .formula { font-size: 11px; color: var(--ink-muted); line-height: 1.3; white-space: nowrap; }
-.input-dd { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 2px 0; }
-.sum { margin: 0; display: flex; flex-direction: column; border-top: 1px dashed var(--steel-200); padding-top: var(--space-md); }
-.sum > div { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); min-height: 34px; }
-.sum dt { font-size: 14px; color: #334155; }
+/* Phieu thanh toan: moi dong cao 40px (o nhap 36px nam giua) -> nhip deu; nhom chia bang 1 kieu duong ke nhat */
+.input-dd { display: flex; align-items: center; }
+.sum { margin: 0; display: flex; flex-direction: column; }
+.sum > div { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); min-height: 40px; }
+.sum dt { font-size: 14px; color: #334155; display: flex; align-items: center; gap: var(--space-sm); }
 .sum dd { margin: 0; font-size: 15px; }
-.mini { width: 140px; }
+.sum .adjust { font-size: 12px; padding: 0; height: auto; }
+.mini { width: 160px; }
 
-.total { border-top: 1px solid var(--steel-200); border-bottom: 1px solid var(--steel-200); margin: var(--space-sm) 0; padding: var(--space-sm) 0; }
+.total { background: var(--steel-50, #F8FAFC); border-radius: var(--radius-md); margin: var(--space-sm) 0; padding: var(--space-sm) var(--space-md); min-height: 48px !important; }
 .total dt { font-weight: 600; color: var(--ink); }
 .total dd { font-size: 22px; font-weight: 600; }
-.quick { justify-content: flex-end !important; gap: var(--space-sm) !important; min-height: 0 !important; padding-bottom: var(--space-sm); }
+.quick { justify-content: flex-end !important; gap: var(--space-sm) !important; min-height: 0 !important; margin: 6px 0 var(--space-sm); }
+.quick .el-button { min-width: 76px; }
 .quick .el-button + .el-button { margin-left: 0; }
+.remain { border-top: 1px solid var(--steel-100); padding-top: 4px; }
 .remain dd { font-size: 18px; font-weight: 600; }
 .remain.owe dt, .remain.owe dd { color: var(--debt); }
 .hint { margin: 0; color: var(--ink-muted); font-size: 13px; }
