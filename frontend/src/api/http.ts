@@ -36,8 +36,14 @@ http.interceptors.response.use(
     } else {
       ElMessage.error({ message: errorMessage(err), duration: 5000, showClose: true })
     }
+    err.shown = true // da bao nguoi dung -> main.ts bo qua, khong thanh loi JS "Uncaught (in promise)"
     return Promise.reject(err)
   },
 )
+
+/** Loi API da hien thong bao cho nguoi dung (khong can bao lai / log thanh loi chua xu ly). */
+export const isShownApiError = (e: any) => !!(e && e.isAxiosError && e.shown)
+// Huy thao tac o hop xac nhan (ElMessageBox) -> promise reject 'cancel' / 'close': khong phai loi
+export const isDialogCancel = (e: any) => e === 'cancel' || e === 'close'
 
 export default http

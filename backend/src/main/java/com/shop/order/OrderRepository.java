@@ -1,5 +1,6 @@
 package com.shop.order;
 
+import com.shop.common.Fold;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,12 +18,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      *  - q: tim theo ma, ten/SDT khach, nhan vien, ghi chu ("" = bo qua)
      *  - customerId = 0: moi khach
      */
-    String WHERE = """
-             coalesce(o.checkedOutAt, o.createdAt) >= :from and coalesce(o.checkedOutAt, o.createdAt) < :to
-              and (:customerId = 0 or o.customerId = :customerId)
-              and (:q = '' or lower(o.code) like :q or lower(o.customerName) like :q or o.customerPhone like :q
-                   or lower(o.staffName) like :q or lower(o.note) like :q)
-            """;
+    // q: tim khong dau (Fold) - "tuan" thay "Anh Tuấn"
+    String WHERE = " coalesce(o.checkedOutAt, o.createdAt) >= :from and coalesce(o.checkedOutAt, o.createdAt) < :to"
+            + " and (:customerId = 0 or o.customerId = :customerId)"
+            + " and (:q = '' or lower(o.code) like :q or " + Fold.L + "o.customerName" + Fold.R + " or o.customerPhone like :q"
+            + " or " + Fold.L + "o.staffName" + Fold.R + " or " + Fold.L + "o.note" + Fold.R + ") ";
 
     @Query(value = "select o from SalesOrder o where o.status in :statuses and " + WHERE,
            countQuery = "select count(o) from SalesOrder o where o.status in :statuses and " + WHERE)

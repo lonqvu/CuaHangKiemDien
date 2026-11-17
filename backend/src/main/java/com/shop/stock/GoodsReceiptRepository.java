@@ -1,5 +1,6 @@
 package com.shop.stock;
 
+import com.shop.common.Fold;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,11 +12,9 @@ import java.util.List;
 
 public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, Long> {
     /** Ngay = ngay ghi so (nhap: ngay tao). q: ma phieu, ten NCC, ghi chu. supplierId = 0: moi NCC. */
-    String WHERE = """
-             coalesce(r.postedAt, r.createdAt) >= :from and coalesce(r.postedAt, r.createdAt) < :to
-              and (:supplierId = 0 or r.supplierId = :supplierId)
-              and (:q = '' or lower(r.code) like :q or lower(r.supplierName) like :q or lower(r.note) like :q)
-            """;
+    String WHERE = " coalesce(r.postedAt, r.createdAt) >= :from and coalesce(r.postedAt, r.createdAt) < :to"
+            + " and (:supplierId = 0 or r.supplierId = :supplierId)"
+            + " and (:q = '' or lower(r.code) like :q or " + Fold.L + "r.supplierName" + Fold.R + " or " + Fold.L + "r.note" + Fold.R + ") ";
 
     @Query(value = "select r from GoodsReceipt r where r.status in :statuses and " + WHERE,
            countQuery = "select count(r) from GoodsReceipt r where r.status in :statuses and " + WHERE)
