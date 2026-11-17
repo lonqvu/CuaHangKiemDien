@@ -120,6 +120,8 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   // nhap nhieu doan 1 lan: doan sai -> bao loi, khong them doan nao
   await page.keyboard.type('4,7x2 4,5y2'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   check('nhieu doan co doan sai -> khong them dong nao', (await draft()).items.length === 0);
+  // chi 1 trong 2 cach: dang go Nhieu doan -> So luong + So tam bi khoa
+  check('dang go Nhieu doan -> khoa So luong, So tam', await page.isDisabled('#q') && await page.isDisabled('#s') && !(await page.isDisabled('#k')) && !(await page.isDisabled('#p')));
   await page.keyboard.press('Control+A'); await page.keyboard.type('4,7x2 4,5x2 3x1');
   const segPrev = await page.evaluate(() => document.querySelector('.segs-preview')?.innerText);
   await page.keyboard.press('Enter'); await page.waitForTimeout(500);
@@ -199,6 +201,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.focus('#segs'); await page.keyboard.press('Enter');
   check('o Nhieu doan trong + Enter -> sang So luong', (await focused()) === 'q');
   await page.keyboard.type('5'); await page.keyboard.press('Tab'); await page.keyboard.type('2');
+  check('dang go So luong / So tam -> khoa o Nhieu doan', await page.isDisabled('#segs'));
   check('go so tam -> he so tu 1,08', (await page.inputValue('#k')) === '1,08');
   await page.keyboard.press('Backspace'); await page.waitForTimeout(100);
   check('xoa so tam -> he so tu ve 0', (await page.inputValue('#k')) === '0');
