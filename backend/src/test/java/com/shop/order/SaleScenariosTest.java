@@ -239,7 +239,7 @@ class SaleScenariosTest {
         eq("570000", cancelled.getRefundAmount(), "Tien tra lai luu tren hoa don");
         assertLedgerMatches(reload(c));
         DebtLedger last = ledger.findByCustomerIdOrderByIdDesc(c.getId()).get(0);
-        assertTrue(last.getNote().contains("tra lai khach 570000"), last.getNote());
+        assertTrue(last.getNote().contains("trả lại khách 570000"), last.getNote());
     }
 
     @Test

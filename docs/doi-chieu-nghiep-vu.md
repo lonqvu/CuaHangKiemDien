@@ -61,7 +61,7 @@ sửa SĐT khách cũng xóa lịch sử biên lai; in lại thì ra nội dung 
 
 | Quy tắc | Chỗ trong code |
 |---|---|
-| Mỗi lần thu nợ có số phiếu `PT000001…`, hình thức (tiền mặt / chuyển khoản), người thu | `DebtService.pay`, migration `V3__debt_receipts.sql` |
+| Mỗi lần thu nợ có số phiếu `PT000001…`, hình thức (tiền mặt / chuyển khoản), người thu | `DebtService.pay`, migration `V5__debt_receipts.sql` |
 | Phiếu thu 5 cột Ngày / Nội dung / Tăng nợ / Giảm nợ / Còn nợ; mỗi dòng Còn nợ = dòng trên + Tăng − Giảm. Gồm các phát sinh từ sau lần gần nhất nợ = 0 **trước** lần thu đến hết lần thu (trả hết nợ vẫn có phiếu); > 15 dòng thì gộp "Số dư mang sang" | `DebtStatementService.receipt`, `PhieuThuNo.jrxml` |
 | In lại luôn ra y nguyên (chỉ dùng các dòng sổ cái tới lần thu đó); phiếu bị hủy có dấu "ĐÃ HỦY" + lý do | `DebtStatementService.receipt` |
 | Trả lúc mua hàng: không có phiếu riêng (hóa đơn đã ghi), hiện trên phiếu / sao kê là "Trả khi mua HĐ …" với số tiền **thực trừ vào nợ** (không gồm tiền thối) | `DebtStatementService.describe` |

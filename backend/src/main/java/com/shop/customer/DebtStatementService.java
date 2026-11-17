@@ -51,9 +51,9 @@ public class DebtStatementService {
 
     @Transactional(readOnly = true)
     public Doc receipt(Long ledgerId) {
-        DebtLedger p = ledger.findById(ledgerId).orElseThrow(() -> ApiException.notFound("Khong tim thay phieu thu"));
+        DebtLedger p = ledger.findById(ledgerId).orElseThrow(() -> ApiException.notFound("Không tìm thấy phiếu thu"));
         if (p.getType() != DebtLedger.Type.PAYMENT || p.getReceiptNo() == null)
-            throw ApiException.badRequest("Dong nay khong phai phieu thu no");
+            throw ApiException.badRequest("Dòng này không phải phiếu thu nợ");
         Customer c = customers.findById(p.getCustomerId()).orElseThrow();
         List<DebtLedger> all = ledger.findByCustomerIdOrderByIdAsc(c.getId());
 
@@ -91,8 +91,8 @@ public class DebtStatementService {
     /** Sao ke theo khoang ngay [from, to] (ca hai ngay deu tinh). Null = tu dau / den nay. */
     @Transactional(readOnly = true)
     public Doc statement(Long customerId, LocalDate from, LocalDate to) {
-        Customer c = customers.findById(customerId).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
-        if (from != null && to != null && from.isAfter(to)) throw ApiException.badRequest("Tu ngay phai truoc den ngay");
+        Customer c = customers.findById(customerId).orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
+        if (from != null && to != null && from.isAfter(to)) throw ApiException.badRequest("Từ ngày phải trước đến ngày");
         LocalDateTime start = from == null ? null : from.atStartOfDay();
         LocalDateTime end = to == null ? null : to.plusDays(1).atStartOfDay();
         List<DebtLedger> all = ledger.findByCustomerIdOrderByIdAsc(customerId);

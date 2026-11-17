@@ -31,7 +31,7 @@ class ProductSearchTest {
     }
 
     private List<String> names(String q) {
-        return productController.list(q).stream().map(ProductController.ProductDto::name)
+        return productController.list(q, 0, true, 0, 100, "").items().stream().map(ProductController.ProductDto::name)
                 .filter(n -> n.startsWith("ZZ ")).toList(); // chi xet du lieu cua test nay
     }
 
@@ -57,8 +57,8 @@ class ProductSearchTest {
         c.setName("ZZ Anh Tuấn thợ hàn"); c.setPhone("0905999111"); c.setDebt(BigDecimal.ZERO);
         customers.save(c);
 
-        assertTrue(customerController.list("tuan han").stream().anyMatch(x -> x.getName().equals("ZZ Anh Tuấn thợ hàn")));
-        assertTrue(customerController.list("999111").stream().anyMatch(x -> x.getName().equals("ZZ Anh Tuấn thợ hàn")));
-        assertTrue(customerController.list("tuan 0905999").stream().anyMatch(x -> x.getName().equals("ZZ Anh Tuấn thợ hàn")));
+        assertTrue(customerController.list("tuan han", false, 0, 100, "").items().stream().anyMatch(x -> x.getName().equals("ZZ Anh Tuấn thợ hàn")));
+        assertTrue(customerController.list("999111", false, 0, 100, "").items().stream().anyMatch(x -> x.getName().equals("ZZ Anh Tuấn thợ hàn")));
+        assertTrue(customerController.list("tuan 0905999", false, 0, 100, "").items().stream().anyMatch(x -> x.getName().equals("ZZ Anh Tuấn thợ hàn")));
     }
 }

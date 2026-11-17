@@ -19,14 +19,22 @@ const router = createRouter({
         { path: 'dashboard', component: () => import('../views/DashboardView.vue'), meta: { admin: true, title: 'Tổng quan' } },
         // Sale + ProductDialog + ModifyProduct + CustomerDialog + PayDialog
         { path: 'sale', component: () => import('../views/SaleView.vue'), meta: { title: 'Bán hàng' } },
-        // OrderHistory + OrderDetailDialog
-        { path: 'orders', component: () => import('../views/OrdersView.vue'), meta: { admin: true, title: 'Hóa đơn' } },
+        // OrderHistory + OrderDetailDialog. /orders/123 mo thang chi tiet hoa don (link chia se duoc)
+        { path: 'orders/:id(\\d+)?', component: () => import('../views/OrdersView.vue'), meta: { admin: true, title: 'Hóa đơn' } },
         // Customers + ThanhToanNo
-        { path: 'customers', component: () => import('../views/CustomersView.vue'), meta: { admin: true, title: 'Khách hàng & công nợ' } },
+        { path: 'customers/:id(\\d+)?', component: () => import('../views/CustomersView.vue'), meta: { admin: true, title: 'Khách hàng & công nợ' } },
         // Product
         { path: 'products', component: () => import('../views/ProductsView.vue'), meta: { admin: true, title: 'Sản phẩm' } },
         // Data (danh muc san pham)
         { path: 'categories', component: () => import('../views/CategoriesView.vue'), meta: { admin: true, title: 'Loại hàng' } },
+        // Kho hang (moi, app cu khong co)
+        { path: 'inventory/:id(\\d+)?', component: () => import('../views/InventoryView.vue'), meta: { admin: true, title: 'Tồn kho' } },
+        { path: 'receipts', component: () => import('../views/ReceiptsView.vue'), meta: { admin: true, title: 'Nhập hàng' } },
+        { path: 'receipts/new', component: () => import('../views/ReceiptFormView.vue'), meta: { admin: true, title: 'Phiếu nhập mới' } },
+        { path: 'receipts/:id(\\d+)', component: () => import('../views/ReceiptFormView.vue'), meta: { admin: true, title: 'Phiếu nhập' } },
+        { path: 'stock-counts', component: () => import('../views/StockCountsView.vue'), meta: { admin: true, title: 'Kiểm kê' } },
+        { path: 'stock-counts/:id(\\d+)', component: () => import('../views/StockCountView.vue'), meta: { admin: true, title: 'Phiếu kiểm kê' } },
+        { path: 'suppliers/:id(\\d+)?', component: () => import('../views/SuppliersView.vue'), meta: { admin: true, title: 'Nhà cung cấp' } },
         // ThongKe
         { path: 'reports', component: () => import('../views/ReportsView.vue'), meta: { admin: true, title: 'Thống kê' } },
         // Account

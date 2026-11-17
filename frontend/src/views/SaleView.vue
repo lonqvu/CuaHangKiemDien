@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
-import { Plus, Edit, Delete, Printer, DocumentAdd } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Printer, DocumentAdd, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
-import type { Category, Customer, Order, OrderItem, Product } from '../api/types'
-import { debounce, highlight, money, num, previewLine, qty } from '../format'
+import type { Category, Customer, Order, OrderItem, Page, Product } from '../api/types'
+import { debounce, highlight, money, num, orderMessage, previewLine, qty } from '../format'
+import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import NumberField from '../components/NumberField.vue'
 import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
+const route = useRoute()
+const router = useRouter()
 
 const DRAFT_KEY = 'sale.draftId'
 
@@ -52,11 +56,17 @@ async function startNew() {
 }
 
 async function resume() {
-  const id = sessionStorage.getItem(DRAFT_KEY)
+  const fromLink = route.query.draft ? String(route.query.draft) : null
+  if (fromLink) router.replace({ query: {} })
+  const id = fromLink ?? sessionStorage.getItem(DRAFT_KEY)
   if (id) {
     try {
       const { data } = await http.get<Order>(`/orders/${id}`)
-      if (data.status === 'DRAFT') return (order.value = data)
+      if (data.status === 'DRAFT') {
+        sessionStorage.setItem(DRAFT_KEY, String(data.id))
+        return (order.value = data)
+      }
+      if (fromLink) ElMessage.info('Hóa đơn này đã chốt hoặc đã xóa, mở hóa đơn mới.')
     } catch { /* hoa don khong con -> tao moi */ }
   }
   await startNew()
@@ -82,7 +92,7 @@ let productSeq = 0
 let enterPending = false
 const fetchProducts = debounce(async (q: string, seq: number) => {
   try {
-    const data = (await http.get<Product[]>('/products', { params: { q } })).data
+    const data = (await http.get<Page<Product>>('/products', { params: { q, size: 30 } })).data.items
     if (seq !== productSeq) return
     products.value = data
     if (enterPending) {
@@ -234,7 +244,7 @@ async function removeItem(i: OrderItem) {
 
 // ---------- khach hang (CustomerDialog cu) ----------
 const searchCustomers = debounce(async (q: string) => {
-  customers.value = (await http.get<Customer[]>('/customers', { params: { q } })).data
+  customers.value = (await http.get<Page<Customer>>('/customers', { params: { q, size: 20 } })).data.items
 })
 
 const newCus = reactive({ open: false, name: '', phone: '', address: '' })
@@ -305,6 +315,19 @@ async function checkout() {
 
 // In hoa don bang mau Jasper cu (Bill.jrxml) - backend tra ve PDF
 function print() { openPdf(`/orders/${done.value!.id}/invoice.pdf`) }
+const zalo = ref(false)
+
+// Dong tab / tai lai khi hoa don nhap con trong -> xoa luon (keepalive de request van gui khi trang dong)
+function dropEmptyDraft() {
+  if (order.value && !done.value && order.value.items.length === 0) {
+    fetch(`/api/orders/${order.value.id}`, { method: 'DELETE', keepalive: true, headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(() => {})
+    sessionStorage.removeItem(DRAFT_KEY)
+  }
+}
+
+// Man hep: thanh "Tong phai tra" dinh day man, bam de cuon toi phieu thanh toan
+const ticketEl = ref<HTMLElement>()
+function goToTicket() { ticketEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 
 async function init() {
   loadError.value = false
@@ -322,12 +345,11 @@ async function init() {
 
 onMounted(init)
 
-// Roi man hinh khi hoa don nhap con trong thi xoa luon
+// Roi man hinh / dong tab khi hoa don nhap con trong thi xoa luon
+onMounted(() => window.addEventListener('pagehide', dropEmptyDraft))
 onBeforeUnmount(() => {
-  if (order.value && !done.value && order.value.items.length === 0) {
-    http.delete(`/orders/${order.value.id}`).catch(() => {})
-    sessionStorage.removeItem(DRAFT_KEY)
-  }
+  window.removeEventListener('pagehide', dropEmptyDraft)
+  dropEmptyDraft()
 })
 </script>
 
@@ -338,7 +360,10 @@ onBeforeUnmount(() => {
       <header class="head">
         <div>
           <h1>Bán hàng</h1>
-          <p class="muted">Hóa đơn <span class="mono">{{ order.code }}</span> · {{ done ? 'đã chốt' : 'đang nhập' }}</p>
+          <p class="muted">
+            <template v-if="done">Đã chốt hóa đơn <span class="mono">{{ done.code }}</span></template>
+            <template v-else>Hóa đơn mới, đang nhập. Mã hóa đơn được cấp khi chốt.</template>
+          </p>
         </div>
         <el-button :icon="DocumentAdd" @click="newInvoice">Hóa đơn mới</el-button>
       </header>
@@ -355,7 +380,7 @@ onBeforeUnmount(() => {
                   <template v-for="(seg, i) in highlight(p.name, productQuery)" :key="i"><mark v-if="seg.m">{{ seg.t }}</mark><template v-else>{{ seg.t }}</template></template>
                   <small v-if="p.categoryName" class="muted"> · {{ p.categoryName }}</small>
                 </span>
-                <span class="num muted">{{ num(p.price) }} / {{ p.unit || 'đv' }}</span>
+                <span class="num muted">{{ num(p.price) }}/{{ p.unit || 'đv' }} · <span :class="{ 'tone-danger': p.onHand != null && Number(p.onHand) <= 0 }">tồn {{ p.onHand == null ? '—' : qty(p.onHand) }}</span></span>
               </div>
             </el-option>
             <template #loading><div class="pick-empty muted">Đang tìm…</div></template>
@@ -397,6 +422,9 @@ onBeforeUnmount(() => {
           <span class="sep" />
           <span class="muted">Thành tiền</span>
           <b class="num">{{ money(preview.lineTotal) }}</b>
+          <span v-if="picked && picked.onHand != null" class="stockinfo" :class="{ over: preview.totalQuantity > Number(picked.onHand) }">
+            {{ preview.totalQuantity > Number(picked.onHand) ? 'Vượt tồn kho' : 'Tồn' }}: <b class="num">{{ qty(picked.onHand) }}</b> {{ picked.unit }}
+          </span>
           <span v-if="lineProblem" class="line-problem" role="alert">{{ lineProblem }}</span>
           <span v-else-if="line.productId && order.items.length" class="muted small keep-hint">Esc: chọn sản phẩm khác</span>
         </div>
@@ -431,7 +459,7 @@ onBeforeUnmount(() => {
     </section>
 
     <!-- cot phai: phieu thanh toan -->
-    <aside class="ticket panel" aria-label="Thanh toán">
+    <aside ref="ticketEl" class="ticket panel" aria-label="Thanh toán">
       <div class="block">
         <div class="row-between">
           <label class="lbl" for="cus">Khách hàng <kbd>F4</kbd></label>
@@ -508,8 +536,11 @@ onBeforeUnmount(() => {
         <p><b>Đã chốt {{ done.code }}.</b> <span v-if="Number(done.debtAfter) > 0">Khách còn nợ <b class="num tone-debt">{{ money(done.debtAfter) }}</b>.</span></p>
         <div class="done-actions">
           <el-button type="primary" size="large" :icon="Printer" @click="print">In hóa đơn</el-button>
-          <el-button size="large" :icon="DocumentAdd" @click="startNew">Hóa đơn mới</el-button>
+          <el-button type="success" size="large" :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
+          <el-button size="large" :icon="DocumentAdd" class="wide" @click="startNew">Hóa đơn mới</el-button>
         </div>
+        <ZaloSendDialog v-model="zalo" :title="`Hóa đơn ${done.code}`" :image-path="`/orders/${done.id}/invoice.png`"
+                        :file-name="`${done.code}.png`" :text="orderMessage(done)" :phone="done.customerPhone" />
       </div>
     </aside>
 
@@ -526,6 +557,11 @@ onBeforeUnmount(() => {
         <el-button type="primary" @click="saveEdit">Lưu dòng</el-button>
       </template>
     </el-dialog>
+
+    <div v-if="!done" class="paybar">
+      <div><span class="muted">Tổng phải trả</span> <b class="num">{{ money(payable) }}</b></div>
+      <el-button type="success" :disabled="!order.items.length" @click="goToTicket">Thanh toán</el-button>
+    </div>
 
     <DebtAdjustDialog v-model="adjustOpen" :customer="customer" @saved="setCustomer" />
 
@@ -581,13 +617,24 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.sale { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-xl); align-items: start; }
-.left { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; }
+.sale { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 30vw, 360px); gap: var(--space-xl); align-items: start; }
+/* cot trai tu co gian theo be rong that cua no (container query), khong theo man hinh */
+.left { display: flex; flex-direction: column; gap: var(--space-lg); min-width: 0; container-type: inline-size; }
 .head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-lg); flex-wrap: wrap; }
 .head h1 { font-size: 22px; }
 .head p { margin: 2px 0 0; font-size: 14px; }
 
 .entry { display: grid; grid-template-columns: minmax(160px, 2fr) repeat(4, minmax(100px, 1fr)); gap: var(--space-md) var(--space-lg); padding: var(--space-lg) var(--space-xl); align-items: end; }
+@container (max-width: 700px) {
+  .entry { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .f.product { grid-column: 1 / -1; }
+  .calc { grid-column: 1 / -1 !important; }
+  .add { grid-column: 1 / -1 !important; }
+}
+@container (max-width: 420px) { .entry { grid-template-columns: 1fr 1fr; } }
+.paybar { display: none; }
+.stockinfo { font-size: 13px; color: var(--ink-muted); margin-left: auto; }
+.stockinfo.over { color: var(--debt); font-weight: 600; }
 .entry.disabled { opacity: 0.6; }
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
@@ -640,15 +687,20 @@ kbd.on-dark { color: inherit; background: transparent; border-color: rgba(255, 2
 .done p { margin: 0 0 var(--space-md); }
 .done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
 .done-actions .el-button + .el-button { margin-left: 0; }
+.done-actions .wide { grid-column: 1 / -1; }
 .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-lg); }
 
 
-@media (max-width: 1180px) {
-  .sale { grid-template-columns: 1fr; }
-  .ticket { position: static; }
-}
-@media (max-width: 720px) {
-  .entry { grid-template-columns: 1fr 1fr; }
-  .f.product, .calc, .add { grid-column: 1 / -1; }
+/* Duoi 900px: 1 cot, phieu thanh toan xuong duoi + thanh "Tong phai tra" dinh day man de khong phai cuon tim nut */
+@media (max-width: 900px) {
+  .sale { grid-template-columns: 1fr; padding-bottom: 72px; }
+  .ticket { position: static; scroll-margin-top: 64px; }
+  .paybar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; align-items: center; justify-content: space-between;
+    gap: var(--space-lg); padding: var(--space-md) var(--space-xl); background: var(--surface); border-top: 1px solid var(--steel-200);
+    box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+  }
+  .paybar b { font-size: 18px; margin-left: var(--space-sm); }
+  .paybar .el-button { min-height: 44px; }
 }
 </style>

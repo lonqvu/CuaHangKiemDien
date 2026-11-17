@@ -7,6 +7,8 @@ import com.shop.customer.DebtLedger;
 import com.shop.customer.DebtService;
 import com.shop.product.Product;
 import com.shop.product.ProductRepository;
+import com.shop.stock.StockMovement;
+import com.shop.stock.StockService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +22,11 @@ public class OrderService {
     private final ProductRepository products;
     private final CustomerRepository customers;
     private final DebtService debts;
+    private final StockService stock;
 
     public OrderService(OrderRepository orders, ProductRepository products,
-                        CustomerRepository customers, DebtService debts) {
-        this.orders = orders; this.products = products; this.customers = customers; this.debts = debts;
+                        CustomerRepository customers, DebtService debts, StockService stock) {
+        this.orders = orders; this.products = products; this.customers = customers; this.debts = debts; this.stock = stock;
     }
 
     public record ItemRequest(Long productId, BigDecimal quantity, Integer sheets, BigDecimal factor, BigDecimal unitPrice) {}
@@ -41,20 +44,19 @@ public class OrderService {
     }
 
     private Order find(Long id) {
-        return orders.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay hoa don"));
+        return orders.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy hóa đơn"));
     }
 
     private Order findDraft(Long id) {
         Order o = find(id);
-        if (o.getStatus() != Order.Status.DRAFT) throw ApiException.conflict("Hoa don da chot, khong the sua");
+        if (o.getStatus() != Order.Status.DRAFT) throw ApiException.conflict("Hóa đơn đã chốt, không sửa được");
         return o;
     }
 
     @Transactional
     public Order createDraft(String staffName) {
         Order o = new Order();
-        o.setCode(String.format("HD%08d", orders.nextCode()));
-        o.setStaffName(staffName);
+        o.setStaffName(staffName); // chua co ma: ma HD chi cap khi chot (so hoa don lien tuc, nhap bo do khong lam nhay so)
         return orders.save(o);
     }
 
@@ -65,15 +67,32 @@ public class OrderService {
         return o;
     }
 
+    /** Bo loc danh sach hoa don. Ngay loc theo ngay chot (nhap: ngay tao), giong man Thong ke. */
+    public record Filter(List<Order.Status> statuses, java.time.LocalDate from, java.time.LocalDate to, String q, Long customerId) {
+        LocalDateTime fromTime() { return from == null ? LocalDateTime.of(2000, 1, 1, 0, 0) : from.atStartOfDay(); }
+        LocalDateTime toTime() { return to == null ? LocalDateTime.of(9999, 1, 1, 0, 0) : to.plusDays(1).atStartOfDay(); }
+        long customer() { return customerId == null ? 0 : customerId; }
+        String like() { return com.shop.common.PageDto.like(q); }
+    }
+
+    public record Summary(long count, BigDecimal itemsTotal, BigDecimal collected, BigDecimal debtAfter,
+                          java.util.Map<String, Long> countByStatus) {}
+
+    /** Mot trang hoa don (KHONG nap dong hang - chi tiet lay qua get(id)). */
     @Transactional(readOnly = true)
-    public List<Order> list(Order.Status status, java.time.LocalDate from, java.time.LocalDate to) {
-        // App cu (OrderHistory) hien tat ca hoa don da thanh toan, moi nhat truoc
-        List<Order> list = orders.search(status,
-                from == null ? java.time.LocalDateTime.of(2000, 1, 1, 0, 0) : from.atStartOfDay(),
-                to == null ? java.time.LocalDateTime.of(9999, 1, 1, 0, 0) : to.plusDays(1).atStartOfDay(),
-                org.springframework.data.domain.PageRequest.of(0, 5000));
-        list.forEach(o -> o.getItems().size()); // nap items trong transaction
-        return list;
+    public org.springframework.data.domain.Page<Order> page(Filter f, org.springframework.data.domain.Pageable p) {
+        return orders.page(f.statuses(), f.fromTime(), f.toTime(), f.like(), f.customer(), p);
+    }
+
+    /** Tong tren toan bo ket qua loc + so hoa don moi trang thai (cho cac tab), cung dieu kien ngay/tim kiem/khach. */
+    @Transactional(readOnly = true)
+    public Summary summary(Filter f) {
+        Object[] s = orders.summary(f.statuses(), f.fromTime(), f.toTime(), f.like(), f.customer()).get(0);
+        java.util.Map<String, Long> byStatus = new java.util.LinkedHashMap<>();
+        for (Order.Status st : Order.Status.values()) byStatus.put(st.name(), 0L);
+        for (Object[] r : orders.countByStatus(f.fromTime(), f.toTime(), f.like(), f.customer()))
+            byStatus.put(((Order.Status) r[0]).name(), (Long) r[1]);
+        return new Summary((Long) s[0], (BigDecimal) s[1], (BigDecimal) s[2], (BigDecimal) s[3], byStatus);
     }
 
     @Transactional
@@ -91,7 +110,7 @@ public class OrderService {
     public Order updateItem(Long orderId, Long itemId, ItemRequest r) {
         Order o = findDraft(orderId);
         OrderItem it = o.getItems().stream().filter(i -> i.getId().equals(itemId)).findFirst()
-                .orElseThrow(() -> ApiException.notFound("Khong tim thay dong hang"));
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy dòng hàng"));
         fill(it, r);
         recalc(o);
         return o;
@@ -111,23 +130,23 @@ public class OrderService {
     }
 
     private void fill(OrderItem it, ItemRequest r) {
-        if (r.productId() == null) throw ApiException.badRequest("Chua chon san pham");
-        if (r.quantity() == null || r.quantity().signum() <= 0) throw ApiException.badRequest("So luong phai lon hon 0");
+        if (r.productId() == null) throw ApiException.badRequest("Chưa chọn sản phẩm");
+        if (r.quantity() == null || r.quantity().signum() <= 0) throw ApiException.badRequest("Số lượng phải lớn hơn 0");
         Product p = products.findById(r.productId())
                 .filter(Product::isActive)
-                .orElseThrow(() -> ApiException.badRequest("San pham khong ton tai"));
+                .orElseThrow(() -> ApiException.badRequest("Sản phẩm không tồn tại hoặc đã ngừng bán"));
         int sheets = r.sheets() == null ? 0 : r.sheets();
-        if (sheets < 0) throw ApiException.badRequest("So tam khong hop le");
+        if (sheets < 0) throw ApiException.badRequest("Số tấm không hợp lệ");
         BigDecimal factor = LineCalculator.normalizeFactor(sheets, r.factor());
         BigDecimal price = r.unitPrice() != null ? r.unitPrice() : p.getPrice();
-        if (price.signum() < 0) throw ApiException.badRequest("Don gia khong hop le");
+        if (price.signum() < 0) throw ApiException.badRequest("Đơn giá không hợp lệ");
         BigDecimal rawQty = LineCalculator.totalQuantity(r.quantity(), sheets, factor);
         // Cong thuc cu: so tam = 0 ma he so != 0 -> Tong SL = 0 -> dong hang 0 d. Gan nhu luon la go nham (xoa so tam
         // nhung he so 1,08 con lai) -> chan, de khong lot dong 0 d vao hoa don.
         if (LineCalculator.storedQuantity(rawQty).signum() == 0)
             throw ApiException.badRequest(sheets == 0 && factor.signum() != 0
-                    ? "Tong so luong bang 0: so tam = 0 nhung he so khac 0. Xoa he so hoac nhap so tam"
-                    : "Tong so luong bang 0");
+                    ? "Tổng số lượng bằng 0: số tấm = 0 nhưng hệ số khác 0. Xóa hệ số hoặc nhập số tấm"
+                    : "Tổng số lượng bằng 0");
 
         it.setProductId(p.getId());
         it.setProductName(p.getName());
@@ -154,28 +173,44 @@ public class OrderService {
     @Transactional
     public Order checkout(Long orderId, CheckoutRequest r) {
         Order o = findDraft(orderId);
-        if (o.getItems().isEmpty()) throw ApiException.badRequest("Hoa don chua co mat hang");
+        if (o.getItems().isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có mặt hàng");
 
         BigDecimal ship = r.shippingFee() == null ? BigDecimal.ZERO : r.shippingFee();
         BigDecimal paid = r.paidAmount() == null ? BigDecimal.ZERO : r.paidAmount();
-        if (ship.signum() < 0 || paid.signum() < 0) throw ApiException.badRequest("So tien khong hop le");
+        if (ship.signum() < 0 || paid.signum() < 0) throw ApiException.badRequest("Số tiền không hợp lệ");
 
         BigDecimal itemsTotal = o.getItems().stream().map(OrderItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal charge = itemsTotal.add(ship);
 
+        Customer c = null;
+        if (r.customerId() != null) {
+            c = customers.findById(r.customerId())
+                    .filter(Customer::isActive)
+                    .orElseThrow(() -> ApiException.badRequest("Khách hàng không tồn tại hoặc đã bị ẩn"));
+        } else if (r.customerName() == null || r.customerName().isBlank()) {
+            // Khach le (app cu): bat buoc co ten
+            throw ApiException.badRequest("Nhập tên khách lẻ hoặc chọn khách hàng");
+        } else if (paid.compareTo(charge) < 0) {
+            // Khach le PHAI TRA DU (tien hang + ship). Khac app cu (cho tra thieu, phan thieu chi ghi tren hoa don,
+            // khong ai theo doi de thu) -> muon ghi no thi chon / tao khach hang.
+            throw ApiException.badRequest("Khách lẻ phải trả đủ " + charge.stripTrailingZeros().toPlainString()
+                    + " (còn thiếu " + charge.subtract(paid).stripTrailingZeros().toPlainString()
+                    + "). Muốn ghi nợ thì chọn hoặc tạo khách hàng");
+        }
+        // May khac vua doi no cua khach (thu no, sua no...) -> tu choi, de no cu tren hoa don dung so thu ngan dang thay
+        if (c != null && r.expectedPreviousDebt() != null && r.expectedPreviousDebt().compareTo(c.getDebt()) != 0)
+            throw ApiException.conflict("Nợ cũ của " + c.getName() + " vừa thay đổi: màn hình đang hiện "
+                    + r.expectedPreviousDebt().stripTrailingZeros().toPlainString() + ", hiện tại là "
+                    + c.getDebt().stripTrailingZeros().toPlainString() + ". Đã tải lại, kiểm tra rồi chốt lại.");
+
+        // Cap ma khi chot, sau khi da kiem tra xong: so hoa don lien tuc (chi hut so neu loi DB giua chung)
+        if (o.getCode() == null) o.setCode(String.format("HD%08d", orders.nextCode()));
         o.setItemsTotal(itemsTotal);
         o.setShippingFee(ship);
         o.setNote(r.note());
 
-        if (r.customerId() != null) {
-            Customer c = customers.findById(r.customerId())
-                    .filter(Customer::isActive)
-                    .orElseThrow(() -> ApiException.badRequest("Khach hang khong ton tai"));
+        if (c != null) {
             BigDecimal previous = c.getDebt();
-            if (r.expectedPreviousDebt() != null && r.expectedPreviousDebt().compareTo(previous) != 0)
-                throw ApiException.conflict("No cu cua " + c.getName() + " vua thay doi: man hinh dang hien "
-                        + r.expectedPreviousDebt().stripTrailingZeros().toPlainString() + ", hien tai la "
-                        + previous.stripTrailingZeros().toPlainString() + ". Da tai lai, kiem tra roi chot lai.");
             BigDecimal payable = charge.add(previous);
             // Giong PayDialog cu: Con lai = max(0, Tong thanh toan - Khach tra); tra du -> con lai 0, luu nguyen so khach dua
             BigDecimal remain = payable.subtract(paid).max(BigDecimal.ZERO);
@@ -189,20 +224,13 @@ public class OrderService {
             o.setPaidAmount(paid);
             o.setDebtAfter(remain);
 
-            debts.apply(c, DebtLedger.Type.ORDER, charge, o.getId(), "Hoa don " + o.getCode());
+            debts.apply(c, DebtLedger.Type.ORDER, charge, o.getId(), "Hóa đơn " + o.getCode());
             BigDecimal applied = paid.min(payable); // phan tien thua tra lai khach, khong tru vao no
             if (applied.signum() > 0) {
-                debts.apply(c, DebtLedger.Type.PAYMENT, applied.negate(), o.getId(), "Thanh toan hoa don " + o.getCode());
+                debts.apply(c, DebtLedger.Type.PAYMENT, applied.negate(), o.getId(), "Thanh toán hóa đơn " + o.getCode());
             }
         } else {
-            // Khach le: bat buoc co ten va PHAI TRA DU (tien hang + ship). Khac app cu (cho tra thieu, phan thieu chi ghi
-            // tren hoa don, khong ai theo doi de thu) -> muon ghi no thi chon / tao khach hang.
-            if (r.customerName() == null || r.customerName().isBlank())
-                throw ApiException.badRequest("Vui long nhap ten khach le hoac chon khach hang");
-            if (paid.compareTo(charge) < 0)
-                throw ApiException.badRequest("Khach le phai tra du " + charge.stripTrailingZeros().toPlainString()
-                        + " (con thieu " + charge.subtract(paid).stripTrailingZeros().toPlainString()
-                        + "). Muon ghi no thi chon hoac tao khach hang");
+            // Khach le: PHAI TRA DU (da kiem tra o tren, truoc khi cap ma hoa don) -> con lai luon 0
             o.setCustomerName(r.customerName().trim());
             o.setCustomerAddress(r.customerAddress());
             o.setCustomerPhone(r.customerPhone());
@@ -214,6 +242,8 @@ public class OrderService {
 
         o.setStatus(Order.Status.PAID);
         o.setCheckedOutAt(LocalDateTime.now());
+        // Xuat kho + ghi gia von tung dong, cung transaction: loi kho thi khong chot duoc hoa don
+        stock.issueForOrder(o, o.getStaffName());
         return o;
     }
 
@@ -232,7 +262,7 @@ public class OrderService {
     @Transactional(readOnly = true)
     public CancelEffect cancelPreview(Long orderId) {
         Order o = find(orderId);
-        if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chi huy duoc hoa don da chot");
+        if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chỉ hủy được hóa đơn đã chốt");
         if (o.getCustomerId() == null) return new CancelEffect(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         Customer c = customers.findById(o.getCustomerId()).orElseThrow();
         return effect(o, c);
@@ -249,16 +279,19 @@ public class OrderService {
     @Transactional
     public Order cancel(Long orderId) {
         Order o = find(orderId);
-        if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chi huy duoc hoa don da chot");
+        if (o.getStatus() != Order.Status.PAID) throw ApiException.conflict("Chỉ hủy được hóa đơn đã chốt");
         if (o.getCustomerId() != null) {
             Customer c = customers.findById(o.getCustomerId()).orElseThrow();
             CancelEffect e = effect(o, c);
-            String note = "Huy hoa don " + o.getCode()
-                    + (e.refund().signum() > 0 ? "; tra lai khach " + e.refund().stripTrailingZeros().toPlainString() + " tien mat" : "");
+            String note = "Hủy hóa đơn " + o.getCode()
+                    + (e.refund().signum() > 0 ? "; trả lại khách " + e.refund().stripTrailingZeros().toPlainString() + " tiền mặt" : "");
             if (e.debtReversal().signum() != 0 || e.refund().signum() > 0)
                 debts.apply(c, DebtLedger.Type.ADJUST, e.debtReversal().negate(), o.getId(), note);
             o.setRefundAmount(e.refund());
         }
+        // Nhap tra dung so luong + gia von da xuat (hoa don tu truoc khi co kho thi khong co gi de tra)
+        stock.reverse(StockService.REF_ORDER, o.getId(), StockMovement.Type.SALE, StockMovement.Type.SALE_CANCEL,
+                "Hủy hóa đơn " + o.getCode(), null);
         o.setStatus(Order.Status.CANCELLED);
         o.getItems().size();
         return o;

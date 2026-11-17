@@ -138,7 +138,7 @@ class DebtReceiptTest {
         var ex = assertThrows(ApiException.class, () -> debts.voidPayment(pt.getId(), "lan 2"));
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
 
-        var rows = customerController.history(c.getId());
+        var rows = customerController.history(c.getId(), 0, 100).items();
         assertTrue(rows.get(0).description().startsWith("Hủy phiếu thu " + pt.getReceiptNo() + ": Thu nhầm"), rows.get(0).description());
         var paidRow = rows.stream().filter(r -> pt.getReceiptNo().equals(r.receiptNo())).findFirst().orElseThrow();
         assertTrue(paidRow.voided());
@@ -147,7 +147,7 @@ class DebtReceiptTest {
 
         // tien tra luc mua khong huy bang phieu (huy hoa don thay the)
         buy(1, 50000);
-        Long atCheckout = customerController.history(c.getId()).stream().filter(r -> r.description().startsWith("Trả khi mua"))
+        Long atCheckout = customerController.history(c.getId(), 0, 100).items().stream().filter(r -> r.description().startsWith("Trả khi mua"))
                 .findFirst().orElseThrow().id();
         assertThrows(ApiException.class, () -> debts.voidPayment(atCheckout, "x"));
     }
@@ -157,9 +157,9 @@ class DebtReceiptTest {
         buy(5, 0);                                    // 500.000
         assertThrows(ApiException.class, () -> debts.setDebt(c.getId(), d(450000), ""));
         debts.setDebt(c.getId(), d(450000), "Bớt 50.000 vì hàng lỗi");
-        int before = customerController.history(c.getId()).size();
+        int before = customerController.history(c.getId(), 0, 100).items().size();
         debts.setDebt(c.getId(), d(450000), "Không đổi");  // khong doi -> khong ghi so
-        assertEquals(before, customerController.history(c.getId()).size());
+        assertEquals(before, customerController.history(c.getId(), 0, 100).items().size());
 
         var doc = statements.receipt(collect(450000).getId());
         assertReconciles(doc, true);

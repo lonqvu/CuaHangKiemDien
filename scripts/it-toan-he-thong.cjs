@@ -3,7 +3,7 @@
  * danh muc, khach hang, hoa don + ban in, loc hoa don, BAO CAO (doi chieu voi phep tinh doc lap tu du lieu goc),
  * va mo tung trang voi 2 vai tro. Bo sung cho scripts/e2e-ban-hang.cjs (luong ban hang / cong no).
  *
- * Chay giong e2e-ban-hang.cjs (backend H2 trong tren :8080, frontend dev :5173), roi:
+ * Chay giong e2e-ban-hang.cjs (backend H2 trong tren :8090, frontend dev :5173), roi:
  *   node scripts/it-toan-he-thong.cjs        # PASS/FAIL tung muc, exit 1 neu co FAIL
  * Script tao du lieu moi moi lan chay -> chi chay tren DB trong, KHONG chay tren DB that.
  */
@@ -13,7 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const API = 'http://localhost:8080/api';
+const API = (process.env.API_URL ?? 'http://localhost:8090') + '/api';
 const UI = 'http://localhost:5173';
 const results = [];
 function check(name, ok, detail = '') { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); }
@@ -27,6 +27,16 @@ async function ok(token, method, p, body) {
   const r = await call(token, method, p, body);
   if (r.status >= 300) throw new Error(`${method} ${p} -> ${r.status} ${JSON.stringify(r.data)}`);
   return r.data;
+}
+// API danh sach co phan trang ({ items, total }): doc het cac trang
+async function allOf(token, p) {
+  const out = [];
+  for (let page = 0; ; page++) {
+    const r = await ok(token, 'GET', `${p}${p.includes('?') ? '&' : '?'}page=${page}&size=100`);
+    if (Array.isArray(r)) return r;
+    out.push(...r.items);
+    if (out.length >= r.total || !r.items.length) return out;
+  }
 }
 async function pdfText(token, p) {
   const r = await fetch(API + p, { headers: { Authorization: 'Bearer ' + token } });
@@ -112,15 +122,17 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
   check('san pham thieu don vi -> 400', (await call(admin, 'POST', '/products', { name: 'Thiếu ĐV', unit: '', price: 1000 })).status === 400);
   check('san pham gia am -> 400', (await call(admin, 'POST', '/products', { name: 'Giá âm', unit: 'm', price: -1 })).status === 400);
   check('san pham loai hang khong ton tai -> 400', (await call(admin, 'POST', '/products', { name: 'Sai loại', unit: 'm', price: 1, categoryId: 999999 })).status === 400);
+  check('tao loai trung ten (khong phan biet hoa thuong) -> 409, khong phai 500', (await call(admin, 'POST', '/categories', { name: 'tôn' })).status === 409);
+  check('doi ten loai thanh trung ten loai khac -> 409', (await call(admin, 'PUT', `/categories/${cSat.id}`, { name: 'Tôn' })).status === 409);
   await ok(admin, 'PUT', `/categories/${cSat.id}`, { name: 'Sắt hộp mạ kẽm' });
-  check('doi ten loai -> san pham hien ten moi', (await ok(admin, 'GET', '/products?q=hop 40x80')).find((p) => p.id === hop.id)?.categoryName === 'Sắt hộp mạ kẽm');
+  check('doi ten loai -> san pham hien ten moi', (await allOf(admin, '/products?q=hop 40x80')).find((p) => p.id === hop.id)?.categoryName === 'Sắt hộp mạ kẽm');
   check('xoa loai con san pham -> 409', (await call(admin, 'DELETE', `/categories/${cTon.id}`)).status === 409);
   const tmp = await ok(admin, 'POST', '/products', { name: 'Mặt hàng ngừng bán', categoryId: cTon.id, unit: 'm', price: 10000 });
   const oTmp = await ok(admin, 'POST', '/orders');
   await ok(admin, 'POST', `/orders/${oTmp.id}/items`, { productId: tmp.id, quantity: 2, sheets: 0, factor: 0 });
   await ok(admin, 'POST', `/orders/${oTmp.id}/checkout`, { customerName: 'Khách lẻ A', shippingFee: 0, paidAmount: 20000 });
   await ok(admin, 'DELETE', `/products/${tmp.id}`);
-  check('ngung ban: khong con trong tim kiem', !(await ok(admin, 'GET', '/products?q=ngung ban')).some((p) => p.id === tmp.id));
+  check('ngung ban: khong con trong tim kiem', !(await allOf(admin, '/products?q=ngung ban')).some((p) => p.id === tmp.id));
   check('ngung ban: khong them duoc vao hoa don moi', (await call(admin, 'POST', `/orders/${(await ok(admin, 'POST', '/orders')).id}/items`, { productId: tmp.id, quantity: 1, sheets: 0, factor: 0 })).status === 400);
   check('ngung ban: hoa don cu giu ten + gia', (await ok(admin, 'GET', `/orders/${oTmp.id}`)).items[0].productName === 'Mặt hàng ngừng bán');
 
@@ -134,7 +146,7 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
   check('an khach dang no -> bi chan (no van tinh vao tong)', (await call(admin, 'DELETE', `/customers/${kA.id}`)).status === 409);
   const kC = await ok(admin, 'POST', '/customers', { name: 'Khách sẽ ẩn' });
   await ok(admin, 'DELETE', `/customers/${kC.id}`);
-  check('an khach khong no: khong con trong tim kiem', !(await ok(admin, 'GET', '/customers?q=se an')).some((c) => c.id === kC.id));
+  check('an khach khong no: khong con trong tim kiem', !(await allOf(admin, '/customers?q=se an')).some((c) => c.id === kC.id));
 
   // ========== D. Hoa don + ban in ==========
   const o1 = await ok(admin, 'POST', '/orders');
@@ -175,15 +187,15 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
   check('khach le tra du: con lai 0, khong gan khach', N(o2.debtAfter) === 0 && o2.customerId === null);
   check('khach le tra thua: con lai 0', N(o3.debtAfter) === 0);
   // loc danh sach hoa don
-  const paidToday = await ok(admin, 'GET', `/orders?status=PAID&from=${TODAY}&to=${TODAY}`);
+  const paidToday = await allOf(admin, `/orders?status=PAID&from=${TODAY}&to=${TODAY}`);
   check('loc hoa don hom nay: co du hoa don vua tao', [p1, o2, o3, o4, o5].every((o) => paidToday.some((x) => x.id === o.id)));
-  check('loc hoa don ngay mai: rong', (await ok(admin, 'GET', `/orders?status=PAID&from=${TOMORROW}&to=${TOMORROW}`)).length === 0);
-  const cancelled = await ok(admin, 'GET', '/orders?status=CANCELLED');
+  check('loc hoa don ngay mai: rong', (await allOf(admin, `/orders?status=PAID&from=${TOMORROW}&to=${TOMORROW}`)).length === 0);
+  const cancelled = await allOf(admin, '/orders?status=CANCELLED');
   check('hoa don huy: o tab Da huy, khong o tab Da thanh toan', cancelled.some((x) => x.id === o6.id) && !paidToday.some((x) => x.id === o6.id));
   check('khong huy lai hoa don da huy -> 409', (await call(admin, 'POST', `/orders/${o6.id}/cancel`)).status === 409);
 
   // ========== E. Bao cao: doi chieu voi phep tinh doc lap tu hoa don da chot ==========
-  const paid = await ok(admin, 'GET', '/orders?status=PAID');
+  const paid = await Promise.all((await allOf(admin, '/orders?status=PAID')).map((o) => ok(admin, 'GET', `/orders/${o.id}`)));
   const allItems = paid.flatMap((o) => o.items.map((i) => ({ ...i, order: o })));
   const revenue = sum(paid.map((o) => N(o.itemsTotal)));
   const collected = sum(paid.map((o) => Math.min(N(o.paidAmount), N(o.totalPayable))));
@@ -196,7 +208,7 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
   check('tong quan: hoa don thang nay', ov.ordersThisMonth === paid.length);
   const avg = Math.round(sum(paid.map((o) => N(o.totalPayable))) / paid.length);
   check('tong quan: gia tri don trung binh (tong thanh toan)', N(ov.avgOrderThisMonth) === avg, `${ov.avgOrderThisMonth} vs ${avg}`);
-  const custs = await ok(admin, 'GET', '/customers?q=');
+  const custs = await allOf(admin, '/customers?q=');
   const inDebt = custs.filter((c) => N(c.debt) > 0);
   check('tong quan: tong no khach = tong no cac khach dang no', N(ov.totalDebt) === sum(inDebt.map((c) => N(c.debt))), `${ov.totalDebt}`);
   check('tong quan: so khach dang no', ov.customersInDebt === inDebt.length);
@@ -221,7 +233,7 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
   const cats = await ok(admin, 'GET', `/reports/categories?from=${TODAY}&to=${TODAY}`);
   check('theo loai hang: co dong "Chua phan loai" cho vit (135.000)', N(cats.find((c) => c.category === 'Chưa phân loại')?.revenue) === 135000);
   check('theo loai hang: tong doanh thu cac loai = tong doanh thu', sum(cats.map((c) => N(c.revenue))) === revenue, `${sum(cats.map((c) => N(c.revenue)))} vs ${revenue}: ${cats.map((c) => c.category + ' ' + c.revenue).join(', ')}`);
-  const prods = await ok(admin, 'GET', '/products?q=');
+  const prods = await allOf(admin, '/products?q=');
   const tonCat = cats.find((c) => c.category === 'Tôn');
   check('theo loai hang: so mat hang = mat hang dang ban trong loai', tonCat && tonCat.productCount === prods.filter((p) => p.categoryId === cTon.id).length, `${tonCat?.productCount} vs ${prods.filter((p) => p.categoryId === cTon.id).length}`);
   // khach quay lai
@@ -233,8 +245,8 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
   // ========== F. Mo tung trang, 2 vai tro ==========
   const browser = await chromium.launch();
   for (const [role, user, pass, routes] of [
-    ['admin', 'admin', 'admin123', ['/dashboard', '/sale', '/orders', '/customers', '/products', '/categories', '/reports', '/accounts', '/password']],
-    ['staff', 'nv1', 'reset123', ['/sale', '/password', '/dashboard', '/orders', '/customers', '/reports', '/accounts']],
+    ['admin', 'admin', 'admin123', ['/dashboard', '/sale', '/orders', '/customers', '/products', '/categories', '/inventory', '/receipts', '/receipts/new', '/stock-counts', '/suppliers', '/reports', '/accounts', '/password']],
+    ['staff', 'nv1', 'reset123', ['/sale', '/password', '/dashboard', '/orders', '/customers', '/reports', '/accounts', '/inventory', '/receipts', '/stock-counts', '/suppliers']],
   ]) {
     const page = await (await browser.newContext({ viewport: { width: 1366, height: 860 } })).newPage();
     const errors = [];
@@ -253,7 +265,7 @@ const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
     }
     const menu = await page.evaluate(() => [...document.querySelectorAll('.sidebar nav .nav-item')].map((a) => a.innerText.trim()));
     if (role === 'staff') check('menu NV chi co Ban hang', JSON.stringify(menu) === JSON.stringify(['Bán hàng']), menu.join(', '));
-    else check('menu quan tri du 8 muc', menu.length === 8, menu.join(', '));
+    else check('menu quan tri du 12 muc (them 4 muc kho)', menu.length === 12, menu.join(', '));
     check(`${role}: khong co loi JS / API 4xx-5xx khi mo cac trang`, errors.length === 0, errors.slice(0, 5).join(' | '));
   }
   await browser.close();

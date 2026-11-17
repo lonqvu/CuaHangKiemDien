@@ -26,7 +26,7 @@ public class AuthController {
         AppUser u = users.findByUsername(r.username())
                 .filter(AppUser::isActive)
                 .filter(x -> encoder.matches(r.password(), x.getPasswordHash()))
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Sai ten dang nhap hoac mat khau"));
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu, hoặc tài khoản đã bị khóa"));
         return new LoginResponse(jwt.generate(u), u.getUsername(), u.getFullName(), u.getRole());
     }
 }

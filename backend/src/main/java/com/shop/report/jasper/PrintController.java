@@ -32,21 +32,42 @@ public class PrintController {
     @GetMapping("/api/orders/{id}/invoice.pdf")
     public ResponseEntity<byte[]> invoice(@PathVariable Long id) {
         Order o = orders.get(id);
-        if (o.getItems().isEmpty()) throw ApiException.badRequest("Hoa don chua co mat hang");
-        BillReportData.Header h = new BillReportData.Header(o.getCode(), o.getCreatedAt(), o.getCustomerName(),
+        return pdf(reports.invoice(header(o), lines(o), JasperReportService.Format.PDF), o.getCode() + ".pdf");
+    }
+
+    /** Anh hoa don (PNG) de gui Zalo - cung mau Bill.jrxml voi ban in. */
+    @GetMapping("/api/orders/{id}/invoice.png")
+    public ResponseEntity<byte[]> invoiceImage(@PathVariable Long id) {
+        Order o = orders.get(id);
+        return png(reports.invoice(header(o), lines(o), JasperReportService.Format.PNG), o.getCode() + ".png");
+    }
+
+    private static BillReportData.Header header(Order o) {
+        if (o.getStatus() == Order.Status.DRAFT) throw ApiException.badRequest("Hóa đơn chưa chốt nên chưa in được");
+        if (o.getItems().isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có mặt hàng");
+        return new BillReportData.Header(o.getCode(), o.getCreatedAt(), o.getCustomerName(),
                 o.getCustomerAddress(), o.getCustomerPhone(), o.getPreviousDebt(), o.getItemsTotal(), o.getTotalPayable(),
                 o.getPaidAmount(), o.getDebtAfter(), o.getShippingFee(), o.getStaffName(), o.getNote());
-        List<BillReportData.Line> lines = o.getItems().stream().map(i -> new BillReportData.Line(i.getId(), i.getProductId(),
+    }
+
+    private static List<BillReportData.Line> lines(Order o) {
+        return o.getItems().stream().map(i -> new BillReportData.Line(i.getId(), i.getProductId(),
                 i.getProductName(), i.getUnit(), i.getQuantity(), i.getSheets(), i.getFactor(), i.getUnitPrice(),
                 i.getTotalQuantity(), i.getLineTotal())).toList();
-        return pdf(reports.invoice(h, lines), o.getCode() + ".pdf");
     }
 
     /** Phieu thu no (in ngay sau khi thu, in lai luc nao cung ra dung so lieu cu). */
     @GetMapping("/api/customers/debt-payments/{ledgerId}/receipt.pdf")
     public ResponseEntity<byte[]> debtReceipt(@PathVariable Long ledgerId) {
         DebtStatementService.Doc d = statements.receipt(ledgerId);
-        return pdf(reports.debtDoc(d), "PhieuThu_" + d.docNo().replace("Số: ", "") + ".pdf");
+        return pdf(reports.debtDoc(d, JasperReportService.Format.PDF), receiptName(d) + ".pdf");
+    }
+
+    /** Anh phieu thu no (PNG) de gui Zalo - cung mau voi ban in. */
+    @GetMapping("/api/customers/debt-payments/{ledgerId}/receipt.png")
+    public ResponseEntity<byte[]> debtReceiptImage(@PathVariable Long ledgerId) {
+        DebtStatementService.Doc d = statements.receipt(ledgerId);
+        return png(reports.debtDoc(d, JasperReportService.Format.PNG), receiptName(d) + ".png");
     }
 
     /** Sao ke cong no theo khoang ngay. */
@@ -54,8 +75,31 @@ public class PrintController {
     public ResponseEntity<byte[]> statement(@PathVariable Long id,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        DebtStatementService.Doc d = statements.statement(id, from, to);
-        return pdf(reports.debtDoc(d), "SaoKe_" + id + "_" + (from == null ? "dau" : from) + "_" + (to == null ? LocalDate.now() : to) + ".pdf");
+        return pdf(reports.debtDoc(statements.statement(id, from, to), JasperReportService.Format.PDF), statementName(id, from, to) + ".pdf");
+    }
+
+    /** Anh sao ke cong no (PNG) de gui Zalo khi khach dang no ma chua co phieu thu nao de gui. */
+    @GetMapping("/api/customers/{id}/statement.png")
+    public ResponseEntity<byte[]> statementImage(@PathVariable Long id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return png(reports.debtDoc(statements.statement(id, from, to), JasperReportService.Format.PNG), statementName(id, from, to) + ".png");
+    }
+
+    private static String receiptName(DebtStatementService.Doc d) {
+        return "PhieuThu_" + d.docNo().replace("Số: ", "");
+    }
+
+    private static String statementName(Long id, LocalDate from, LocalDate to) {
+        return "SaoKe_" + id + "_" + (from == null ? "dau" : from) + "_" + (to == null ? LocalDate.now() : to);
+    }
+
+    private static ResponseEntity<byte[]> png(byte[] body, String filename) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(filename, StandardCharsets.UTF_8).build().toString())
+                .body(body);
     }
 
     private static ResponseEntity<byte[]> pdf(byte[] body, String filename) {

@@ -25,6 +25,7 @@ class CustomerRulesTest {
     @Autowired OrderService orders;
     @Autowired ProductRepository products;
     @Autowired ReportController reports;
+    @Autowired com.shop.product.ProductController productController;
 
     private Customer create(String name) {
         return customers.create(new CustomerController.CustomerRequest(name, null, null, null),
@@ -66,5 +67,17 @@ class CustomerRulesTest {
         BigDecimal total = reports.revenue(d, d).stream().map(ReportController.DayRevenue::revenue).reduce(BigDecimal.ZERO, BigDecimal::add);
         assertEquals(0, total.compareTo(cats.stream().map(ReportController.CategoryStat::revenue).reduce(BigDecimal.ZERO, BigDecimal::add)));
         assertTrue(cats.stream().anyMatch(c -> c.category().equals("Chưa phân loại") && c.revenue().compareTo(new BigDecimal("24690")) >= 0));
+    }
+
+    /** Trung ten loai hang -> 409 ro rang (truoc day rang buoc UNIQUE cua DB lam tra loi 500). */
+    @Test
+    void duplicateCategoryName_conflict() {
+        String n = "Loại " + UUID.randomUUID();
+        var a = productController.createCategory(new com.shop.product.ProductController.CategoryRequest(n));
+        var ex = assertThrows(ApiException.class, () -> productController.createCategory(new com.shop.product.ProductController.CategoryRequest(n.toUpperCase())));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        var b = productController.createCategory(new com.shop.product.ProductController.CategoryRequest(n + " 2"));
+        assertThrows(ApiException.class, () -> productController.updateCategory(b.getId(), new com.shop.product.ProductController.CategoryRequest(n)));
+        productController.updateCategory(a.getId(), new com.shop.product.ProductController.CategoryRequest(n)); // giu ten minh: duoc
     }
 }

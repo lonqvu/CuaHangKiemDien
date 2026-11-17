@@ -31,4 +31,7 @@ public class OrderItem {
     private BigDecimal totalQuantity;
     @Column(name = "line_total", nullable = false)
     private BigDecimal lineTotal;
+    /** Gia von dong hang luc chot (= gia tri xuat kho). null: chua biet gia von (san pham chua tung nhap hang). */
+    @Column(name = "cost_total", precision = 18, scale = 2)
+    private BigDecimal costTotal;
 }

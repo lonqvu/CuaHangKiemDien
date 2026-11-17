@@ -40,8 +40,8 @@ public class DebtService {
      */
     @Transactional
     public Customer setDebt(Long customerId, BigDecimal newDebt, String reason) {
-        if (newDebt == null || newDebt.signum() < 0) throw ApiException.badRequest("So no khong hop le");
-        if (reason == null || reason.isBlank()) throw ApiException.badRequest("Nhap ly do dieu chinh no");
+        if (newDebt == null || newDebt.signum() < 0) throw ApiException.badRequest("Số nợ không hợp lệ");
+        if (reason == null || reason.isBlank()) throw ApiException.badRequest("Nhập lý do điều chỉnh nợ");
         Customer c = find(customerId);
         BigDecimal diff = newDebt.subtract(c.getDebt());
         if (diff.signum() == 0) return c; // khong doi -> khong ghi so
@@ -52,16 +52,16 @@ public class DebtService {
     /** Thu no (man ThanhToanNo cu): so tien <= so no; moi lan thu co 1 so phieu de in / in lai. */
     @Transactional
     public DebtLedger pay(Long customerId, BigDecimal amount, String note, DebtLedger.Method method) {
-        if (amount == null || amount.signum() <= 0) throw ApiException.badRequest("So tien tra phai lon hon 0");
+        if (amount == null || amount.signum() <= 0) throw ApiException.badRequest("Số tiền trả phải lớn hơn 0");
         Customer c = find(customerId);
-        if (amount.compareTo(c.getDebt()) > 0) throw ApiException.badRequest("So tien tra lon hon so no hien tai");
+        if (amount.compareTo(c.getDebt()) > 0) throw ApiException.badRequest("Số tiền trả lớn hơn số nợ hiện tại");
         DebtLedger l = apply(c, DebtLedger.Type.PAYMENT, amount.negate(), null, note == null || note.isBlank() ? null : note.trim());
         l.setReceiptNo(String.format("PT%06d", ledger.nextReceiptNo()));
         l.setMethod(method == null ? DebtLedger.Method.CASH : method);
         return l;
     }
 
-    /** Giu cho code cu / test: thu tien mat. */
+    /** Thu tien mat (code cu / du lieu mau / test). */
     @Transactional
     public Customer pay(Long customerId, BigDecimal amount, String note) {
         pay(customerId, amount, note, DebtLedger.Method.CASH);
@@ -74,11 +74,11 @@ public class DebtService {
      */
     @Transactional
     public DebtLedger voidPayment(Long ledgerId, String reason) {
-        if (reason == null || reason.isBlank()) throw ApiException.badRequest("Nhap ly do huy phieu thu");
-        DebtLedger p = ledger.findById(ledgerId).orElseThrow(() -> ApiException.notFound("Khong tim thay phieu thu"));
+        if (reason == null || reason.isBlank()) throw ApiException.badRequest("Nhập lý do hủy phiếu thu");
+        DebtLedger p = ledger.findById(ledgerId).orElseThrow(() -> ApiException.notFound("Không tìm thấy phiếu thu"));
         if (p.getType() != DebtLedger.Type.PAYMENT || p.getReceiptNo() == null)
-            throw ApiException.badRequest("Chi huy duoc phieu thu no (tien tra luc mua hang: huy hoa don)");
-        if (ledger.existsByReversalOf(p.getId())) throw ApiException.conflict("Phieu thu " + p.getReceiptNo() + " da huy truoc do");
+            throw ApiException.badRequest("Chỉ hủy được phiếu thu nợ (tiền trả lúc mua hàng: hủy hóa đơn)");
+        if (ledger.existsByReversalOf(p.getId())) throw ApiException.conflict("Phiếu thu " + p.getReceiptNo() + " đã hủy trước đó");
         Customer c = find(p.getCustomerId());
         DebtLedger v = apply(c, DebtLedger.Type.VOID, p.getAmount().negate(), null, reason.trim());
         v.setReversalOf(p.getId());
@@ -86,6 +86,6 @@ public class DebtService {
     }
 
     private Customer find(Long id) {
-        return customers.findById(id).orElseThrow(() -> ApiException.notFound("Khong tim thay khach hang"));
+        return customers.findById(id).orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
     }
 }

@@ -34,10 +34,10 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(a -> a
-                // trang loi noi bo (/error) khong kiem tra lai quyen: neu khong, 403 bi doi thanh 401 (mat dang nhap o luot
-                // dispatch loi) va giao dien tuong het phien -> dang xuat nhan vien chi vi bam nham chuc nang bi cam
+                // /error va luot dispatch loi khong kiem tra lai quyen: neu khong, 403/500 bi doi thanh 401 (mat dang nhap
+                // o luot dispatch loi) va giao dien tuong het phien -> dang xuat nguoi dung
                 .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
-                .requestMatchers("/api/auth/login", "/actuator/health").permitAll()
+                .requestMatchers("/api/auth/login", "/actuator/health", "/error").permitAll()
                 .requestMatchers("/api/auth/change-password").permitAll() // nhu app cu: doi tu man dang nhap
                 // Nhan vien: chi ban hang (xem san pham, tim/chon/tao khach, lam + in hoa don).
                 // So no, sao ke, phieu thu, danh sach hoa don, huy hoa don: chi quan tri.

@@ -6,12 +6,13 @@
  *  - kind="integer" (tien, so tam): chi lay chu so -> "95.000" hay "95,000" deu = 95000
  *  - hien so le bang dau phay (4,2), khong hien dau cham ngan cach (tranh doc 1.000 thanh mot)
  *  - focus thi boi den san de go de; mui ten len/xuong de tang/giam theo step
+ *  - nullable: o rong = null (vd kiem ke "Chua dem" khac voi dem duoc 0), khong tu doi thanh 0
  */
 import { computed, ref, watch } from 'vue'
 import { parseNumber, formatInput } from '../format'
 
 const props = withDefaults(defineProps<{
-  modelValue: number | null | undefined
+  modelValue: number | string | null | undefined
   kind?: 'decimal' | 'integer'
   min?: number
   max?: number
@@ -21,18 +22,23 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   disabled?: boolean
   align?: 'left' | 'right'
-}>(), { kind: 'decimal', min: 0, step: 1, precision: 3, align: 'right' })
+  nullable?: boolean
+}>(), { kind: 'decimal', min: 0, step: 1, precision: 3, align: 'right', nullable: false })
 
-const emit = defineEmits<{ 'update:modelValue': [number] }>()
+const emit = defineEmits<{ 'update:modelValue': [number | null]; change: [number | null] }>()
+const show = (v: number | string | null | undefined) => (props.nullable && v == null ? '' : formatInput(v, props.kind, props.precision))
+function set(v: number | null) {
+  emit('update:modelValue', v)
+  emit('change', v)
+}
 const inputRef = ref()
-const text = ref(formatInput(props.modelValue, props.kind, props.precision))
+const text = ref(show(props.modelValue))
 const editing = ref(false)
 
 // gia tri doi tu ben ngoai (reset dong, nut "Tra du"...) -> cap nhat chu, tru khi dang go
 watch(() => props.modelValue, (v) => {
-  if (!editing.value || parseNumber(text.value, props.kind) !== Number(v ?? 0)) {
-    text.value = formatInput(v, props.kind, props.precision)
-  }
+  const cur = parseNumber(text.value, props.kind)
+  if (!editing.value || (v == null ? cur !== null : cur !== Number(v))) text.value = show(v)
 })
 
 const clamp = (n: number) => {
@@ -46,13 +52,13 @@ function onInput(raw: string) {
   const allowed = props.kind === 'integer' ? /[^\d.,\s]/g : /[^\d.,]/g
   text.value = raw.replace(allowed, '')
   const n = parseNumber(text.value, props.kind)
-  if (n !== null) emit('update:modelValue', clamp(n))
-  else if (text.value.trim() === '') emit('update:modelValue', clamp(0))
+  if (n !== null) set(clamp(n))
+  else if (text.value.trim() === '') set(props.nullable ? null : clamp(0))
 }
 
 function onBlur() {
   editing.value = false
-  text.value = formatInput(props.modelValue, props.kind, props.precision)
+  text.value = show(props.modelValue)
 }
 
 function onFocus(e: FocusEvent) {
@@ -63,8 +69,8 @@ function onFocus(e: FocusEvent) {
 function stepBy(dir: 1 | -1) {
   if (props.disabled) return
   const v = clamp(Number(props.modelValue ?? 0) + dir * props.step)
-  emit('update:modelValue', v)
-  text.value = formatInput(v, props.kind, props.precision)
+  set(v)
+  text.value = show(v)
 }
 
 const cls = computed(() => ['number-field', `align-${props.align}`])

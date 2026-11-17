@@ -2,9 +2,9 @@
  * Kiem thu dau-cuoi man Ban hang tren backend THAT (khong mock): tao du lieu mau qua API, thao tac nhu thu ngan
  * (chi ban phim), roi doc lai server de doi chieu tung dong tien voi phep tinh so nguyen chinh xac doc lap.
  *
- * Chay (can Playwright, backend tren :8080 voi DB TRONG, frontend dev tren :5173):
+ * Chay (can Playwright, backend tren :8090 (API_URL de doi) voi DB TRONG, frontend dev tren :5173):
  *   cd backend && DB_URL='jdbc:h2:mem:shop;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE' DB_USER=sa DB_PASSWORD= \
- *     mvn spring-boot:run -Dspring-boot.run.useTestClasspath=true
+ *     ./mvnw spring-boot:run -Dspring-boot.run.useTestClasspath=true
  *   cd frontend && npm run dev
  *   node scripts/e2e-ban-hang.cjs        # in PASS/FAIL tung muc, exit 1 neu co FAIL
  * Script tao san pham/khach moi moi lan chay -> chay tren DB trong (H2 nhu tren), KHONG chay tren DB that cua cua hang.
@@ -14,7 +14,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const API = 'http://localhost:8080/api';
+const API = (process.env.API_URL ?? 'http://localhost:8090') + '/api';
 const UI = 'http://localhost:5173';
 let token;
 const results = [];
@@ -24,6 +24,17 @@ async function api(method, path, body) {
   const t = await r.text();
   if (!r.ok) throw new Error(`${method} ${path} -> ${r.status} ${t}`);
   return t ? JSON.parse(t) : null;
+}
+
+// API danh sach co phan trang ({ items, total }): doc het cac trang
+async function all(p) {
+  const out = [];
+  for (let page = 0; ; page++) {
+    const r = await api('GET', `${p}${p.includes('?') ? '&' : '?'}page=${page}&size=100`);
+    if (Array.isArray(r)) return r;
+    out.push(...r.items);
+    if (out.length >= r.total || !r.items.length) return out;
+  }
 }
 
 // ---- tinh doc lap bang BigInt: SL toi 3 so le, he so toi 4 so le, lam tron HALF_EVEN ----
@@ -139,9 +150,9 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   check('No cu tren hoa don', Number(o.previousDebt) === 12450000, o.previousDebt);
   check('Tong phai tra server', Number(o.totalPayable) === payable, `${o.totalPayable} vs ${payable}`);
   check('Con no = tong phai tra - khach tra', Number(o.debtAfter) === payable - 3000000, `${o.debtAfter}`);
-  const tuanNow = (await api('GET', '/customers?q=tuan'))[0];
+  const tuanNow = (await all('/customers?q=tuan'))[0];
   check('No khach = con no hoa don', Number(tuanNow.debt) === payable - 3000000, `${tuanNow.debt}`);
-  const ledger = await api('GET', `/customers/${tuan.id}/debt-ledger`);
+  const ledger = await all(`/customers/${tuan.id}/debt-ledger`);
   check('So no: tong = no hien tai', sum(ledger.map((l) => Number(l.increase ?? 0) - Number(l.decrease ?? 0))) === Number(tuanNow.debt));
 
   // ===== 3. Bay nhap lieu =====
@@ -184,7 +195,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.fill('#walkin-name', 'Khách vãng lai');
   const d5 = await draft(); const total5 = Number(d5.itemsTotal);
   await typeIn('paid', String(total5 - 100000));
-  const lanBefore = Number((await api('GET', '/customers?q=lan'))[0].debt);
+  const lanBefore = Number((await all('/customers?q=lan'))[0].debt);
   const id5 = await draftId();
   const reason5 = await page.evaluate(() => document.querySelector('#block-reason')?.innerText);
   check('khach le tra thieu: nut Chot khoa, bao con thieu 100.000 + goi y chon khach', await page.evaluate(() => document.querySelector('.cta').disabled)
@@ -196,7 +207,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.click('.cta'); await page.waitForTimeout(800);
   const o5 = await api('GET', `/orders/${id5}`);
   check('khach le tra du: PAID, khong gan khach, con lai 0', o5.status === 'PAID' && o5.customerId === null && Number(o5.debtAfter) === 0 && Number(o5.paidAmount) === total5, `${o5.debtAfter}`);
-  check('khach le khong lam doi no khach khac', Number((await api('GET', '/customers?q=lan'))[0].debt) === lanBefore);
+  check('khach le khong lam doi no khach khac', Number((await all('/customers?q=lan'))[0].debt) === lanBefore);
 
   // ===== 6. Tra thua: tien thua tra lai, no khong am =====
   await page.click('.done-actions >> text=Hóa đơn mới'); await page.waitForTimeout(800);
@@ -208,24 +219,24 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   const id6 = await draftId();
   await page.click('.cta'); await page.waitForTimeout(800);
   const o6 = await api('GET', `/orders/${id6}`);
-  check('tra thua: con no 0, no khach 0', Number(o6.debtAfter) === 0 && Number((await api('GET', '/customers?q=lan'))[0].debt) === 0);
+  check('tra thua: con no 0, no khach 0', Number(o6.debtAfter) === 0 && Number((await all('/customers?q=lan'))[0].debt) === 0);
 
   // ===== 7. Thu no o man Khach hang (go co dau cham) =====
   await page.goto(UI + '/customers'); await page.waitForTimeout(1000);
   await page.click('text=Anh Tuấn thợ hàn'); await page.waitForTimeout(600);
-  const debtBefore = Number((await api('GET', '/customers?q=tuan'))[0].debt);
+  const debtBefore = Number((await all('/customers?q=tuan'))[0].debt);
   await page.focus('#amt'); await page.keyboard.type('5.000.000'); await page.keyboard.press('Enter'); await page.waitForTimeout(700);
-  check('thu no 5.000.000 (go co dau cham)', Number((await api('GET', '/customers?q=tuan'))[0].debt) === debtBefore - 5000000);
+  check('thu no 5.000.000 (go co dau cham)', Number((await all('/customers?q=tuan'))[0].debt) === debtBefore - 5000000);
 
   // ===== 8. Huy hoa don o man Hoa don -> hoan cong no =====
   await page.goto(UI + '/orders'); await page.waitForTimeout(1000);
-  const before8 = Number((await api('GET', '/customers?q=tuan'))[0].debt);
+  const before8 = Number((await all('/customers?q=tuan'))[0].debt);
   const net = Number(o.debtAfter) - Number(o.previousDebt);
   await page.click(`text=${o.code}`); await page.waitForTimeout(500);
   await page.click('.el-drawer >> text=Hủy hóa đơn'); await page.waitForTimeout(300);
   await page.click('.el-message-box >> button >> text=Hủy hóa đơn'); await page.waitForTimeout(700);
   check('huy hoa don: CANCELLED', (await api('GET', `/orders/${o.id}`)).status === 'CANCELLED');
-  check('huy hoa don: no khach giam dung phan hoa don lam tang', Number((await api('GET', '/customers?q=tuan'))[0].debt) === before8 - net, `${before8} - ${net}`);
+  check('huy hoa don: no khach giam dung phan hoa don lam tang', Number((await all('/customers?q=tuan'))[0].debt) === before8 - net, `${before8} - ${net}`);
 
   // ===== 9. Huy hoa don sau khi khach da tra het no -> no ve 0, bao tra lai tien mat =====
   const khach9 = await api('POST', '/customers', { name: 'Khách trả hàng', phone: '0977000999', address: null, initialDebt: 0 });
@@ -246,14 +257,13 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   const alertText = await page.evaluate(() => document.querySelector('.el-message-box')?.innerText);
   check('sau khi huy: hop thong bao bat buoc "Tra lai ... 570.000"', alertText?.includes('570.000') && alertText?.includes('Đã trả tiền cho khách'), alertText?.replace(/\n+/g, ' | '));
   await page.click('.el-message-box >> text=Đã trả tiền cho khách'); await page.waitForTimeout(300);
-  const c9 = (await api('GET', '/customers?q=khach tra hang'))[0];
+  const c9 = (await all('/customers?q=khach tra hang'))[0];
   const oc9 = await api('GET', `/orders/${o9.id}`);
   check('no khach ve 0 (khong am)', Number(c9.debt) === 0, `${c9.debt}`);
   check('hoa don luu tien tra lai 570.000', oc9.status === 'CANCELLED' && Number(oc9.refundAmount) === 570000, `${oc9.refundAmount}`);
-  const led9 = await api('GET', `/customers/${khach9.id}/debt-ledger`);
+  const led9 = await all(`/customers/${khach9.id}/debt-ledger`);
   check('so no ghi "da tra lai khach", tong = no', led9[0].description.includes('đã trả lại khách 570,000') && sum(led9.map((l) => Number(l.increase ?? 0) - Number(l.decrease ?? 0))) === 0, led9[0].description);
-  await page.click('text=Đã hủy'); await page.waitForTimeout(600);
-  await page.click(`text=${o9.code}`); await page.waitForTimeout(500);
+  // huy xong, ngan chi tiet van mo va cap nhat trang thai "Da huy" + dong tien tra lai
   const drawer9 = await page.evaluate(() => document.querySelector('.el-drawer .refund')?.innerText);
   check('chi tiet hoa don da huy hien "Da tra lai khach khi huy 570.000"', drawer9?.includes('570.000'), drawer9?.replace(/\n/g, ' '));
   await page.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + '/cancel-refund.png' : '/dev/null' }).catch(() => {});
@@ -295,7 +305,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.click('.pay >> text=Trả hết'); await page.fill('.pay input[placeholder^="Ghi chú"]', 'Con trai chuyển hộ');
   await page.click('.pay button[type=submit]'); await page.waitForTimeout(700);
   await page.click('.el-dialog >> text=Đóng'); await page.waitForTimeout(400);
-  const led10 = await api('GET', `/customers/${k10.id}/debt-ledger`);
+  const led10 = await all(`/customers/${k10.id}/debt-ledger`);
   const last10 = led10[0];
   check('thu het no: no ve 0, phieu ghi chuyen khoan + nguoi thu', Number((await api('GET', `/customers/${k10.id}`)).debt) === 0 && last10.method === 'Chuyển khoản' && !!last10.createdBy, `${last10.description} / ${last10.createdBy}`);
   const doc10 = await api('GET', `/customers/debt-payments/${last10.id}/receipt`);
@@ -320,7 +330,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   check('dieu chinh: chua co ly do -> nut Luu khoa', await page.evaluate(() => [...document.querySelectorAll('.el-dialog button')].find((b) => b.innerText.includes('Lưu điều chỉnh'))?.disabled));
   await page.click('.el-dialog >> text=Giảm giá, bớt tiền cho khách');
   await page.click('.el-dialog >> text=Lưu điều chỉnh'); await page.waitForTimeout(700);
-  const adj = (await api('GET', `/customers/${k10.id}/debt-ledger`))[0];
+  const adj = (await all(`/customers/${k10.id}/debt-ledger`))[0];
   check('dieu chinh ghi dong "Dieu chinh: <ly do>", giam 50.000', adj.description === 'Điều chỉnh: Giảm giá, bớt tiền cho khách' && Number(adj.decrease) === 50000, adj.description);
   // sao ke tu dau qua giao dien
   await page.click('.el-drawer >> text=In sao kê'); await page.waitForTimeout(400);
