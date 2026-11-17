@@ -114,7 +114,7 @@ export function formatInput(v: number | string | null | undefined, kind: 'decima
 
 /** Bo dau tieng Viet + chu thuong, giu nguyen do dai tung ky tu (de to dam dung cho). */
 export function foldChar(c: string) {
-  return c.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
+  return c.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/,/g, '.').toLowerCase()
 }
 
 /**

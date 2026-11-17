@@ -40,8 +40,9 @@ public class ProductController {
     public record ProductRequest(@NotBlank String name, Long categoryId, @NotBlank(message = "Bạn chưa nhập đơn vị cho sản phẩm") String unit,
                                  @NotNull @DecimalMin("0") BigDecimal price, BigDecimal minStock) {}
     /** onHand: ton hien tai (don vi goc) - man Ban hang dung de canh bao ban qua ton. */
+    /** boughtCount / lastBought: chi co khi tim kem customerId - khach nay da mua mat hang bao nhieu lan, lan gan nhat. */
     public record ProductDto(Long id, String name, Long categoryId, String categoryName, String unit, BigDecimal price,
-                             BigDecimal minStock, BigDecimal onHand) {}
+                             BigDecimal minStock, BigDecimal onHand, Long boughtCount, java.time.LocalDateTime lastBought) {}
     public record UnitDto(String unit, BigDecimal ratio) {}
     public record CategoryRequest(@NotBlank String name) {}
 
@@ -50,7 +51,7 @@ public class ProductController {
     private ProductDto dto(Product p, StockBalance b) {
         Category c = p.getCategory();
         return new ProductDto(p.getId(), p.getName(), c == null ? null : c.getId(),
-                c == null ? null : c.getName(), p.getUnit(), p.getPrice(), p.getMinStock(), b == null ? null : b.getOnHand());
+                c == null ? null : c.getName(), p.getUnit(), p.getPrice(), p.getMinStock(), b == null ? null : b.getOnHand(), null, null);
     }
 
     private static final Map<String, String> SORTABLE = Map.of("name", "name", "price", "price", "unit", "unit");
@@ -66,8 +67,12 @@ public class ProductController {
                                     @RequestParam(defaultValue = "true") boolean active,
                                     @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "20") int size,
-                                    @RequestParam(defaultValue = "") String sort) {
-        if (q.isBlank()) {
+                                    @RequestParam(defaultValue = "") String sort,
+                                    @RequestParam(required = false) Long customerId,
+                                    @RequestParam(defaultValue = "false") boolean popular) {
+        // Man Ban hang (popular=true hoac co khach): o tim trong -> hien san hang hay ban / khach nay hay mua
+        boolean rank = !q.isBlank() || (sort.isBlank() && (popular || customerId != null));
+        if (!rank) {
             var p = products.page("", categoryId, active,
                     PageDto.pageable(page, size, sort, SORTABLE, Sort.by("name").and(Sort.by("id"))));
             var bal = stock.balancesOf(p.getContent().stream().map(Product::getId).toList()); // 1 truy van cho ca trang
@@ -75,16 +80,24 @@ public class ProductController {
         }
         // Co chu tim: khong dau, theo tu, khong can dung thu tu; tim ca theo ten loai hang ("nhom" -> moi mat hang loai Nhôm).
         // Xep hang: khop nguyen tu > dau tu > giua tu, roi mat hang ban nhieu len truoc (man Ban hang: Enter chon ket qua dau).
+        // Co chon khach: hang khach nay da mua len truoc (khi muc do khop bang nhau) -> Enter chon dung mon quen, khong nham loai khac gia.
         Map<Long, Long> sold = new HashMap<>();
         for (Object[] r : orders.countLinesByProduct(Order.Status.PAID)) sold.put((Long) r[0], (Long) r[1]);
+        Map<Long, Object[]> mine = new HashMap<>();
+        if (customerId != null) for (Object[] r : orders.purchasesOfCustomer(Order.Status.PAID, customerId)) mine.put((Long) r[0], r);
         List<Product> pool = products.page("", categoryId, active, org.springframework.data.domain.Pageable.unpaged()).getContent();
         List<Product> hit = TextSearch.rank(pool, q,
                 p -> new String[]{p.getName(), p.getCategory() == null ? null : p.getCategory().getName()},
-                p -> sold.getOrDefault(p.getId(), 0L));
+                p -> (mine.containsKey(p.getId()) ? (Long) mine.get(p.getId())[1] * 1_000_000_000L : 0L) + sold.getOrDefault(p.getId(), 0L));
         if (!sort.isBlank()) hit = sortedProducts(hit, sort);
         int sz = Math.min(PageDto.MAX_SIZE, Math.max(1, size)), from = Math.min(hit.size(), Math.max(0, page) * sz);
         var bal = stock.balancesOf(hit.subList(from, Math.min(hit.size(), from + sz)).stream().map(Product::getId).toList());
-        return PageDto.ofList(hit, page, size, x -> dto(x, bal.get(x.getId())), null);
+        return PageDto.ofList(hit, page, size, x -> {
+            ProductDto d = dto(x, bal.get(x.getId()));
+            Object[] m = mine.get(x.getId());
+            return m == null ? d : new ProductDto(d.id(), d.name(), d.categoryId(), d.categoryName(), d.unit(), d.price(), d.minStock(), d.onHand(),
+                    (Long) m[1], (java.time.LocalDateTime) m[2]);
+        }, null);
     }
 
     private static List<Product> sortedProducts(List<Product> rows, String sort) {

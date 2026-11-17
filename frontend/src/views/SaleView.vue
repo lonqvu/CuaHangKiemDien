@@ -92,9 +92,13 @@ let productSeq = 0
 let enterPending = false
 const fetchProducts = debounce(async (q: string, seq: number) => {
   try {
-    const data = (await http.get<Page<Product>>('/products', { params: { q, size: 30 } })).data.items
+    // Da chon khach: hang khach hay mua len dau; o tim trong: hang ban chay
+    const params = { q, size: 30, popular: true, customerId: customer.value?.id }
+    const data = (await http.get<Page<Product>>('/products', { params })).data.items
     if (seq !== productSeq) return
-    products.value = data
+    // giu san pham dang chon tren dong nhap (neu khong con trong ket qua moi)
+    const cur = picked.value
+    products.value = cur && !data.some((p) => p.id === cur.id) ? [...data, cur] : data
     if (enterPending) {
       enterPending = false
       if (data.length) {
@@ -112,6 +116,8 @@ function searchProducts(q: string) {
   productLoading.value = true
   fetchProducts(q, ++productSeq)
 }
+// Doi khach -> xep lai goi y theo hang khach do hay mua
+watch(() => customer.value?.id, () => searchProducts(productQuery.value))
 function onProductEnter() {
   if (productLoading.value) enterPending = true
 }
@@ -379,6 +385,7 @@ onBeforeUnmount(() => {
                 <span class="opt-name">
                   <template v-for="(seg, i) in highlight(p.name, productQuery)" :key="i"><mark v-if="seg.m">{{ seg.t }}</mark><template v-else>{{ seg.t }}</template></template>
                   <small v-if="p.categoryName" class="muted"> · {{ p.categoryName }}</small>
+                  <small v-if="p.boughtCount" class="bought"> · khách đã mua {{ p.boughtCount }} lần</small>
                 </span>
                 <span class="num muted">{{ num(p.price) }}/{{ p.unit || 'đv' }} · <span :class="{ 'tone-danger': p.onHand != null && Number(p.onHand) <= 0 }">tồn {{ p.onHand == null ? '—' : qty(p.onHand) }}</span></span>
               </div>
@@ -650,6 +657,7 @@ kbd { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: v
 kbd.on-dark { color: inherit; background: transparent; border-color: rgba(255, 255, 255, 0.5); }
 .opt { display: flex; justify-content: space-between; gap: var(--space-lg); }
 .opt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.opt-name .bought { color: #047857; font-weight: 600; }
 .opt-name mark { background: #FEF3C7; color: inherit; font-weight: 600; border-radius: 2px; padding: 0 1px; }
 .pick-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); font-size: 14px; }
 

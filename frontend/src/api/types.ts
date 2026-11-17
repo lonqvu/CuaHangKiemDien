@@ -1,4 +1,4 @@
-export interface Product { id: number; name: string; categoryId: number | null; categoryName: string | null; unit: string | null; price: number; minStock: number; onHand: number | null }
+export interface Product { id: number; name: string; categoryId: number | null; categoryName: string | null; unit: string | null; price: number; minStock: number; onHand: number | null; boughtCount?: number | null; lastBought?: string | null }
 export interface Category { id: number; name: string; productCount: number }
 export interface Customer { id: number; name: string; address: string | null; phone: string | null; debt: number }
 /** Mot dong so cong no, da dien giai san o backend (giong dong tren phieu thu / sao ke). */

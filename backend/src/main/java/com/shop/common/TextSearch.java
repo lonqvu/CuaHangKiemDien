@@ -26,11 +26,13 @@ import java.util.regex.Pattern;
 public final class TextSearch {
     private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern SPACES = Pattern.compile("\\s+");
+    /** So thap phan: 0,4 / 0.40 / 1,0 -> chuan hoa "0.4", "1" (nguoi ban go dau phay, ten san pham viet dau cham). */
+    private static final Pattern DECIMAL = Pattern.compile("(\\d+)[.,](\\d+)");
     /** Mot "tu" de cham diem: day chu cai, hoac so (co the co dau , . thap phan). "40x80" -> 40 | x | 80. */
     private static final Pattern WORD = Pattern.compile("\\d+(?:[.,]\\d+)*|[a-z]+");
 
     // diem cho tung tu cua cau tim, truong chinh (ten) cao hon truong phu (loai hang, SDT)
-    private static final int EXACT = 6, PREFIX = 4, INSIDE = 1;
+    private static final int EXACT = 6, PREFIX = 4, INSIDE = 1, FUZZY = 1;
 
     private TextSearch() {}
 
@@ -39,6 +41,10 @@ public final class TextSearch {
         if (s == null) return "";
         String n = Normalizer.normalize(s, Normalizer.Form.NFD);
         n = MARKS.matcher(n).replaceAll("").replace('đ', 'd').replace('Đ', 'D');
+        n = DECIMAL.matcher(n).replaceAll(m -> {
+            String frac = m.group(2).replaceAll("0+$", "");
+            return m.group(1) + (frac.isEmpty() ? "" : "." + frac);
+        });
         return SPACES.matcher(n.toLowerCase(Locale.ROOT).trim()).replaceAll(" ");
     }
 
@@ -90,7 +96,7 @@ public final class TextSearch {
 
     /** {diem, so thu tu cua tu khop tot nhat}; diem -1 = khong co trong truong. */
     private static int[] tokenScore(String token, String field, List<String> fieldWords) {
-        if (!field.contains(token)) return new int[]{-1, 0};
+        if (!field.contains(token)) return fuzzy(token, fieldWords);
         // cau tim co the gom nhieu "tu" (vd "40x80", "0,4ly"): xet tung tu con, lay muc thap nhat
         List<String> parts = words(token);
         if (parts.isEmpty()) return new int[]{INSIDE, 0}; // chi co ky tu dac biet
@@ -108,6 +114,44 @@ public final class TextSearch {
             if (k == 0) at = where;
         }
         return new int[]{min, at};
+    }
+
+    /**
+     * Go sai 1 chu (thieu / thua / sai / dao 2 chu canh nhau): "tep" -> thep, "nom" -> nhom, "slicon" -> silicon.
+     * Chi xet tu >= 3 ky tu khong co chu so (so luong / quy cach phai go dung), so voi tu trong ten hoac doan dau cua tu.
+     * Diem thap nhat (FUZZY) -> luon xep sau ket qua khop dung.
+     */
+    private static int[] fuzzy(String token, List<String> fieldWords) {
+        if (token.length() < 3 || token.chars().anyMatch(Character::isDigit)) return new int[]{-1, 0};
+        for (int j = 0; j < fieldWords.size(); j++) {
+            String w = fieldWords.get(j);
+            if (Character.isDigit(w.charAt(0))) continue;
+            for (int len = token.length() - 1; len <= token.length() + 1; len++) {
+                if (len < 2 || len > w.length()) continue;
+                if (len < w.length() && len < token.length()) continue; // doan dau ngan hon cau tim -> bo
+                if (withinOneEdit(token, w.substring(0, len))) return new int[]{FUZZY, j};
+            }
+        }
+        return new int[]{-1, 0};
+    }
+
+    /** Khoang cach Damerau-Levenshtein <= 1. */
+    static boolean withinOneEdit(String a, String b) {
+        if (a.equals(b)) return true;
+        int la = a.length(), lb = b.length();
+        if (Math.abs(la - lb) > 1) return false;
+        if (la == lb) {
+            int i = 0;
+            while (i < la && a.charAt(i) == b.charAt(i)) i++;
+            if (i == la) return true;
+            if (a.substring(i + 1).equals(b.substring(i + 1))) return true;                       // thay 1 chu
+            return i + 1 < la && a.charAt(i) == b.charAt(i + 1) && a.charAt(i + 1) == b.charAt(i)   // dao 2 chu
+                    && a.substring(i + 2).equals(b.substring(i + 2));
+        }
+        String s = la < lb ? a : b, l = la < lb ? b : a;                                          // them / bot 1 chu
+        int i = 0;
+        while (i < s.length() && s.charAt(i) == l.charAt(i)) i++;
+        return s.substring(i).equals(l.substring(i + 1));
     }
 
     private static List<String> words(String folded) {

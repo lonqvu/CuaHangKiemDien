@@ -48,6 +48,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("select i.productId, count(i) from SalesOrder o join o.items i where o.status = :status group by i.productId")
     List<Object[]> countLinesByProduct(@Param("status") Order.Status status);
 
+    /** [productId, so lan mua, lan mua gan nhat] cua MOT khach (hoa don da chot): xep hang khach hay mua len dau khi ban. */
+    @Query("select i.productId, count(i), max(o.checkedOutAt) from SalesOrder o join o.items i where o.status = :status and o.customerId = :c group by i.productId")
+    List<Object[]> purchasesOfCustomer(@Param("status") Order.Status status, @Param("c") Long customerId);
+
     @Query(value = "select nextval('order_code_seq')", nativeQuery = true)
     long nextCode();
 }

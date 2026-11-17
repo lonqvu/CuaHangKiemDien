@@ -11,7 +11,7 @@ class TextSearchTest {
 
     @Test
     void fold_removesVietnameseMarks() {
-        assertEquals("ton lanh 0,4 ly", TextSearch.fold("  Tôn  LẠNH 0,4 ly "));
+        assertEquals("ton lanh 0.4 ly", TextSearch.fold("  Tôn  LẠNH 0,4 ly "));
         assertEquals("duong dong", TextSearch.fold("Đường đồng"));
     }
 
@@ -83,5 +83,35 @@ class TextSearchTest {
         // "nhom" trung ten loai hang cua moi mat hang nhom, nhung mat hang co chu Nhom trong ten len truoc
         List<String[]> rows = List.of(new String[]{"Xingfa hệ 55", "Nhôm"}, new String[]{"Nhôm hộp 25x50", "Nhôm"});
         assertEquals("Nhôm hộp 25x50", TextSearch.rank(rows, "nhom", r -> r, r -> 0).get(0)[0]);
+    }
+
+    // ----- 1. so thap phan: nguoi ban go dau phay, ten san pham viet dau cham -----
+    @Test
+    void decimalCommaMatchesDotInName() {
+        assertEquals("Tôn lạnh màu đỏ 0.40mm", rank("ton 0,4", "Tôn lạnh màu đỏ 0.45mm", "Tôn lạnh màu đỏ 0.40mm").get(0));
+        assertEquals(List.of("Que hàn Kim Tín 2.5"), rank("que 2,5", "Que hàn Kim Tín 2.5", "Que hàn Kim Tín 3.2"));
+        assertEquals("Thép hộp mạ kẽm 20x40x1.2", rank("thep 20x40x1,2", "Thép hộp mạ kẽm 30x60x1.4", "Thép hộp mạ kẽm 20x40x1.2").get(0));
+        assertEquals(List.of("Nhôm tấm phẳng 1.0mm"), rank("nhom tam 1,0", "Nhôm tấm phẳng 1.0mm", "Nhôm tấm phẳng 2.0mm"));
+        assertEquals(List.of("Nhôm tấm phẳng 1.0mm"), rank("nhom tam 1mm", "Nhôm tấm phẳng 1.0mm", "Nhôm tấm phẳng 2.0mm"));
+        assertEquals("ton 0.4mm", TextSearch.fold("Tôn 0,40mm"));
+    }
+
+    // ----- 2. go sai 1 chu -----
+    @Test
+    void oneTypoStillFound() {
+        assertEquals(List.of("Thép hộp 40x80"), rank("tep hop", "Thép hộp 40x80", "Tôn lạnh"));
+        assertEquals(List.of("Nhôm Xingfa hệ 55"), rank("nom xingfa", "Nhôm Xingfa hệ 55", "Thép V lỗ"));
+        assertEquals(List.of("Keo silicon Apollo"), rank("slicon", "Keo silicon Apollo", "Sơn chống rỉ"));
+        assertEquals(List.of("Máng xối inox"), rank("mng xoi", "Máng xối inox", "Úp nóc tôn"));
+        assertEquals(List.of("Sơn chống rỉ"), rank("son cong ri", "Sơn chống rỉ", "Keo silicon"));
+        assertEquals(List.of("Thép hộp"), rank("thpe", "Thép hộp", "Tôn")); // dao 2 chu
+    }
+
+    @Test
+    void exactBeatsTypo_andNoTypoForNumbersOrShortWords() {
+        assertEquals(List.of("Tép rang", "Thép hộp"), rank("tep", "Thép hộp", "Tép rang")); // khop dung truoc, gan dung sau
+        assertTrue(rank("thep 40x81", "Thép hộp 40x80").isEmpty()); // so quy cach phai dung
+        assertTrue(rank("to", "Tôn lạnh", "Tê").stream().noneMatch("Tê"::equals)); // tu 2 chu khong tim gan dung
+        assertTrue(rank("xyzw", "Thép hộp", "Tôn lạnh").isEmpty());
     }
 }
