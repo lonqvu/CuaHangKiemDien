@@ -127,7 +127,7 @@ nav h2 { font-size: 12px; font-weight: 500; color: var(--steel-400); padding: va
 .who small { color: var(--steel-400); font-size: 12px; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { display: none; }
-.content { padding: var(--space-2xl); max-width: 1440px; width: 100%; }
+.content { padding: var(--space-2xl); width: 100%; }
 .content:focus { outline: none; }
 .scrim { display: none; }
 

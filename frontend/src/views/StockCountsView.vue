@@ -57,7 +57,7 @@ onMounted(async () => {
         <template #default="{ row }"><span class="num">{{ dtShort(row.postedAt || row.createdAt) }}</span></template>
       </el-table-column>
       <el-table-column prop="note" label="Ghi chú" min-width="200" />
-      <el-table-column label="Đã đếm" width="140" align="right">
+      <el-table-column label="Đã đếm" min-width="140" align="right">
         <template #default="{ row }"><span class="num">{{ row.countedLines }} / {{ row.lineCount }}</span> <span class="muted small">mặt hàng</span></template>
       </el-table-column>
       <el-table-column prop="createdBy" label="Người lập" width="140" />

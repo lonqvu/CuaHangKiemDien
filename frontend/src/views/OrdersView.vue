@@ -143,7 +143,7 @@ onMounted(list.load)
             <router-link :to="{ path: `/orders/${row.id}`, query: route.query }" class="code mono" @click.stop>{{ row.code }}</router-link>
           </template>
         </el-table-column>
-        <el-table-column prop="date" label="Ngày chốt" width="144" sortable="custom">
+        <el-table-column prop="date" label="Ngày chốt" min-width="144" sortable="custom">
           <template #default="{ row }"><span class="num">{{ dtShort(row.checkedOutAt) }}</span></template>
         </el-table-column>
         <el-table-column prop="customerName" label="Khách hàng" min-width="160" sortable="custom">
@@ -153,16 +153,16 @@ onMounted(list.load)
           </template>
         </el-table-column>
         <el-table-column v-if="!narrow" prop="staffName" label="Nhân viên" width="136" show-overflow-tooltip />
-        <el-table-column prop="itemsTotal" label="Tiền hàng" width="116" align="right" sortable="custom">
+        <el-table-column prop="itemsTotal" label="Tiền hàng" min-width="120" align="right" sortable="custom">
           <template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template>
         </el-table-column>
-        <el-table-column v-if="!narrow" prop="totalPayable" label="Tổng thanh toán" width="140" align="right" sortable="custom">
+        <el-table-column v-if="!narrow" prop="totalPayable" label="Tổng thanh toán" min-width="140" align="right" sortable="custom">
           <template #default="{ row }"><span class="num">{{ num(row.totalPayable) }}</span></template>
         </el-table-column>
-        <el-table-column v-if="!narrow" prop="paidAmount" label="Khách trả" width="116" align="right" sortable="custom">
+        <el-table-column v-if="!narrow" prop="paidAmount" label="Khách trả" min-width="120" align="right" sortable="custom">
           <template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template>
         </el-table-column>
-        <el-table-column prop="debtAfter" label="Còn nợ" width="116" align="right" sortable="custom">
+        <el-table-column prop="debtAfter" label="Còn nợ" min-width="120" align="right" sortable="custom">
           <template #default="{ row }">
             <span v-if="Number(row.debtAfter) > 0" class="num tone-debt">{{ num(row.debtAfter) }}</span>
             <span v-else class="muted">Đã trả đủ</span>
@@ -174,10 +174,10 @@ onMounted(list.load)
           <template #default="{ row }"><span class="num">{{ dtShort(row.createdAt) }}</span></template>
         </el-table-column>
         <el-table-column prop="staffName" label="Nhân viên" min-width="160" />
-        <el-table-column prop="itemsTotal" label="Tiền hàng đang nhập" width="170" align="right" sortable="custom">
+        <el-table-column prop="itemsTotal" label="Tiền hàng đang nhập" min-width="170" align="right" sortable="custom">
           <template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template>
         </el-table-column>
-        <el-table-column width="230" align="right">
+        <el-table-column min-width="230" align="right">
           <template #default="{ row }">
             <router-link :to="{ path: '/sale', query: { draft: row.id } }"><el-button link type="primary">Mở bán tiếp</el-button></router-link>
             <el-button link type="danger" @click.stop="deleteDraft(row)">Xóa nháp</el-button>
@@ -201,7 +201,7 @@ onMounted(list.load)
     <Pager :page="query.page" :size="query.size" :total="total" unit="hóa đơn" @change="list.set" />
   </div>
 
-  <el-drawer :model-value="!!detailId" :title="detail?.code ? `Hóa đơn ${detail.code}` : 'Hóa đơn'" size="min(680px, 100%)" @close="closeDetail">
+  <el-drawer :model-value="!!detailId" :title="detail?.code ? `Hóa đơn ${detail.code}` : 'Hóa đơn'" size="min(1000px, 100%)" @close="closeDetail">
     <div v-loading="detailLoading" class="detail">
       <template v-if="detail">
         <dl class="meta">
@@ -221,11 +221,11 @@ onMounted(list.load)
         </dl>
         <el-table :data="detail.items" size="small">
           <el-table-column prop="productName" label="Mặt hàng" min-width="170" />
-          <el-table-column label="Tổng SL" width="96" align="right">
+          <el-table-column label="Tổng SL" min-width="120" align="right">
             <template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span> <span class="muted small">{{ row.unit }}</span></template>
           </el-table-column>
-          <el-table-column label="Đơn giá" width="104" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" width="116" align="right"><template #default="{ row }"><span class="num">{{ num(row.lineTotal) }}</span></template></el-table-column>
+          <el-table-column label="Đơn giá" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
+          <el-table-column label="Thành tiền" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.lineTotal) }}</span></template></el-table-column>
         </el-table>
         <dl class="sum">
           <div><dt>Tiền hàng</dt><dd class="num">{{ num(detail.itemsTotal) }}</dd></div>

@@ -169,6 +169,8 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(30, 58, 95, 0.16) !important;
 }
 .el-input__wrapper, .el-select__wrapper, .el-textarea__inner { transition: box-shadow 0.15s ease; }
+/* O chon (select) cao bang o nhap (36px) -> dat canh nhau luon thang hang (Element mac dinh select 32px, input 36px) */
+.el-select:not(.el-select--small):not(.el-select--large) .el-select__wrapper { min-height: var(--el-component-size); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }

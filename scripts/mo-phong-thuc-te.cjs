@@ -168,7 +168,7 @@ function queriesFor(name) {
           // mat hang da co trong hoa don -> gia dong gan nhat cua no (ke ca gia da sua); chua co -> gia niem yet
           const prev = [...sale.lines].reverse().find((l) => l.product === g.p.name);
           const want = prev ? prev.price : N(g.p.price);
-          const priceShown = N(await page.inputValue('#p'));
+          const priceShown = N((await page.inputValue('#p')).replace(/\./g, ''));
           if (priceShown !== want) check(`chon dung san pham ${g.p.name} (gia ${prev ? 'dong truoc' : 'niem yet'})`, false, `gia hien ${priceShown}, mong doi ${want}`);
           if (prev && prev.price !== N(g.p.price)) sale.notes.push('tim lai san pham da sua gia -> van gia da sua');
           curPrice = want;

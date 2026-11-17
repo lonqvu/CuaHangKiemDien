@@ -64,8 +64,8 @@ onMounted(load)
             <span v-else>{{ row.name }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Số sản phẩm" width="130" align="right"><template #default="{ row }"><span class="num">{{ row.productCount }}</span></template></el-table-column>
-        <el-table-column width="140" align="right">
+        <el-table-column label="Số sản phẩm" min-width="130" align="right"><template #default="{ row }"><span class="num">{{ row.productCount }}</span></template></el-table-column>
+        <el-table-column min-width="140" align="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="startEdit(row)">Đổi tên</el-button>
             <el-button link type="danger" :disabled="row.productCount > 0" :title="row.productCount > 0 ? 'Còn sản phẩm đang bán thuộc loại này' : ''" @click="remove(row)">Xóa</el-button>
@@ -77,6 +77,5 @@ onMounted(load)
 </template>
 
 <style scoped>
-.wrap { max-width: 760px; }
 .inline { display: flex; gap: var(--space-sm); }
 </style>

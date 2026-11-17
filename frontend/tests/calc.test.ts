@@ -6,7 +6,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { formatInput, highlight, parseNumber, previewLine } from '../src/format.ts'
+import { formatInput, groupDigits, highlight, parseNumber, previewLine } from '../src/format.ts'
 
 interface Case {
   name: string; quantity: string; sheets: number; factor: string; unitPrice: string
@@ -52,13 +52,18 @@ test('parseNumber: tien / so tam (bo moi dau ngan cach)', () => {
   assert.equal(i(''), null)
 })
 
-test('formatInput: so le dung dau phay, khong dau ngan cach nghin', () => {
+test('formatInput: so le dung dau phay (khong ngan cach nghin); so tien nhom nghin bang dau cham', () => {
   assert.equal(formatInput(4.2, 'decimal'), '4,2')
   assert.equal(formatInput(1.08, 'decimal', 4), '1,08')
   assert.equal(formatInput(2.375, 'decimal'), '2,375')
   assert.equal(formatInput(1000, 'decimal'), '1000') // khong hien "1.000" (doc nham thanh 1)
-  assert.equal(formatInput(95000, 'integer'), '95000')
+  assert.equal(formatInput(95000, 'integer'), '95.000')
+  assert.equal(formatInput(1000000, 'integer'), '1.000.000')
+  assert.equal(formatInput(999, 'integer'), '999')
   assert.equal(formatInput(null, 'integer'), '0')
+  assert.equal(groupDigits('0001500'), '1.500')
+  // so tien: hien -> go lai van ra dung so
+  for (const n of [0, 5, 95000, 1000000, 121981883]) assert.equal(parseNumber(formatInput(n, 'integer'), 'integer'), n)
   // vong di vong ve: go -> so -> hien -> go lai van ra dung so
   for (const s of ['4,2', '0,5', '12', '2,375', '1,08']) assert.equal(parseNumber(formatInput(parseNumber(s, 'decimal'), 'decimal', 4), 'decimal'), parseNumber(s, 'decimal'))
 })

@@ -601,15 +601,15 @@ onBeforeUnmount(() => {
             </template>
           </el-table-column>
           <el-table-column label="SL" width="72" align="right"><template #default="{ row }"><span v-if="!row.isGroup" class="num">{{ qty(row.quantity) }}</span></template></el-table-column>
-          <el-table-column label="Tổng SL" width="112" align="right">
+          <el-table-column label="Tổng SL" min-width="120" align="right">
             <template #default="{ row }">
               <span class="num">{{ qty(row.totalQuantity) }}</span>
               <div v-if="row.isGroup && row.sheets" class="formula num">{{ row.sheets }} tấm</div>
               <div v-else-if="row.sheets" class="formula num" :title="`Số tấm ${row.sheets}, hệ số ${qty(row.factor)}`">× {{ row.sheets }} tấm × {{ qty(row.factor) }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="Đơn giá" width="100" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" width="120" align="right"><template #default="{ row }"><b class="num line-total">{{ num(row.lineTotal) }}</b></template></el-table-column>
+          <el-table-column label="Đơn giá" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
+          <el-table-column label="Thành tiền" min-width="120" align="right"><template #default="{ row }"><b class="num line-total">{{ num(row.lineTotal) }}</b></template></el-table-column>
           <el-table-column v-if="!done" label="Sửa / xóa" width="104" align="center">
             <template #default="{ row }">
               <div v-if="row.isGroup" class="group-actions">

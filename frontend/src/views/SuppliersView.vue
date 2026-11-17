@@ -146,7 +146,7 @@ onMounted(list.load)
       </el-table-column>
       <el-table-column v-if="!narrow" label="SĐT" width="140"><template #default="{ row }"><span class="num">{{ row.phone }}</span></template></el-table-column>
       <el-table-column v-if="!narrow" prop="address" label="Địa chỉ" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="debt" label="Cửa hàng đang nợ" :width="narrow ? 140 : 170" align="right" sortable="custom">
+      <el-table-column prop="debt" label="Cửa hàng đang nợ" :min-width="narrow ? 140 : 170" align="right" sortable="custom">
         <template #default="{ row }">
           <span v-if="Number(row.debt) > 0" class="num tone-debt">{{ num(row.debt) }}</span>
           <span v-else class="muted">Không nợ</span>
@@ -163,7 +163,7 @@ onMounted(list.load)
     <Pager :page="query.page" :size="query.size" :total="total" unit="nhà cung cấp" @change="list.set" />
   </div>
 
-  <el-drawer :model-value="!!currentId" :title="current?.name ?? 'Nhà cung cấp'" size="min(720px, 100%)" @close="closeDetail">
+  <el-drawer :model-value="!!currentId" :title="current?.name ?? 'Nhà cung cấp'" size="min(1000px, 100%)" @close="closeDetail">
     <template v-if="current">
       <div class="info">
         <p class="muted"><span class="num">{{ current.phone || 'Chưa có SĐT' }}</span><span v-if="current.address"> · {{ current.address }}</span></p>
@@ -193,12 +193,12 @@ onMounted(list.load)
       <el-tabs v-model="tab">
         <el-tab-pane name="ledger" :label="`Sổ công nợ (${ledger.total.value})`">
           <el-table v-loading="ledger.loading.value" :data="ledger.items.value" size="small" empty-text="Chưa có phát sinh">
-            <el-table-column label="Thời gian" width="140"><template #default="{ row }"><span class="num">{{ dtShort(row.createdAt) }}</span></template></el-table-column>
+            <el-table-column label="Thời gian" min-width="140"><template #default="{ row }"><span class="num">{{ dtShort(row.createdAt) }}</span></template></el-table-column>
             <el-table-column label="Loại" width="120"><template #default="{ row }">{{ typeLabel[row.type] }}</template></el-table-column>
-            <el-table-column label="Phát sinh" width="124" align="right">
+            <el-table-column label="Phát sinh" min-width="124" align="right">
               <template #default="{ row }"><span class="num" :class="Number(row.amount) < 0 ? 'tone-money' : 'tone-debt'">{{ Number(row.amount) > 0 ? '+' : '' }}{{ num(row.amount) }}</span></template>
             </el-table-column>
-            <el-table-column label="Còn nợ" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.balanceAfter) }}</span></template></el-table-column>
+            <el-table-column label="Còn nợ" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.balanceAfter) }}</span></template></el-table-column>
             <el-table-column label="Ghi chú" min-width="150">
               <template #default="{ row }">
                 <router-link v-if="row.receiptId" :to="`/receipts/${row.receiptId}`" class="link">{{ row.note }}</router-link>
@@ -211,9 +211,9 @@ onMounted(list.load)
         <el-tab-pane name="receipts" :label="`Phiếu nhập (${receipts.total.value})`">
           <el-table v-loading="receipts.loading.value" :data="receipts.items.value" size="small" empty-text="Chưa có phiếu nhập">
             <el-table-column label="Mã phiếu" width="110"><template #default="{ row }"><router-link :to="`/receipts/${row.id}`" class="link mono">{{ row.code }}</router-link></template></el-table-column>
-            <el-table-column label="Ghi sổ" width="140"><template #default="{ row }"><span class="num">{{ dtShort(row.postedAt) }}</span></template></el-table-column>
-            <el-table-column label="Tiền hàng" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.total) }}</span></template></el-table-column>
-            <el-table-column label="Đã trả" width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template></el-table-column>
+            <el-table-column label="Ghi sổ" min-width="140"><template #default="{ row }"><span class="num">{{ dtShort(row.postedAt) }}</span></template></el-table-column>
+            <el-table-column label="Tiền hàng" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.total) }}</span></template></el-table-column>
+            <el-table-column label="Đã trả" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.paidAmount) }}</span></template></el-table-column>
             <el-table-column label="Trạng thái" min-width="90">
               <template #default="{ row }"><span :class="row.status === 'CANCELLED' ? 'tone-danger' : 'muted'">{{ row.status === 'CANCELLED' ? 'Đã hủy' : 'Đã ghi sổ' }}</span></template>
             </el-table-column>

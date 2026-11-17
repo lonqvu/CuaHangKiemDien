@@ -62,10 +62,10 @@ onMounted(async () => {
     </div>
     <el-table :data="recent" empty-text="Chưa có hóa đơn nào" row-class-name="clickable" @row-click="(r: OrderRow) => router.push(`/orders/${r.id}`)">
       <el-table-column label="Mã" width="130"><template #default="{ row }"><router-link :to="`/orders/${row.id}`" class="link mono" @click.stop>{{ row.code }}</router-link></template></el-table-column>
-      <el-table-column label="Lúc" width="150"><template #default="{ row }">{{ dt(row.checkedOutAt) }}</template></el-table-column>
+      <el-table-column label="Lúc" min-width="150"><template #default="{ row }">{{ dt(row.checkedOutAt) }}</template></el-table-column>
       <el-table-column label="Khách" min-width="160"><template #default="{ row }">{{ row.customerName || 'Khách lẻ' }}</template></el-table-column>
-      <el-table-column label="Tiền hàng" width="130" align="right"><template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template></el-table-column>
-      <el-table-column label="Còn nợ" width="130" align="right">
+      <el-table-column label="Tiền hàng" min-width="130" align="right"><template #default="{ row }"><span class="num">{{ num(row.itemsTotal) }}</span></template></el-table-column>
+      <el-table-column label="Còn nợ" min-width="130" align="right">
         <template #default="{ row }"><span v-if="Number(row.debtAfter) > 0" class="num tone-debt">{{ num(row.debtAfter) }}</span><span v-else class="muted">Đã trả đủ</span></template>
       </el-table-column>
     </el-table>
@@ -88,5 +88,6 @@ onMounted(async () => {
 .recent-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-md); }
 .recent-head h2 { font-size: 16px; }
 @media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row2 { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .grid4 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 560px) { .grid4, .mini-grid { grid-template-columns: 1fr; } }
 </style>

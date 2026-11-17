@@ -104,11 +104,17 @@ export function parseNumber(text: string, kind: 'decimal' | 'integer'): number |
   return Number.isFinite(n) ? n : null
 }
 
-/** Hien so trong o nhap: so le dung dau phay (4,2), khong co dau ngan cach nghin. */
+/** Nhom nghin bang dau cham kieu Viet Nam: "1000000" -> "1.000.000" (chi chu so). */
+export const groupDigits = (digits: string) => digits.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+/**
+ * Hien so trong o nhap: so nguyen (tien, so tam) co dau cham ngan cach nghin (1.000.000) cho de doc;
+ * so le (so luong, he so) dung dau phay thap phan (4,2), khong ngan cach nghin (tranh doc nham 1.000 thanh 1).
+ */
 export function formatInput(v: number | string | null | undefined, kind: 'decimal' | 'integer', precision = 3) {
   const n = Number(v ?? 0)
   if (!Number.isFinite(n)) return ''
-  if (kind === 'integer') return String(Math.round(n))
+  if (kind === 'integer') return groupDigits(String(Math.round(Math.abs(n))))
   return String(+n.toFixed(precision)).replace('.', ',')
 }
 

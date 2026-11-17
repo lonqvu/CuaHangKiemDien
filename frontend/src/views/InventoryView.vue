@@ -143,25 +143,25 @@ onMounted(async () => {
           <div v-if="narrow || row.categoryName" class="muted small">{{ row.categoryName || 'Chưa phân loại' }}</div>
         </template>
       </el-table-column>
-      <el-table-column prop="onHand" label="Tồn" width="150" align="right" sortable="custom">
+      <el-table-column prop="onHand" label="Tồn" min-width="150" align="right" sortable="custom">
         <template #default="{ row }">
           <span class="num" :class="{ 'tone-danger': Number(row.onHand) < 0 }">{{ qty(row.onHand) }}</span> <span class="muted small">{{ row.unit }}</span>
           <div v-if="status(row)" class="badge" :class="status(row)!.cls">{{ status(row)!.text }}</div>
         </template>
       </el-table-column>
-      <el-table-column v-if="!narrow" prop="minStock" label="Tối thiểu" width="110" align="right" sortable="custom">
+      <el-table-column v-if="!narrow" prop="minStock" label="Tối thiểu" min-width="120" align="right" sortable="custom">
         <template #default="{ row }"><span class="num muted">{{ Number(row.minStock) ? qty(row.minStock) : '—' }}</span></template>
       </el-table-column>
-      <el-table-column v-if="!narrow" prop="avgCost" label="Giá vốn" width="130" align="right" sortable="custom">
+      <el-table-column v-if="!narrow" prop="avgCost" label="Giá vốn" min-width="130" align="right" sortable="custom">
         <template #default="{ row }">
           <span v-if="Number(row.avgCost)" class="num">{{ num(Math.round(Number(row.avgCost))) }}</span>
           <span v-else class="muted small">Chưa có</span>
         </template>
       </el-table-column>
-      <el-table-column v-if="!narrow" label="Giá bán" width="120" align="right">
+      <el-table-column v-if="!narrow" label="Giá bán" min-width="120" align="right">
         <template #default="{ row }"><span class="num muted">{{ num(row.price) }}</span></template>
       </el-table-column>
-      <el-table-column prop="value" label="Giá trị tồn" width="150" align="right" sortable="custom">
+      <el-table-column prop="value" label="Giá trị tồn" min-width="150" align="right" sortable="custom">
         <template #default="{ row }"><span class="num">{{ num(row.value) }}</span></template>
       </el-table-column>
       <template #empty>
@@ -177,7 +177,7 @@ onMounted(async () => {
     <Pager :page="query.page" :size="query.size" :total="total" unit="mặt hàng" @change="list.set" />
   </div>
 
-  <el-drawer :model-value="!!currentId" :title="current?.name ?? 'Thẻ kho'" size="min(760px, 100%)" @close="closeDetail">
+  <el-drawer :model-value="!!currentId" :title="current?.name ?? 'Thẻ kho'" size="min(1000px, 100%)" @close="closeDetail">
     <template v-if="current">
       <div class="head">
         <div class="big">
@@ -201,7 +201,7 @@ onMounted(async () => {
 
       <h3 class="title">Thẻ kho <span class="muted">({{ moves.total.value }} dòng)</span></h3>
       <el-table v-loading="moves.loading.value" :data="moves.items.value" size="small" empty-text="Chưa có nhập xuất nào">
-        <el-table-column label="Thời gian" width="140"><template #default="{ row }"><span class="num">{{ dtShort(row.createdAt) }}</span></template></el-table-column>
+        <el-table-column label="Thời gian" min-width="140"><template #default="{ row }"><span class="num">{{ dtShort(row.createdAt) }}</span></template></el-table-column>
         <el-table-column label="Nghiệp vụ" min-width="150">
           <template #default="{ row }">
             <div>{{ movementLabel[row.type] }}
@@ -210,11 +210,11 @@ onMounted(async () => {
             <div v-if="row.note && row.type === 'ADJUST'" class="muted small">{{ row.note }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="Nhập / xuất" width="110" align="right">
+        <el-table-column label="Nhập / xuất" min-width="120" align="right">
           <template #default="{ row }"><span class="num" :class="Number(row.qty) > 0 ? 'tone-money' : 'tone-debt'">{{ Number(row.qty) > 0 ? '+' : '' }}{{ qty(row.qty) }}</span></template>
         </el-table-column>
-        <el-table-column label="Giá vốn" width="100" align="right"><template #default="{ row }"><span class="num">{{ num(Math.round(Number(row.unitCost))) }}</span></template></el-table-column>
-        <el-table-column label="Tồn sau" width="96" align="right"><template #default="{ row }"><span class="num">{{ qty(row.balanceAfter) }}</span></template></el-table-column>
+        <el-table-column label="Giá vốn" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(Math.round(Number(row.unitCost))) }}</span></template></el-table-column>
+        <el-table-column label="Tồn sau" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ qty(row.balanceAfter) }}</span></template></el-table-column>
       </el-table>
       <Pager compact :page="moves.query.page" :size="moves.query.size" :total="moves.total.value" unit="dòng" @change="moves.set" />
     </template>
