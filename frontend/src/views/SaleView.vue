@@ -107,6 +107,8 @@ async function onPickProduct() {
   // tim lai hay giu san pham deu ra cung 1 gia; khong co thi lay gia niem yet
   const last = [...(order.value?.items ?? [])].reverse().find((i) => i.productId === line.productId)
   line.unitPrice = Number(last?.unitPrice ?? picked.value?.price ?? 0)
+  // hang ban theo m: So luong / So tam bat dau tu 0 (giong sau khi them dong) - lan nao chon cung hien nhu nhau
+  if (isSheet.value) Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
   justAdded = false
   singleTouched.value = false
   await nextTick()
@@ -517,11 +519,14 @@ onBeforeUnmount(() => {
         </div>
         <div class="f">
           <label for="q">Số lượng</label>
-          <NumberField id="q" ref="qtyField" v-model="line.quantity" kind="decimal" :disabled="!!done || segsActive" @update:model-value="touchSingle" />
+          <!-- dang nhap nhieu doan: So luong / So tam khong tinh -> hien trong ("—"), khong hien so cu -->
+          <NumberField id="q" ref="qtyField" :model-value="segsActive ? null : line.quantity" :nullable="segsActive" :placeholder="segsActive ? '—' : undefined"
+                       kind="decimal" :disabled="!!done || segsActive" @update:model-value="(v: number | null) => { line.quantity = v ?? 0; touchSingle() }" />
         </div>
         <div class="f">
           <label for="s">Số tấm</label>
-          <NumberField id="s" v-model="line.sheets" kind="integer" :disabled="!!done || segsActive" @update:model-value="touchSingle" />
+          <NumberField id="s" :model-value="segsActive ? null : line.sheets" :nullable="segsActive" :placeholder="segsActive ? '—' : undefined"
+                       kind="integer" :disabled="!!done || segsActive" @update:model-value="(v: number | null) => { line.sheets = v ?? 0; touchSingle() }" />
         </div>
         <div class="f">
           <label for="k">Hệ số</label>
