@@ -3,11 +3,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
-import { Plus, Edit, Delete, Printer, DocumentAdd } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Printer, DocumentAdd, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Customer, Order, OrderItem, Page, Product } from '../api/types'
-import { debounce, money, num, previewLine, qty } from '../format'
+import { debounce, money, num, orderMessage, previewLine, qty } from '../format'
 import { openPdf } from '../api/pdf'
+import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import { useAuth } from '../stores/auth'
 
 const auth = useAuth()
@@ -191,6 +192,7 @@ async function checkout() {
 
 // In hoa don bang mau Jasper cu (Bill.jrxml) - backend tra ve PDF
 function print() { openPdf(`/orders/${done.value!.id}/invoice.pdf`) }
+const zalo = ref(false)
 
 // Phim tat o quay: F2 chon san pham, F4 chon khach, F9 chot hoa don
 function onKey(e: KeyboardEvent) {
@@ -374,8 +376,11 @@ onBeforeUnmount(() => {
         <p><b>Đã chốt {{ done.code }}.</b> <span v-if="Number(done.debtAfter) > 0">Khách còn nợ <b class="num tone-debt">{{ money(done.debtAfter) }}</b>.</span></p>
         <div class="done-actions">
           <el-button type="primary" size="large" :icon="Printer" @click="print">In hóa đơn</el-button>
-          <el-button size="large" :icon="DocumentAdd" @click="startNew">Hóa đơn mới</el-button>
+          <el-button type="success" size="large" :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
+          <el-button size="large" :icon="DocumentAdd" class="wide" @click="startNew">Hóa đơn mới</el-button>
         </div>
+        <ZaloSendDialog v-model="zalo" :title="`Hóa đơn ${done.code}`" :image-path="`/orders/${done.id}/invoice.png`"
+                        :file-name="`${done.code}.png`" :text="orderMessage(done)" :phone="done.customerPhone" />
       </div>
     </aside>
 
@@ -473,6 +478,7 @@ kbd.on-dark { color: inherit; background: rgba(255, 255, 255, 0.15); border-colo
 .done p { margin: 0 0 var(--space-md); }
 .done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
 .done-actions .el-button + .el-button { margin-left: 0; }
+.done-actions .wide { grid-column: 1 / -1; }
 .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-lg); }
 .edit-grid :deep(.el-input-number) { width: 100%; }
 

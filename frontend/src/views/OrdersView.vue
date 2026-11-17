@@ -2,15 +2,16 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Printer, Search } from '@element-plus/icons-vue'
+import { Printer, Search, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Order, OrderRow, OrderStatus, OrderSummary } from '../api/types'
-import { datePresets, debounce, dt, dtShort, num, qty } from '../format'
+import { datePresets, debounce, dt, dtShort, num, orderMessage, qty } from '../format'
 import { usePagedList } from '../composables/usePagedList'
 import { useNarrow } from '../composables/useNarrow'
 import PageHeader from '../components/PageHeader.vue'
 import Pager from '../components/Pager.vue'
 import EmptyState from '../components/EmptyState.vue'
+import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
@@ -84,6 +85,7 @@ async function deleteDraft(r: OrderRow) {
 
 // In lai hoa don bang mau Jasper cu (Bill.jrxml)
 function print(o: Order) { openPdf(`/orders/${o.id}/invoice.pdf`) }
+const zalo = ref(false)
 
 onMounted(list.load)
 </script>
@@ -226,10 +228,13 @@ onMounted(list.load)
         <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" type="danger" plain @click="cancel(detail!)">Hủy hóa đơn</el-button>
         <span class="grow" />
         <el-button @click="closeDetail">Đóng</el-button>
+        <el-button v-if="detail?.status === 'PAID'" type="success" plain :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
         <el-button v-if="detail && detail.status !== 'DRAFT'" type="primary" :icon="Printer" @click="print(detail!)">In hóa đơn</el-button>
       </div>
     </template>
   </el-drawer>
+  <ZaloSendDialog v-if="detail" v-model="zalo" :title="`Hóa đơn ${detail.code}`" :image-path="`/orders/${detail.id}/invoice.png`"
+                  :file-name="`${detail.code}.png`" :text="orderMessage(detail)" :phone="detail.customerPhone" />
 </template>
 
 <style scoped>

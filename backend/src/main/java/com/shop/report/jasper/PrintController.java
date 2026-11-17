@@ -31,27 +31,61 @@ public class PrintController {
     @GetMapping("/api/orders/{id}/invoice.pdf")
     public ResponseEntity<byte[]> invoice(@PathVariable Long id) {
         Order o = orders.get(id);
+        return pdf(reports.invoice(header(o), lines(o), JasperReportService.Format.PDF), o.getCode() + ".pdf");
+    }
+
+    /** Anh hoa don (PNG) de gui Zalo - cung mau Bill.jrxml voi ban in. */
+    @GetMapping("/api/orders/{id}/invoice.png")
+    public ResponseEntity<byte[]> invoiceImage(@PathVariable Long id) {
+        Order o = orders.get(id);
+        return png(reports.invoice(header(o), lines(o), JasperReportService.Format.PNG), o.getCode() + ".png");
+    }
+
+    private static BillReportData.Header header(Order o) {
         if (o.getStatus() == Order.Status.DRAFT) throw ApiException.badRequest("Hóa đơn chưa chốt nên chưa in được");
         if (o.getItems().isEmpty()) throw ApiException.badRequest("Hóa đơn chưa có mặt hàng");
-        BillReportData.Header h = new BillReportData.Header(o.getCode(), o.getCreatedAt(), o.getCustomerName(),
+        return new BillReportData.Header(o.getCode(), o.getCreatedAt(), o.getCustomerName(),
                 o.getCustomerAddress(), o.getCustomerPhone(), o.getPreviousDebt(), o.getItemsTotal(), o.getTotalPayable(),
                 o.getPaidAmount(), o.getDebtAfter(), o.getShippingFee(), o.getStaffName(), o.getNote());
-        List<BillReportData.Line> lines = o.getItems().stream().map(i -> new BillReportData.Line(i.getId(), i.getProductId(),
+    }
+
+    private static List<BillReportData.Line> lines(Order o) {
+        return o.getItems().stream().map(i -> new BillReportData.Line(i.getId(), i.getProductId(),
                 i.getProductName(), i.getUnit(), i.getQuantity(), i.getSheets(), i.getFactor(), i.getUnitPrice(),
                 i.getTotalQuantity(), i.getLineTotal())).toList();
-        return pdf(reports.invoice(h, lines), o.getCode() + ".pdf");
     }
 
     @GetMapping("/api/customers/{id}/payment-receipt.pdf")
     public ResponseEntity<byte[]> debtReceipt(@PathVariable Long id) {
+        return pdf(receipt(id, JasperReportService.Format.PDF), receiptName(id) + ".pdf");
+    }
+
+    /** Anh bien lai cong no (PNG) de gui Zalo. */
+    @GetMapping("/api/customers/{id}/payment-receipt.png")
+    public ResponseEntity<byte[]> debtReceiptImage(@PathVariable Long id) {
+        return png(receipt(id, JasperReportService.Format.PNG), receiptName(id) + ".png");
+    }
+
+    private byte[] receipt(Long id, JasperReportService.Format format) {
         CustomerController.Receipt r = customers.receipt(id);
         if (r.rows().isEmpty()) throw ApiException.badRequest("Khách chưa có lần trả nợ nào trong kỳ nợ hiện tại để in biên lai");
         List<DebtReceiptData.Payment> pays = r.rows().stream()
                 .map(x -> new DebtReceiptData.Payment(x.date(), x.oldDebt(), x.amount(), x.remainingDebt())).toList();
         Double last = pays.get(pays.size() - 1).amount().doubleValue();
-        byte[] pdf = reports.debtReceipt(id, r.customer().getName(), r.customer().getAddress(), r.customer().getPhone(),
-                r.currentDebt(), pays, last);
-        return pdf(pdf, "ThanhToanNo_" + id + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".pdf");
+        return reports.debtReceipt(id, r.customer().getName(), r.customer().getAddress(), r.customer().getPhone(),
+                r.currentDebt(), pays, last, format);
+    }
+
+    private static String receiptName(Long id) {
+        return "ThanhToanNo_" + id + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+    }
+
+    private static ResponseEntity<byte[]> png(byte[] body, String filename) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(filename, StandardCharsets.UTF_8).build().toString())
+                .body(body);
     }
 
     private static ResponseEntity<byte[]> pdf(byte[] body, String filename) {

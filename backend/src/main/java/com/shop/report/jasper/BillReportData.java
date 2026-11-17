@@ -99,8 +99,8 @@ public final class BillReportData {
             r.put("Orders_ID", h.orderCode());
             r.put("Orders_Date", h.date() == null ? null : Timestamp.valueOf(h.date()));
             r.put("Customer", h.customer());
-            r.put("Address", h.address());
-            r.put("Phone_Number", h.phone());
+            r.put("Address", h.address() == null ? "" : h.address()); // mau noi chuoi: null in ra chu "null"
+            r.put("Phone_Number", h.phone() == null ? "" : h.phone());
             r.put("Old_Debt", h.oldDebt());
             r.put("Total_Money_Bill", h.totalMoneyBill());
             r.put("Total_Money_Order", h.totalMoneyOrder());

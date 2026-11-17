@@ -23,6 +23,28 @@ export const movementLabel: Record<string, string> = {
 export const movementLink = (refType: string, refId: number | null) =>
   !refId ? null : refType === 'ORDER' ? `/orders/${refId}` : refType === 'RECEIPT' ? `/receipts/${refId}` : refType === 'COUNT' ? `/stock-counts/${refId}` : null
 
+/** Noi dung tin nhan Zalo gui kem anh hoa don. */
+export function orderMessage(o: { code: string | null; checkedOutAt: string | null; customerName: string | null; itemsTotal: number; shippingFee?: number;
+  previousDebt?: number; totalPayable: number; paidAmount: number; debtAfter: number }) {
+  const lines = [`Hóa đơn ${o.code ?? ''}${o.checkedOutAt ? ` ngày ${new Date(o.checkedOutAt).toLocaleDateString('vi-VN')}` : ''}`]
+  if (o.customerName) lines.push(`Khách hàng: ${o.customerName}`)
+  lines.push(`Tiền hàng: ${money(o.itemsTotal)}`)
+  if (Number(o.shippingFee)) lines.push(`Phí vận chuyển: ${money(o.shippingFee)}`)
+  if (Number(o.previousDebt)) lines.push(`Nợ cũ: ${money(o.previousDebt)}`)
+  lines.push(`Tổng thanh toán: ${money(o.totalPayable)}`, `Đã trả: ${money(o.paidAmount)}`)
+  if (Number(o.debtAfter) > 0) lines.push(`Còn nợ: ${money(o.debtAfter)}`)
+  lines.push('Cảm ơn quý khách!')
+  return lines.join('\n')
+}
+
+/** Tin nhan Zalo bao cong no (kem anh bien lai neu co). */
+export function debtMessage(name: string, debt: number) {
+  const today = new Date().toLocaleDateString('vi-VN')
+  return Number(debt) > 0
+    ? `Kính gửi ${name},\nCông nợ của quý khách tính đến ngày ${today}: ${money(debt)}.\nMong quý khách thu xếp thanh toán. Cảm ơn quý khách!`
+    : `Kính gửi ${name},\nTính đến ngày ${today}, quý khách không còn nợ. Cảm ơn quý khách!`
+}
+
 export const dateOnly = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('vi-VN') : '')
 
 /** Lam tron kieu ngan hang (HALF_EVEN) nhu DecimalFormat cua Java trong app cu. */

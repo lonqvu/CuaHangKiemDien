@@ -23,8 +23,8 @@ public final class DebtReceiptData {
             Map<String, Object> r = new HashMap<>();
             r.put("ID", (int) customerId);
             r.put("CustomerName", name);
-            r.put("Address", address);
-            r.put("PhoneNumber", phone);
+            r.put("Address", address == null ? "" : address); // tranh in chu "null"
+            r.put("PhoneNumber", phone == null ? "" : phone);
             r.put("Debt", d(debt));
             r.put("OldDebt", null);
             r.put("Amount", d(p.amount()));

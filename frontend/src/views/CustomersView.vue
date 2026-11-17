@@ -3,16 +3,17 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Customer, CustomerSummary, LedgerRow, OrderRow } from '../api/types'
-import { debounce, dtShort, money, num } from '../format'
+import { debounce, debtMessage, dtShort, money, num } from '../format'
 import { usePagedList } from '../composables/usePagedList'
 import { useNarrow } from '../composables/useNarrow'
 import PageHeader from '../components/PageHeader.vue'
 import Pager from '../components/Pager.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { openPdf } from '../api/pdf'
+import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 
 // Thay Customers + ThanhToanNo cu. /customers/:id mo thang so no cua mot khach.
 const route = useRoute()
@@ -133,6 +134,8 @@ async function setDebt() {
 
 // Bien lai thanh toan cong no bang mau Jasper cu (ThanhToanNoReport.jrxml)
 function printReceipt() { openPdf(`/customers/${current.value!.id}/payment-receipt.pdf`) }
+// Gui Zalo: anh bien lai cong no (neu ky no hien tai co lan tra), khong co thi gui tin nhan bao no
+const zalo = ref(false)
 
 onMounted(list.load)
 </script>
@@ -194,6 +197,7 @@ onMounted(list.load)
           <el-button size="small" @click="openForm(current)">Sửa thông tin</el-button>
           <el-button size="small" @click="setDebt">Sửa số nợ</el-button>
           <el-button size="small" @click="printReceipt">In biên lai công nợ</el-button>
+          <el-button size="small" type="success" plain :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
         </div>
       </div>
 
@@ -253,6 +257,9 @@ onMounted(list.load)
       </div>
     </template>
   </el-drawer>
+
+  <ZaloSendDialog v-if="current" v-model="zalo" :title="`Công nợ ${current.name}`" :image-path="`/customers/${current.id}/payment-receipt.png`"
+                  :file-name="`CongNo_${current.name}.png`" :text="debtMessage(current.name, current.debt)" :phone="current.phone" />
 
   <el-dialog v-model="dialog.open" :title="dialog.id ? 'Sửa khách hàng' : 'Thêm khách hàng'" width="min(440px, 94vw)">
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="save">
