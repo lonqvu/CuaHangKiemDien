@@ -459,7 +459,7 @@ onBeforeUnmount(() => {
         <div class="f product" @keydown.enter.capture="onProductEnter">
           <label for="pick-product">Sản phẩm <kbd>F2</kbd></label>
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
-                     default-first-option :debounce="0" :loading="productLoading" placeholder="Gõ tên, không cần dấu (vd: ton 0,4)"
+                     default-first-option :debounce="0" :loading="productLoading" placeholder="Gõ tên, vd: ton 0,4"
                      :disabled="!!done" popper-class="product-popper" @change="onPickProduct">
             <el-option v-for="p in products" :key="p.id" :value="p.id" :label="p.name">
               <div class="opt">
@@ -790,6 +790,9 @@ onBeforeUnmount(() => {
 .f { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 0; }
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
 .f :deep(.el-select) { width: 100%; }
+/* Cung 1 chieu cao cho moi o trong form (o chon san pham mac dinh 32px, o so 36px -> lech hang, nhan lech 4px) */
+.entry :deep(.el-select__wrapper) { min-height: 36px; }
+.entry .add { height: 36px; }
 .segs { grid-column: 1 / -1; }
 .price-note { margin-left: 6px; padding: 0 6px; border: 1px solid #FCD34D; border-radius: 10px; background: #FFFBEB; color: #92400E;
   font-size: 11px; font-weight: 500; cursor: pointer; line-height: 18px; }
@@ -816,7 +819,7 @@ onBeforeUnmount(() => {
 .segs-list li span { flex: 1; }
 :deep(.group-row) td { background: #F8FAFC; }
 :deep(.seg-row) td { font-size: 13px; }
-.calc { grid-column: 1 / -3; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm) var(--space-md); font-size: 14px; padding-top: var(--space-sm); }
+.calc { grid-column: 1 / -3; align-self: center; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm) var(--space-md); font-size: 14px; }
 .calc b { font-size: 16px; }
 .calc .small { font-size: 12px; }
 .calc .sep { width: 1px; height: 14px; background: var(--steel-200); margin: 0 var(--space-sm); }
