@@ -124,6 +124,9 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   background: var(--surface);
   border: 1px solid var(--steel-200);
   border-radius: var(--radius-lg);
+  /* cat noi dung theo goc bo: nen tieu de bang / dong hover (goc vuong) khong de len vien o 4 goc.
+     clip (khong phai hidden) -> khong tao vung cuon, sticky va popup (teleport ra body) van binh thuong */
+  overflow: clip;
 }
 .panel-pad { padding: var(--space-xl); }
 
