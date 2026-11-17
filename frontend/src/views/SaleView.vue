@@ -13,8 +13,10 @@ import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 import { useRemotePick } from '../composables/useRemotePick'
+import { useNarrow } from '../composables/useNarrow'
 
 const auth = useAuth()
+const narrow = useNarrow() // dien thoai: dong hang dang the (ten, SL x tam, thanh tien), khong cat cot
 const route = useRoute()
 const router = useRouter()
 
@@ -101,10 +103,17 @@ watch(() => customer.value?.id, () => searchProducts(productQuery.value))
 // Chon xong (Enter chon luon ket qua dau) -> nhay sang So luong, boi den san de go de
 async function onPickProduct() {
   if (!line.productId) return
-  line.unitPrice = Number(picked.value?.price ?? 0)
+  // Mat hang da co trong hoa don nay: lay gia cua dong gan nhat (giong khi giu san pham nhap doan tiep) -
+  // tim lai hay giu san pham deu ra cung 1 gia; khong co thi lay gia niem yet
+  const last = [...(order.value?.items ?? [])].reverse().find((i) => i.productId === line.productId)
+  line.unitPrice = Number(last?.unitPrice ?? picked.value?.price ?? 0)
+  justAdded = false
   await nextTick()
   focusEntry()
 }
+// Don gia dang khac gia niem yet (da sua o dong truoc / o nay) -> ghi chu canh o Don gia, bam de ve gia niem yet
+const listPrice = computed(() => (picked.value ? Number(picked.value.price) : null))
+const priceEdited = computed(() => listPrice.value != null && !!line.productId && Number(line.unitPrice) !== listPrice.value)
 // hang ban theo met (ton, up noc, mang...): con tro vao o "Nhieu doan"; con lai: o So luong
 const isSheet = computed(() => (picked.value?.unit ?? '').trim().toLowerCase() === 'm')
 function focusEntry() {
@@ -126,7 +135,8 @@ const segPreview = computed(() => {
 })
 async function addSegments() {
   if (!order.value || busy.value || !line.productId) return
-  if (!segText.value.trim()) return qtyField.value?.focus() // de trong + Enter: nhap tung dong
+  // de trong + Enter: sang nhap tung dong (ke ca ngay sau khi them - chi chuyen o, khong canh bao gi)
+  if (!segText.value.trim()) return qtyField.value?.focus()
   if (segParsed.value.error) return ElMessage.warning(segParsed.value.error)
   if (!(line.unitPrice > 0)) {
     const ok = await ElMessageBox.confirm(`Đơn giá đang là 0 ₫, các đoạn này sẽ thành 0 ₫. Vẫn thêm?`, 'Đơn giá 0 ₫', {
@@ -187,11 +197,17 @@ const lineProblem = computed(() => {
   return ''
 })
 
+// Vua them dong xong ma bam Enter nua (o trong): bo qua lang le, khong hien canh bao. Go gi vao o nhap thi het.
+let justAdded = false
+function onEntryOut() { justAdded = false }
+watch(() => [line.quantity, line.sheets, line.factor, line.unitPrice, segText.value], () => { if (!busy.value) justAdded = false })
+
 async function addItem() {
   if (!order.value || busy.value) return // chan bam Enter 2 lan khi dang gui
   if (!line.productId) return ElMessage.warning('Chọn sản phẩm trước')
   if (!(line.quantity > 0)) {
     qtyField.value?.focus()
+    if (justAdded) { justAdded = false; return }
     return ElMessage.warning('Nhập số lượng lớn hơn 0')
   }
   if (lineProblem.value) return ElMessage.warning(lineProblem.value)
@@ -209,6 +225,7 @@ async function addItem() {
     Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
     await nextTick()
     qtyField.value?.focus()
+    justAdded = true // sau focus: roi khung nhap (bam xoa, sang o khac...) thi het
   } finally {
     busy.value = false
   }
@@ -270,13 +287,24 @@ async function removeItem(i: OrderItem) {
 // Cum co tong so tam / tong met / tong tien, mo ra de sua / xoa tung doan. Mat hang 1 dong thi hien nhu cu.
 const segLabel = (i: OrderItem) => (i.sheets ? `${plain(i.quantity).replace('.', ',')}×${i.sheets}` : plain(i.quantity).replace('.', ','))
 const tableRows = computed(() => groupItems(order.value?.items ?? []).map((g, n) => g.items.length === 1
-  ? { ...g.first, rowKey: `i${g.first.id}`, no: n + 1, isGroup: false }
+  ? { ...g.first, rowKey: `i${g.first.id}`, no: n + 1, isGroup: false as const }
   : {
-      rowKey: `g${g.key}`, no: n + 1, isGroup: true, productName: g.first.productName, unit: g.first.unit, unitPrice: g.first.unitPrice,
+      rowKey: `g${g.key}`, no: n + 1, isGroup: true as const, productName: g.first.productName, unit: g.first.unit, unitPrice: g.first.unitPrice,
       count: g.items.length, sheets: g.sheets, totalQuantity: g.totalQuantity, lineTotal: g.lineTotal, items: g.items,
       segs: g.items.map(segLabel).join(' + '),
       children: g.items.map((it, k) => ({ ...it, rowKey: `i${it.id}`, no: null, isGroup: false, seg: k + 1 })),
     }))
+
+// the tren dien thoai: cum nao dang mo
+const openGroups = ref(new Set<string>())
+function toggleGroup(key: string) {
+  const s = new Set(openGroups.value)
+  if (s.has(key)) s.delete(key)
+  else s.add(key)
+  openGroups.value = s
+}
+const qtyText = (i: { quantity: number | string; sheets: number; factor: number | string }) =>
+  i.sheets ? `${qty(i.quantity)} × ${i.sheets} tấm × ${qty(i.factor)}` : qty(i.quantity)
 
 const rowClass = ({ row }: { row: { isGroup?: boolean; seg?: number } }) => (row.isGroup ? 'group-row' : row.seg ? 'seg-row' : '')
 
@@ -427,7 +455,7 @@ onBeforeUnmount(() => {
         <el-button :icon="DocumentAdd" @click="newInvoice">Hóa đơn mới</el-button>
       </header>
 
-      <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="addItem" @keydown.esc="clearLine">
+      <form class="entry panel" :class="{ disabled: !!done }" @submit.prevent="addItem" @keydown.esc="clearLine" @focusout="onEntryOut">
         <div class="f product" @keydown.enter.capture="onProductEnter">
           <label for="pick-product">Sản phẩm <kbd>F2</kbd></label>
           <el-select id="pick-product" ref="productSelect" v-model="line.productId" filterable remote :remote-method="searchProducts"
@@ -487,7 +515,11 @@ onBeforeUnmount(() => {
           <NumberField id="k" v-model="line.factor" kind="decimal" :step="0.01" :precision="4" :disabled="!!done" />
         </div>
         <div class="f">
-          <label for="p">Đơn giá</label>
+          <label for="p">Đơn giá
+            <!-- tabindex -1: Tab tu He so phai vao thang o Don gia, khong dung o nut nay (Enter se ve gia niem yet) -->
+            <button v-if="priceEdited && !done" type="button" tabindex="-1" class="price-note" :title="`Giá niêm yết ${num(listPrice)}. Bấm để dùng lại giá niêm yết.`"
+                    @click="line.unitPrice = listPrice!">đã sửa · niêm yết {{ num(listPrice) }}</button>
+          </label>
           <NumberField id="p" v-model="line.unitPrice" kind="integer" :step="1000" :disabled="!!done" />
         </div>
         <div class="calc" aria-live="polite">
@@ -507,7 +539,41 @@ onBeforeUnmount(() => {
       </form>
 
       <div class="panel">
-        <el-table :data="tableRows" row-key="rowKey" :tree-props="{ children: 'children' }" :indent="12"
+        <ul v-if="narrow" class="cards" aria-label="Dòng hàng">
+          <li v-if="!tableRows.length" class="muted empty-card">Chưa có mặt hàng. Chọn sản phẩm ở trên rồi bấm Thêm.</li>
+          <li v-for="row in tableRows" :key="row.rowKey" class="card" :class="{ group: row.isGroup }">
+            <div class="card-top">
+              <span class="card-name">{{ row.no }}. {{ row.productName }}<span v-if="row.unit" class="muted"> · {{ row.unit }}</span></span>
+              <b class="num line-total">{{ num(row.lineTotal) }}</b>
+            </div>
+            <div class="card-sub muted">
+              <template v-if="row.isGroup">{{ row.count }} đoạn: {{ row.segs }} = <b class="num">{{ qty(row.totalQuantity) }}</b><template v-if="row.sheets"> · {{ row.sheets }} tấm</template></template>
+              <template v-else>{{ qtyText(row) }}<template v-if="row.sheets"> = <b class="num">{{ qty(row.totalQuantity) }}</b></template></template>
+              × {{ num(row.unitPrice) }}
+            </div>
+            <div v-if="!done" class="card-actions">
+              <template v-if="row.isGroup">
+                <el-button size="small" text @click="toggleGroup(row.rowKey)">{{ openGroups.has(row.rowKey) ? 'Thu gọn' : `Sửa từng đoạn (${row.count})` }}</el-button>
+                <el-button size="small" text type="danger" :icon="Delete" :aria-label="`Xóa cả ${row.count} đoạn ${row.productName}`" @click="removeGroup(row)">Xóa cụm</el-button>
+              </template>
+              <div v-else class="row-actions" :data-item="row.id">
+                <el-button size="small" text :icon="Edit" :aria-label="`Sửa ${row.productName}`" @click="openEdit(row)">Sửa</el-button>
+                <el-button size="small" text type="danger" :icon="Delete" :aria-label="`Xóa ${row.productName}`" @click="removeItem(row)">Xóa</el-button>
+              </div>
+            </div>
+            <ul v-if="row.isGroup && openGroups.has(row.rowKey)" class="segs-list">
+              <li v-for="c in row.children" :key="c.rowKey">
+                <span>Đoạn {{ c.seg }}: {{ qtyText(c) }}</span>
+                <b class="num line-total">{{ num(c.lineTotal) }}</b>
+                <div v-if="!done" class="row-actions" :data-item="c.id">
+                  <el-button size="small" text :icon="Edit" :aria-label="`Sửa ${c.productName} đoạn ${c.seg}`" @click="openEdit(c)" />
+                  <el-button size="small" text type="danger" :icon="Delete" :aria-label="`Xóa ${c.productName} đoạn ${c.seg}`" @click="removeItem(c)" />
+                </div>
+              </li>
+            </ul>
+          </li>
+        </ul>
+        <el-table v-else :data="tableRows" row-key="rowKey" :tree-props="{ children: 'children' }" :indent="12"
                   empty-text="Chưa có mặt hàng. Chọn sản phẩm ở trên rồi bấm Thêm (hoặc Enter)." style="width: 100%" :row-class-name="rowClass">
           <el-table-column label="Mặt hàng" min-width="160">
             <template #default="{ row }">
@@ -725,6 +791,9 @@ onBeforeUnmount(() => {
 .f label, .lbl { font-size: 13px; font-weight: 500; color: #334155; }
 .f :deep(.el-select) { width: 100%; }
 .segs { grid-column: 1 / -1; }
+.price-note { margin-left: 6px; padding: 0 6px; border: 1px solid #FCD34D; border-radius: 10px; background: #FFFBEB; color: #92400E;
+  font-size: 11px; font-weight: 500; cursor: pointer; line-height: 18px; }
+.price-note:hover { background: #FEF3C7; }
 .segs-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
 .segs-row .el-input { flex: 0 1 320px; }
 .segs-preview { font-size: 14px; }
@@ -733,6 +802,18 @@ onBeforeUnmount(() => {
 .one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .segs-sum { font-size: 12px; }
 .no { font-variant-numeric: tabular-nums; }
+.cards { list-style: none; margin: 0; padding: 0; }
+.card { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--steel-100); }
+.card.group { background: #F8FAFC; }
+.card-top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-md); }
+.card-name { min-width: 0; font-weight: 500; }
+.card-sub { font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.card-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: 2px; }
+.card-actions .el-button + .el-button { margin-left: 0; }
+.empty-card { padding: var(--space-lg); text-align: center; }
+.segs-list { list-style: none; margin: var(--space-sm) 0 0; padding: 0 0 0 var(--space-md); border-left: 2px solid var(--steel-200); }
+.segs-list li { display: flex; align-items: center; gap: var(--space-sm); font-size: 13px; }
+.segs-list li span { flex: 1; }
 :deep(.group-row) td { background: #F8FAFC; }
 :deep(.seg-row) td { font-size: 13px; }
 .calc { grid-column: 1 / -3; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm) var(--space-md); font-size: 14px; padding-top: var(--space-sm); }

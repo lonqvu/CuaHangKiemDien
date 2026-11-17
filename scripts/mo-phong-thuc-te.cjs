@@ -165,9 +165,13 @@ function queriesFor(name) {
           if (idx < 0) { sale.searchMiss++; sale.notes.push(`tim "${qq.q}" khong ra ${g.p.name}`); idx = await searchPick(g.p.name, g.p.name, () => u.press('F2')); sale.reSearch++; }
           for (let k = 0; k < idx; k++) { await u.press('ArrowDown'); sale.arrowPresses++; }
           await u.press('Enter'); await page.waitForTimeout(250);
+          // mat hang da co trong hoa don -> gia dong gan nhat cua no (ke ca gia da sua); chua co -> gia niem yet
+          const prev = [...sale.lines].reverse().find((l) => l.product === g.p.name);
+          const want = prev ? prev.price : N(g.p.price);
           const priceShown = N(await page.inputValue('#p'));
-          if (priceShown !== N(g.p.price)) check(`chon dung san pham ${g.p.name}`, false, `gia hien ${priceShown}`);
-          curPrice = N(g.p.price);
+          if (priceShown !== want) check(`chon dung san pham ${g.p.name} (gia ${prev ? 'dong truoc' : 'niem yet'})`, false, `gia hien ${priceShown}, mong doi ${want}`);
+          if (prev && prev.price !== N(g.p.price)) sale.notes.push('tim lai san pham da sua gia -> van gia da sua');
+          curPrice = want;
         } else {
           sale.notes.push('giu san pham, khong tim lai');
         }

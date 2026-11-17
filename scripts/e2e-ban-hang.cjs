@@ -77,6 +77,8 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await page.keyboard.press('Enter'); await page.waitForURL(/dashboard/);
   const draftId = () => page.evaluate(() => sessionStorage.getItem('sale.draftId'));
   const draft = async () => api('GET', `/orders/${await draftId()}`);
+  // canh bao dang hien (el-message), de kiem tra Enter thua khong gay nhieu
+  const warnings = () => page.evaluate(() => [...document.querySelectorAll('.el-message--warning')].map((e) => e.innerText).filter((t) => !t.includes('không hợp lệ'))); // bo canh bao cu tu ca go sai truoc
   const firstOption = () => page.evaluate(() => [...document.querySelectorAll('.el-select-dropdown__item .opt-name')].filter((e) => e.offsetParent)[0]?.innerText.split(' · ')[0] ?? null);
   const focused = () => page.evaluate(() => document.activeElement?.id);
   // go cau tim va CHO phan hoi /api/products cua dung cau do (khong doan thoi gian)
@@ -126,7 +128,20 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     segPrev?.replace(/\./g, '').includes(String(sum(lines.map((l) => l.lineTotal)))), segPrev);
   check('"4,7x2 4,5x2 3x1" + Enter -> 3 dong', (await draft()).items.length === 3);
   check('them xong: giu san pham, o Nhieu doan trong, con tro o lai', (await focused()) === 'segs' && (await page.inputValue('#segs')) === '' && (await page.inputValue('#p')) === '95000');
+  await page.keyboard.press('Enter'); await page.waitForTimeout(300); // lo bam Enter them lan nua
+  check('Enter o Nhieu doan trong sau khi them: sang So luong, khong canh bao, khong them dong', (await focused()) === 'q' && (await warnings()).length === 0 && (await draft()).items.length === 3, (await warnings()).join('|'));
   await pick('hop 40x80 1,4'); await addLine('6', undefined, undefined, '280.000'); lines.push(exactLine('6', 0, '0', 280000));
+  // 9. gia da sua: ghi chu canh o Don gia; tim lai cung san pham -> van gia da sua (giong giu san pham)
+  const note9 = async () => page.evaluate(() => document.querySelector('.price-note')?.innerText ?? null);
+  check('giu san pham, gia da sua 280.000 -> ghi chu "niem yet 285.000"', (await page.inputValue('#p')) === '280000' && (await note9())?.includes('285.000'), await note9());
+  await page.keyboard.press('Escape'); await pick('hop 40x80 1,4');
+  check('Esc roi tim lai cung san pham -> van gia da sua 280.000 + ghi chu', (await page.inputValue('#p')) === '280000' && (await note9())?.includes('285.000'), await page.inputValue('#p'));
+  await page.focus('#k'); await page.keyboard.press('Tab');
+  check('co ghi chu gia: Tab tu He so vao thang o Don gia (khong dung o nut ghi chu)', (await focused()) === 'p');
+  await page.click('.price-note');
+  check('bam ghi chu -> ve gia niem yet 285.000, het ghi chu', (await page.inputValue('#p')) === '285000' && (await note9()) === null);
+  check('san pham chua co trong hoa don -> gia niem yet, khong ghi chu', await (async () => { await pick('xingfa'); return (await page.inputValue('#p')) === '120000' && (await note9()) === null; })());
+  await page.keyboard.press('Escape');
   await pick('xingfa'); await addLine('2,375'); lines.push(exactLine('2.375', 0, '0', 120000));
   await pick('ton lanh 0,45'); await page.keyboard.press('Tab'); // quen tay go tung dong: Tab tu o Nhieu doan -> So luong (khong xuong bang)
   check('Tab tu o Nhieu doan -> sang So luong', (await focused()) === 'q');
@@ -196,6 +211,7 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
   await typeIn('k', '0'); await page.focus('#q'); await page.keyboard.press('Enter'); await page.waitForTimeout(450);
   await page.keyboard.press('Enter'); await page.waitForTimeout(450); // bam Enter lan 2 ngay sau khi them
   check('Enter 2 lan khong tao dong trung (SL ve 0 sau khi them)', (await draft()).items.length === 1, `${(await draft()).items.length} dong`);
+  check('Enter thua ngay sau khi them: khong hien canh bao "Nhap so luong"', (await warnings()).length === 0, (await warnings()).join('|'));
   await typeIn('q', '2'); await typeIn('p', '0'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
   check('don gia 0 -> hoi xac nhan', await page.isVisible('.el-message-box'));
   await page.click('.el-message-box >> text=Sửa đơn giá'); await page.waitForTimeout(300);
@@ -429,6 +445,35 @@ const sum = (a) => a.reduce((x, y) => x + y, 0);
     && rc.lines[1].productName === 'Hộp sắt 40x80 dày 1,4' && Number(rc.lines[1].inputQty) === 20 && Number(rc.lines[1].inputPrice) === 250000,
     JSON.stringify(rc?.lines?.map((l) => [l.productName, l.inputQty, l.inputPrice])));
   check(`phieu nhap 2 dong: ${keys13} phim, 0 mui ten, 0 lan bam chuot khi nhap dong (truoc: 59 phim + 10 lan bam)`, keys13 === 57, String(keys13));
+
+  // ===== 14. Dien thoai 390px: dong hang dang the, khong cat cot don gia / thanh tien =====
+  {
+    const ph = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
+    ph.on('pageerror', (e) => check('khong co loi JS (dien thoai)', false, e.message));
+    await ph.goto(UI + '/login');
+    await ph.fill('input[autocomplete=username]', 'admin'); await ph.fill('input[type=password]', 'admin123');
+    await ph.click('button[type=submit]'); await ph.waitForURL(/dashboard/);
+    const o14 = await api('POST', '/orders');
+    await api('POST', `/orders/${o14.id}/items/batch`, [[4.7, 2], [4.5, 2], [3, 1]].map(([q, sh]) => ({ productId: P['Tôn lạnh 0,4 ly'].id, quantity: q, sheets: sh, factor: 1.08, unitPrice: 95000 })));
+    const full = await api('POST', `/orders/${o14.id}/items`, { productId: P['Hộp sắt 40x80 dày 1,4'].id, quantity: 6, sheets: 0, factor: 0, unitPrice: 280000 });
+    await ph.goto(UI + '/sale?draft=' + o14.id); await ph.waitForSelector('.cards .card'); await ph.waitForTimeout(400);
+    const v = await ph.evaluate(() => ({
+      overflowX: document.documentElement.scrollWidth - innerWidth,
+      table: !!document.querySelector('.panel .el-table'),
+      cards: [...document.querySelectorAll('.cards > .card')].map((c) => ({ text: c.innerText, total: c.querySelector('.card-top .line-total').innerText.replace(/\./g, ''), inView: c.getBoundingClientRect().right <= innerWidth })),
+    }));
+    const tonSum14 = sum(full.items.slice(0, 3).map((i) => Number(i.lineTotal)));
+    check('dien thoai: 2 the (cum ton + hop sat), khong bang, khong tran ngang', v.cards.length === 2 && !v.table && v.overflowX <= 0, JSON.stringify({ n: v.cards.length, table: v.table, overflowX: v.overflowX }));
+    check('dien thoai: the hien du thanh tien + don gia, nam trong man', Number(v.cards[0].total) === tonSum14 && Number(v.cards[1].total) === 1680000
+      && v.cards[0].text.includes('95.000') && v.cards[1].text.includes('280.000') && v.cards.every((c) => c.inView), v.cards.map((c) => c.text.replace(/\n/g, ' ')).join(' || '));
+    await ph.click('.card.group >> text=Sửa từng đoạn'); await ph.waitForTimeout(200);
+    const segs14 = await ph.$$eval('.segs-list li', (li) => li.map((x) => x.innerText.replace(/\n/g, ' ')));
+    check('dien thoai: mo cum -> 3 doan, sua / xoa tung doan', segs14.length === 3 && segs14[0].includes('4,7 × 2 tấm'), segs14.join(' | '));
+    await ph.click('.segs-list li:nth-child(3) button[aria-label^="Xóa"]'); await ph.click('.el-message-box__btns .el-button--primary'); await ph.waitForTimeout(500);
+    check('dien thoai: xoa 1 doan trong cum -> con 3 dong', (await api('GET', `/orders/${o14.id}`)).items.length === 3);
+    if (process.env.SHOT_DIR) await ph.screenshot({ path: process.env.SHOT_DIR + '/sale-phone-cards.png', fullPage: true });
+    await ph.context().close();
+  }
 
   await browser.close();
   const failed = results.filter((r) => !r.ok);
