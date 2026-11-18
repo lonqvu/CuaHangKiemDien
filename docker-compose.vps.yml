@@ -53,6 +53,8 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:?}
+      # trong .env de trong = cho moi IP (van phai dang nhap); xem docs/trien-khai-vps.md muc "Gioi han thiet bi"
+      ALLOWED_IPS: ${ALLOWED_IPS:-0.0.0.0/0 ::/0}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
