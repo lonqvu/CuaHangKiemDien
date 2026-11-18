@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import http from '../api/http'
 import PageHeader from '../components/PageHeader.vue'
@@ -24,13 +24,28 @@ const rules: FormRules = {
   }],
 }
 
+// Nghi lo mat khau / mat dien thoai: cat moi phien dang nhap o may khac (ke ca may "khong hoi ma 2 lop")
+const loggingOut = ref(false)
+async function logoutOthers() {
+  await ElMessageBox.confirm('Đăng xuất tài khoản này trên mọi máy tính, điện thoại khác? Máy đang dùng vẫn giữ đăng nhập. Máy khác phải đăng nhập lại (và nhập mã 2 lớp nếu đã bật).',
+    'Đăng xuất mọi thiết bị khác', { confirmButtonText: 'Đăng xuất máy khác', cancelButtonText: 'Không', type: 'warning' })
+  loggingOut.value = true
+  try {
+    auth.replaceToken((await http.post('/auth/logout-others')).data.token)
+    ElMessage.success('Đã đăng xuất mọi thiết bị khác')
+  } finally {
+    loggingOut.value = false
+  }
+}
+
 async function save() {
   error.value = ''
   if (!(await formRef.value?.validate().catch(() => false))) return
   saving.value = true
   try {
-    await http.post('/auth/change-password', { username: form.username, oldPassword: form.oldPassword, newPassword: form.newPassword, otp: form.otp || undefined })
-    ElMessage.success('Đổi mật khẩu thành công')
+    const { data } = await http.post('/auth/change-password', { username: form.username, oldPassword: form.oldPassword, newPassword: form.newPassword, otp: form.otp || undefined })
+    auth.replaceToken(data?.token) // may nay giu dang nhap; cac may khac bi dang xuat
+    ElMessage.success(standalone.value ? 'Đổi mật khẩu thành công' : 'Đổi mật khẩu thành công. Các máy khác đang đăng nhập tài khoản này đã bị đăng xuất.')
     form.oldPassword = form.newPassword = form.confirm = form.otp = ''
   } catch (e: any) {
     error.value = e?.response?.data?.message || 'Không đổi được mật khẩu'
@@ -66,10 +81,18 @@ async function save() {
       </el-form>
     </div>
     <TwoFactorPanel v-if="!standalone && auth.isAdmin" />
+    <section v-if="!standalone" class="panel panel-pad sessions" aria-labelledby="ss-title">
+      <h2 id="ss-title">Phiên đăng nhập</h2>
+      <p class="muted">Mất điện thoại hoặc nghi người khác biết mật khẩu: đăng xuất tài khoản này trên mọi máy khác. Đổi mật khẩu cũng tự làm việc này.</p>
+      <el-button :loading="loggingOut" @click="logoutOthers">Đăng xuất mọi thiết bị khác</el-button>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .wrap { max-width: 480px; margin: 48px auto; padding: 0 16px; }
 .back { margin-left: 16px; color: var(--steel-800); font-size: 14px; }
+.sessions { max-width: 440px; margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); align-items: flex-start; }
+.sessions h2 { font-size: 17px; margin: 0; }
+.sessions p { margin: 0; font-size: 14px; }
 </style>

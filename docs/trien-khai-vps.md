@@ -72,6 +72,15 @@ Bảo mật khi mở ra Internet:
 - Màn đổi mật khẩu cũng dùng chung giới hạn này.
 - Kẻ xấu ở máy khác **không** khóa được tài khoản của bạn.
 
+### Ghi nhớ đăng nhập, đăng xuất máy khác
+
+- **Ghi nhớ đăng nhập trên máy này (7 ngày):** tích ở màn đăng nhập thì 7 ngày không phải đăng nhập lại; lần sau tên đăng nhập được điền sẵn
+  (không bao giờ lưu mật khẩu). Không tích: phiên 8 giờ, không nhớ tên. Máy dùng chung thì **đừng tích**.
+- **Đổi mật khẩu** thì mọi máy khác đang đăng nhập tài khoản đó **tự bị đăng xuất**, máy đang đổi vẫn giữ đăng nhập.
+  Quản trị đặt lại mật khẩu hoặc tắt 2 lớp giúp cũng đăng xuất mọi máy của người đó.
+- **Mất điện thoại / nghi lộ mật khẩu:** **Đổi mật khẩu** → **Phiên đăng nhập** → **Đăng xuất mọi thiết bị khác**.
+- Đổi số ngày (mặc định 7): trong `.env` thêm `JWT_REMEMBER_DAYS=…` (ghi nhớ đăng nhập), `TRUST_DEVICE_DAYS=…` (không hỏi mã 2 lớp).
+
 ### Xác thực 2 lớp cho tài khoản quản trị (nên bật)
 
 Đăng nhập cần thêm **mã 6 số** từ ứng dụng trên điện thoại, nên lộ mật khẩu thì người khác vẫn không vào được.
@@ -82,7 +91,9 @@ Tài khoản quản trị chưa bật sẽ thấy dòng nhắc ở đầu trang.
 3. Trong ứng dụng: **+** → **Quét mã QR** → quét mã trên màn hình → nhập mã 6 số đang hiện → **Xác nhận, bật**.
 4. Màn hình hiện **8 mã dự phòng**: tải về hoặc in ra, cất chỗ an toàn. Mất điện thoại thì dùng 1 mã thay cho mã 6 số (mỗi mã 1 lần).
 
-Từ lần sau, đăng nhập = mật khẩu + mã 6 số đang hiện trên ứng dụng.
+Từ lần sau, đăng nhập = mật khẩu + mã 6 số đang hiện trên ứng dụng. Ở bước nhập mã có ô **"Không hỏi mã trên máy này 7 ngày"**:
+tích trên máy riêng của mình (điện thoại, máy ở nhà) thì 7 ngày không phải nhập mã trên máy đó; máy khác vẫn bị hỏi.
+"Đăng xuất mọi thiết bị khác", đổi mật khẩu, hoặc cài lại 2 lớp đều làm các máy đã tin cậy phải nhập mã lại.
 
 - **Đổi điện thoại / mất điện thoại:** đăng nhập bằng 1 mã dự phòng, tắt rồi bật lại 2 lớp với điện thoại mới.
   Hết mã dự phòng thì nhờ quản trị khác vào **Tài khoản** → **Tắt 2 lớp**.

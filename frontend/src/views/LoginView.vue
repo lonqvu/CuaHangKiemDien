@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
-import { useAuth } from '../stores/auth'
+import { rememberedUsername, useAuth } from '../stores/auth'
 
 const auth = useAuth()
 const router = useRouter()
 const formRef = ref<FormInstance>()
-const form = reactive({ username: '', password: '', otp: '' })
+const saved = rememberedUsername()
+// remember: phien 7 ngay + nho ten; trust: khong hoi ma 2 lop tren may nay 7 ngay
+const form = reactive({ username: saved, password: '', otp: '', remember: !!saved, trust: !!saved })
+const passwordInput = ref()
+onMounted(() => { if (saved) passwordInput.value?.focus() }) // da nho ten -> go mat khau luon
 // buoc 2: tai khoan bat xac thuc 2 lop -> hoi ma 6 so tu app (hoac ma du phong)
 const needOtp = ref(false)
 const otpInput = ref()
@@ -23,7 +27,8 @@ async function submit() {
   if (!(await formRef.value?.validate().catch(() => false))) return
   loading.value = true
   try {
-    const r = await auth.login(form.username, form.password, needOtp.value ? form.otp : undefined)
+    const r = await auth.login(form.username, form.password, needOtp.value ? form.otp : undefined,
+      { remember: form.remember, trustDevice: needOtp.value && form.trust })
     if (r.otpRequired) {
       needOtp.value = true
       await nextTick()
@@ -57,16 +62,18 @@ async function submit() {
         <h1>Đăng nhập</h1>
         <p class="muted">Dùng tài khoản do quản trị cấp.</p>
         <el-form-item label="Tên đăng nhập" prop="username">
-          <el-input v-model="form.username" :disabled="needOtp" size="large" autocomplete="username" autofocus />
+          <el-input v-model="form.username" :disabled="needOtp" size="large" autocomplete="username" :autofocus="!saved" />
         </el-form-item>
         <el-form-item label="Mật khẩu" prop="password">
-          <el-input v-model="form.password" :disabled="needOtp" size="large" type="password" show-password autocomplete="current-password" />
+          <el-input ref="passwordInput" v-model="form.password" :disabled="needOtp" size="large" type="password" show-password autocomplete="current-password" />
         </el-form-item>
         <el-form-item v-if="needOtp" label="Mã xác thực (6 số)">
           <el-input ref="otpInput" v-model="form.otp" size="large" inputmode="numeric" autocomplete="one-time-code" maxlength="11"
                     placeholder="Mở ứng dụng xác thực trên điện thoại" />
           <div class="muted small otp-hint">Tài khoản đã bật xác thực 2 lớp. Mất điện thoại thì nhập một mã dự phòng (dạng abcd-efgh).</div>
+          <el-checkbox v-model="form.trust" class="opt">Không hỏi mã trên máy này 7 ngày</el-checkbox>
         </el-form-item>
+        <el-checkbox v-if="!needOtp" v-model="form.remember" class="opt remember">Ghi nhớ đăng nhập trên máy này (7 ngày)</el-checkbox>
         <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon class="err" />
         <el-button type="primary" size="large" native-type="submit" :loading="loading" class="submit">Đăng nhập</el-button>
         <router-link to="/change-password" class="change">Đổi mật khẩu</router-link>
@@ -92,6 +99,8 @@ h1 { font-size: 26px; }
 .form > p { margin: 4px 0 24px; }
 .err { margin-bottom: 16px; }
 .otp-hint { line-height: 1.4; margin-top: 4px; font-size: 12px; }
+.opt { margin-top: 6px; }
+.remember { margin: -4px 0 16px; display: flex; }
 .submit { width: 100%; }
 .change { display: inline-block; margin-top: 16px; color: var(--steel-800); font-size: 14px; }
 @media (max-width: 800px) {

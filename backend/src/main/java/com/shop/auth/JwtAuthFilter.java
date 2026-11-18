@@ -28,8 +28,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (h != null && h.startsWith("Bearer ")) {
             try {
                 Claims c = jwt.parse(h.substring(7));
-                // Doc lai tai khoan moi request: khoa tai khoan / doi vai tro co hieu luc ngay, khong doi token het han (8 gio)
-                users.findByUsername(c.getSubject()).filter(AppUser::isActive).ifPresent(u -> {
+                // Doc lai tai khoan moi request: khoa tai khoan / doi vai tro co hieu luc ngay, khong doi token het han.
+                // tv (version) lech = da doi mat khau / dang xuat moi thiet bi -> token cu bo di (401).
+                // Token "tin cay may" (typ=trust) khong dung de dang nhap.
+                if (JwtService.isTrust(c)) throw new IllegalArgumentException("trust token");
+                users.findByUsername(c.getSubject()).filter(AppUser::isActive)
+                        .filter(u -> JwtService.versionOf(c) == u.getTokenVersion()).ifPresent(u -> {
                     var auth = new UsernamePasswordAuthenticationToken(
                             u.getUsername(), null, List.of(new SimpleGrantedAuthority("ROLE_" + u.getRole())));
                     auth.setDetails(u.getFullName());

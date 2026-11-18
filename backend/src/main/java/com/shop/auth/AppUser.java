@@ -20,6 +20,10 @@ public class AppUser {
     private String role; // ADMIN | STAFF
     private boolean active = true;
 
+    /** Tang len = moi phien dang nhap cu (moi may) het hieu luc (V7). */
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
     // ----- xac thuc 2 lop (V6) -----
     /** Khoa TOTP da ma hoa (SecretBox); co khi dang cai dat (chua bat) hoac da bat. */
     @Column(name = "totp_secret")

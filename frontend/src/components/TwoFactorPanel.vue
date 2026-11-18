@@ -136,6 +136,7 @@ function downloadCodes() {
 <style scoped>
 .tf { max-width: 440px; display: flex; flex-direction: column; gap: var(--space-md); margin-top: var(--space-lg); }
 .tf-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+.tf > .el-button { align-self: flex-start; } /* nut rong vua chu, giong nut o khung Phien dang nhap */
 .tf-head h2 { font-size: 17px; margin: 0; }
 .tf > p { margin: 0; font-size: 14px; }
 .tf-form { display: flex; flex-direction: column; gap: var(--space-sm); }

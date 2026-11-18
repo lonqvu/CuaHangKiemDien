@@ -20,10 +20,14 @@ public class UserController {
     private final PasswordEncoder encoder;
     private final LoginThrottle throttle;
     private final TwoFactorService twoFactor;
+    private final JwtService jwt;
 
-    public UserController(AppUserRepository users, PasswordEncoder encoder, LoginThrottle throttle, TwoFactorService twoFactor) {
-        this.users = users; this.encoder = encoder; this.throttle = throttle; this.twoFactor = twoFactor;
+    public UserController(AppUserRepository users, PasswordEncoder encoder, LoginThrottle throttle, TwoFactorService twoFactor, JwtService jwt) {
+        this.users = users; this.encoder = encoder; this.throttle = throttle; this.twoFactor = twoFactor; this.jwt = jwt;
     }
+
+    /** Moi phien dang nhap cu cua tai khoan (moi may) het hieu luc, ke ca "tin cay may" cua 2 lop. */
+    private static void revokeSessions(AppUser u) { u.setTokenVersion(u.getTokenVersion() + 1); }
 
     public record UserDto(Long id, String username, String fullName, String role, boolean active, boolean twoFactor) {}
     public record CreateUser(@NotBlank @Size(max = 50) String username, @NotBlank String fullName,
@@ -78,13 +82,16 @@ public class UserController {
     public UserDto resetTwoFactor(@PathVariable Long id) {
         AppUser u = find(id);
         twoFactor.disable(u);
+        revokeSessions(u); // mat dien thoai: may dang dang nhap san tren dien thoai do cung bi dang xuat
         return dto(u);
     }
 
     @PostMapping("/users/{id}/reset-password")
     @Transactional
     public void resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPassword r) {
-        find(id).setPasswordHash(encoder.encode(r.password()));
+        AppUser u = find(id);
+        u.setPasswordHash(encoder.encode(r.password()));
+        revokeSessions(u); // mat khau cu (co the da lo) khong con phien nao dung duoc
     }
 
     /**
@@ -93,7 +100,7 @@ public class UserController {
      */
     @PostMapping("/auth/change-password")
     @Transactional
-    public void changePassword(@Valid @RequestBody ChangePassword r, Authentication auth, jakarta.servlet.http.HttpServletRequest req) {
+    public AuthController.NewToken changePassword(@Valid @RequestBody ChangePassword r, Authentication auth, jakarta.servlet.http.HttpServletRequest req) {
         String username = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())
                 ? auth.getName() : r.username();
         if (username == null || username.isBlank()) throw ApiException.badRequest("Chưa nhập tên đăng nhập");
@@ -113,5 +120,9 @@ public class UserController {
         }
         throttle.succeeded(ip, username);
         u.setPasswordHash(encoder.encode(r.newPassword()));
+        // Doi mat khau -> dang xuat moi may khac; may dang doi (neu dang dang nhap) nhan token moi de khong bi dang xuat
+        revokeSessions(u);
+        String h = req.getHeader("Authorization");
+        return new AuthController.NewToken(loggedIn ? jwt.generate(u, h != null && jwt.remembered(h.substring(7))) : null);
     }
 }
