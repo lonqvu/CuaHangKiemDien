@@ -75,7 +75,7 @@ function logout() {
     <a href="#main" class="skip-link" @click.prevent="focusMain">Bỏ qua menu, tới nội dung</a>
     <aside class="sidebar" tabindex="-1" :class="{ open: drawer }" aria-label="Điều hướng chính">
       <div class="brand">
-        <span class="mark" aria-hidden="true">NS</span>
+        <img class="mark" src="/logo.png" alt="" aria-hidden="true" />
         <div><b>Nhôm Sắt Kiểm Diên</b><small>Quản lý bán hàng</small></div>
       </div>
       <nav>
@@ -126,11 +126,8 @@ function logout() {
 .brand b { display: block; font-size: 15px; color: #fff; line-height: 1.3; }
 .brand small { color: var(--steel-400); font-size: 12px; }
 /* dau logo: thanh thep cat vat */
-.mark {
-  width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; border-radius: 6px;
-  font-family: var(--font-mono); font-weight: 600; font-size: 14px; color: var(--steel-900);
-  background: linear-gradient(135deg, #E2E8EE 0 50%, #94A3B8 50% 100%);
-}
+/* logo cong ty (giong tren hoa don in), dat tren o trang vi menu nen toi */
+.mark { width: 40px; height: 40px; flex-shrink: 0; padding: 4px; border-radius: 6px; background: #fff; object-fit: contain; }
 nav { flex: 1; padding: 0 var(--space-md); }
 nav h2 { font-size: 12px; font-weight: 500; color: var(--steel-400); padding: var(--space-md) var(--space-md) var(--space-xs); }
 .nav-item {

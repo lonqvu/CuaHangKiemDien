@@ -146,7 +146,9 @@ const phoneDigits = computed(() => (props.phone ?? '').replace(/\D/g, ''))
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" :title="`Gửi Zalo: ${title}`" width="min(560px, 94vw)" @update:model-value="close">
+  <!-- append-to-body: dialog thuong dat trong khung "phieu thanh toan" (position: sticky = lop xep chong rieng);
+       khong gan ra body thi bang mat hang ben trai ve de len dialog -->
+  <el-dialog :model-value="modelValue" :title="`Gửi Zalo: ${title}`" width="min(560px, 94vw)" append-to-body @update:model-value="close">
     <div v-if="step === 'loading'" v-loading="true" class="loading" element-loading-text="Đang tạo ảnh..." />
 
     <div v-else-if="step === 'shared'" class="done">

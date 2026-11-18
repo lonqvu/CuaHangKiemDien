@@ -68,6 +68,7 @@ async function submit() {
     </section>
     <main class="form-wrap">
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="form" @submit.prevent="submit">
+        <img class="logo" src="/logo.png" alt="Nhôm Sắt Kiểm Diên" />
         <h1>Đăng nhập</h1>
         <p class="muted">Dùng tài khoản do quản trị cấp.</p>
         <el-form-item label="Tên đăng nhập" prop="username">
@@ -110,6 +111,7 @@ async function submit() {
 .form-wrap { display: grid; place-items: center; padding: 32px 24px; }
 .form { width: 100%; max-width: 360px; }
 h1 { font-size: 26px; }
+.logo { display: block; width: 64px; height: 64px; object-fit: contain; margin-bottom: 16px; }
 .form > p { margin: 4px 0 24px; }
 .err { margin-bottom: 16px; }
 .otp-hint { line-height: 1.4; margin-top: 4px; font-size: 12px; }
