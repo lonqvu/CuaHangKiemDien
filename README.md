@@ -25,6 +25,8 @@ Hoac chay tat ca: `cp .env.example .env` (doi gia tri) roi `docker compose up --
 
 > Doi mat khau admin mac dinh (`ADMIN_PASSWORD`) va `JWT_SECRET` truoc khi dua len server that.
 
+**CI/CD:** moi lan main thay doi, GitHub Actions (`.github/workflows/ci-cd.yml`) chay test (backend, frontend, IT / E2E / dang nhap / tung man tren PostgreSQL, build Docker); dat het thi tu deploy len VPS (`deploy/deploy.sh`: sao luu -> cap nhat -> kiem tra -> loi thi quay ve). Cai dat: [docs/trien-khai-vps.md](docs/trien-khai-vps.md) muc 10.
+
 **Dua len VPS (dung dien thoai moi luc, co HTTPS, tu sao luu):** `docker compose -f docker-compose.vps.yml up -d --build` - huong dan tung buoc: [docs/trien-khai-vps.md](docs/trien-khai-vps.md).
 
 ## Man hinh (doi chieu app Swing cu)

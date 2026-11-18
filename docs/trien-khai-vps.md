@@ -219,3 +219,67 @@ Máy ngoài danh sách sẽ nhận trang *"Thiết bị này không được ph�
 
 Lưu ý: điện thoại dùng **4G** và mạng nhà thường **đổi IP** (mất sóng, modem khởi động lại). Khi IP đổi mà chưa có trong
 danh sách thì máy đó bị chặn, phải xem lại IP và sửa `ALLOWED_IPS`. Cách này hợp nhất với mạng có **IP tĩnh**.
+
+## 10. Tự động deploy khi main thay đổi (GitHub Actions)
+
+Mỗi lần **main** có thay đổi, GitHub tự chạy workflow `.github/workflows/ci-cd.yml`:
+
+1. **Test:** backend, frontend, các bộ test qua giao diện trên PostgreSQL (IT, E2E, đăng nhập, từng màn), và build thử Docker image.
+2. **Đạt hết** thì GitHub SSH vào VPS và chạy `deploy/deploy.sh <commit>`:
+   **sao lưu database** → lấy đúng bản vừa test → build và chạy lại → kiểm tra app sống.
+   **Không lên được trong 3 phút thì tự quay về bản trước** (bản lỗi không được deploy).
+3. Có test lỗi thì **không deploy**. Pull request chỉ chạy test, không deploy.
+
+Xem kết quả ở tab **Actions** của repo. Test lỗi thì tải phần **Artifacts** `log-test-giao-dien` để xem chi tiết.
+Chưa cài phần dưới đây thì bước deploy tự **bỏ qua**, test vẫn chạy bình thường.
+
+### Cài đặt (làm 1 lần)
+
+**Bước 1: khóa SSH cho GitHub vào VPS.** Trên máy tính:
+
+```bash
+ssh-keygen -t ed25519 -C "github-deploy" -f cuahang_deploy -N ""
+```
+
+Thêm nội dung file `cuahang_deploy.pub` vào cuối `~/.ssh/authorized_keys` trên VPS
+(của tài khoản chạy được `docker`, vd `root`). Lấy "dấu vân tay" của VPS, để GitHub chỉ tin đúng máy này:
+
+```bash
+ssh-keyscan -p 22 <IP VPS>
+```
+
+**Bước 2: VPS đọc được repo** (repo riêng tư). Trên VPS:
+
+```bash
+ssh-keygen -t ed25519 -C "vps-doc-repo" -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub
+```
+
+Dán vào GitHub → repo → **Settings → Deploy keys → Add deploy key** (để **không** tích "Allow write access").
+Rồi chuyển repo trên VPS sang SSH:
+
+```bash
+cd /opt/cuahang && git remote set-url origin git@github.com:lonqvu/CuaHangKiemDien.git && git fetch origin main
+```
+
+**Bước 3: khai báo trên GitHub** → repo → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Giá trị |
+|---|---|
+| `VPS_HOST` | IP hoặc tên miền VPS |
+| `VPS_USER` | tài khoản SSH, vd `root` |
+| `VPS_SSH_KEY` | **toàn bộ** nội dung file `cuahang_deploy` (khóa riêng, bước 1) |
+| `VPS_KNOWN_HOSTS` | kết quả lệnh `ssh-keyscan` ở bước 1 |
+| `VPS_PORT` | (tùy chọn) cổng SSH nếu khác 22 |
+| `VPS_APP_DIR` | (tùy chọn) thư mục app nếu khác `/opt/cuahang` |
+
+Xong thì xóa file `cuahang_deploy` trên máy tính (GitHub đã giữ).
+
+**Bước 4 (tùy chọn): duyệt tay trước khi deploy.** Settings → **Environments** → `production` → **Required reviewers** → chọn bạn.
+Mỗi lần test đạt, GitHub chờ bạn bấm **Approve** rồi mới deploy.
+
+### Lưu ý
+- **Không sửa code trực tiếp trên VPS**: mỗi lần deploy, code trên VPS được đặt lại đúng như main. File `.env`, `backups/`, `deploy/rclone/` thì giữ nguyên.
+- Mỗi lần deploy giữ 10 bản sao lưu `backups/truoc-deploy-*.dump` gần nhất.
+  Bản mới đổi database (migration) mà chạy lỗi thì code tự quay về, còn dữ liệu khôi phục bằng bản sao lưu này nếu cần (mục 6).
+- Deploy tay một bản cụ thể trên main (vd quay về bản cũ): `bash deploy/deploy.sh <mã commit>`.
