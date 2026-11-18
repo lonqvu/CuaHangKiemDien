@@ -108,7 +108,8 @@ async function onPickProduct() {
   const last = [...(order.value?.items ?? [])].reverse().find((i) => i.productId === line.productId)
   line.unitPrice = Number(last?.unitPrice ?? picked.value?.price ?? 0)
   // hang ban theo m: So luong / So tam bat dau tu 0 (giong sau khi them dong) - lan nao chon cung hien nhu nhau
-  if (isSheet.value) Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
+  // hang khac (vit, son...): luon bat dau So luong 1 nhu luc moi vao man (truoc: vua them dong khac roi chon thi la 0)
+  Object.assign(line, isSheet.value ? { quantity: 0, sheets: 0, factor: 0 } : { quantity: 1, sheets: 0, factor: 0 })
   justAdded = false
   singleTouched.value = false
   await nextTick()

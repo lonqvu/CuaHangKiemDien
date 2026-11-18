@@ -82,6 +82,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Không tìm thấy đường dẫn này"));
     }
 
+    // Goi sai phuong thuc (GET vao duong chi co PUT...) / sai kieu du lieu: loi phia goi, khong phai loi may chu (truoc: 500 + log ERROR)
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<Map<String, String>> method(org.springframework.web.HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(Map.of("message", "Thao tác không được hỗ trợ ở đường dẫn này"));
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    ResponseEntity<Map<String, String>> mediaType(org.springframework.web.HttpMediaTypeNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of("message", "Dữ liệu gửi lên không đúng định dạng"));
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, String>> unexpected(Exception e) {
         log.error("Loi khong luong truoc", e);

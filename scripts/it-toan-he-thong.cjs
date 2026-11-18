@@ -49,7 +49,9 @@ const fmt = (n) => Number(n).toLocaleString('en-US'); // so tren ban in (Jasper 
 const sum = (a) => a.reduce((x, y) => x + y, 0);
 const N = Number;
 const today = new Date();
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// ngay theo gio cua hang (Viet Nam, giong backend) - may chay test o UTC thi 0h-7h sang VN van ra dung "hom nay"
+const TZ = process.env.SHOP_TZ ?? 'Asia/Ho_Chi_Minh';
+const iso = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const TODAY = iso(today), TOMORROW = iso(new Date(today.getTime() + 864e5));
 
 (async () => {

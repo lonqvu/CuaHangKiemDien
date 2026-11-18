@@ -1,5 +1,6 @@
 package com.shop.stock;
 
+import com.shop.common.Fold;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -22,10 +23,9 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
      * Danh sach ton kho: [StockBalance, Product, ten loai]. filter: all | low (duoi muc toi thieu) | negative (am kho) | out (het hang, <= 0).
      * categoryId = 0: moi loai. q: mau LIKE ha chu thuong ("" = bo qua).
      */
-    String WHERE = """
-            p.active = true
-              and (:categoryId = 0 or c.id = :categoryId)
-              and (:q = '' or lower(p.name) like :q)
+    String WHERE = " p.active = true and (:categoryId = 0 or c.id = :categoryId)"
+            + " and (:q = '' or " + Fold.L + "p.name" + Fold.R + " or " + Fold.L + "c.name" + Fold.R + ")"
+            + """
               and (:filter = 'all'
                    or (:filter = 'low' and p.minStock > 0 and b.onHand <= p.minStock)
                    or (:filter = 'negative' and b.onHand < 0)

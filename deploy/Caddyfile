@@ -1,0 +1,20 @@
+# Cong vao duy nhat cua VPS: tu xin + tu gia han chung chi HTTPS (Let's Encrypt), chuyen vao frontend (nginx).
+# DOMAIN lay tu .env, vd: banhang.nhomsatkiemdien.vn  hoac (chua co ten mien)  103.20.30.40.sslip.io
+{$DOMAIN} {
+	# Chi cho phep may co IP trong ALLOWED_IPS (.env, cach nhau dau cach, vd "113.161.5.6 14.0.0.0/8").
+	# De trong = moi IP (van can dang nhap). remote_ip = IP ket noi that, khong doc header X-Forwarded-For (khong gia duoc).
+	@ngoai_danh_sach not remote_ip {$ALLOWED_IPS}
+	respond @ngoai_danh_sach "Thiết bị này không được phép truy cập." 403
+
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy frontend:80
+}

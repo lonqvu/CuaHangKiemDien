@@ -196,3 +196,13 @@ export function groupItems<T extends { productId: number; unitPrice: number | st
   }
   return groups
 }
+
+/**
+ * Link mo thang khung chat Zalo voi so dien thoai di dong VN (zalo.me/<so>), null neu khong phai so di dong
+ * (khach le khong co so, so ban...). "0912 345 678", "+84 912 345 678", "84912345678" -> https://zalo.me/0912345678
+ */
+export function zaloChatUrl(phone: string | null | undefined): string | null {
+  let d = (phone ?? '').replace(/\D/g, '')
+  if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2)
+  return /^0[35789]\d{8}$/.test(d) ? `https://zalo.me/${d}` : null
+}

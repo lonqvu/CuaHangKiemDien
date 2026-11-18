@@ -25,6 +25,10 @@ Hoac chay tat ca: `cp .env.example .env` (doi gia tri) roi `docker compose up --
 
 > Doi mat khau admin mac dinh (`ADMIN_PASSWORD`) va `JWT_SECRET` truoc khi dua len server that.
 
+**CI/CD:** moi lan main thay doi, GitHub Actions (`.github/workflows/ci-cd.yml`) chay test (backend, frontend, IT / E2E / dang nhap / tung man tren PostgreSQL, build Docker); dat het thi tu deploy len VPS (`deploy/deploy.sh`: sao luu -> cap nhat -> kiem tra -> loi thi quay ve). Cai dat: [docs/trien-khai-vps.md](docs/trien-khai-vps.md) muc 10.
+
+**Dua len VPS (dung dien thoai moi luc, co HTTPS, tu sao luu):** `docker compose -f docker-compose.vps.yml up -d --build` - huong dan tung buoc: [docs/trien-khai-vps.md](docs/trien-khai-vps.md).
+
 ## Man hinh (doi chieu app Swing cu)
 Thiet ke theo skill `ui-ux-pro-max`, design system o `design-system/nhom-sat-kiem-dien/MASTER.md`.
 
@@ -95,6 +99,8 @@ Bat bien: `on_hand = SUM(stock_movement.qty)` (co test).
 - Bo case tinh tien dung chung: `backend/src/test/resources/line-cases.json`, sinh bang `python3 scripts/gen-line-cases.py` (ket qua tinh doc lap bang Decimal).
 - E2E man Ban hang tren backend that: `scripts/e2e-ban-hang.cjs` (xem huong dan dau file).
 - IT toan he thong (dang nhap/phan quyen, tai khoan, danh muc, khach, hoa don + ban in, loc hoa don, bao cao doi chieu doc lap, mo tung trang voi 2 vai tro): `scripts/it-toan-he-thong.cjs`. Chay moi script tren mot DB trong rieng.
+- Test dang nhap (ghi nho 7 ngay / 8 gio, nho ten, khong hoi ma 2 lop tren may tin cay, dang xuat moi thiet bi khac, doi mat khau -> may khac ra; moi may = 1 trinh duyet): `node scripts/test-dang-nhap.cjs` (DB trong).
+- Test chi tiet tung man (thao tac that tren 13 man: them / sua / xoa / loc / in / huy, doi chieu server; giao dien o 390 / 1366 / 1920px: tran ngang, o lech hang, cat chu, loi JS): `node scripts/test-tung-man.cjs` (DB trong).
 - Mo phong thuc te (du lieu ngau nhien co seed, chay qua giao dien, do so phim / click / thoi gian, doi chieu so lieu, bat bien so no + so kho): `SEED=7 SALES=40 node scripts/mo-phong-thuc-te.cjs` tren backend `SEED_DEMO=true` (DB trong). Cho du lieu mau tao xong (log `SEED_DEMO: da tao`) roi moi chay.
 
 ## In hoa don / phieu thu (JasperReports cu)

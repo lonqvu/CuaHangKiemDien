@@ -92,4 +92,14 @@ class SecurityTest {
                 .content("{\"fullName\":\"Nhân viên\",\"role\":\"STAFF\",\"active\":false}")).andExpect(status().isOk());
         mvc.perform(get("/api/products").header("Authorization", nv)).andExpect(status().isUnauthorized());
     }
+
+    /** Goi sai phuong thuc / sai kieu du lieu -> 405 / 415 (loi phia goi), khong phai 500 "may chu gap loi". */
+    @Test
+    void wrongMethodOrMediaType_is4xxNot500() throws Exception {
+        String t = loginToken();
+        mvc.perform(get("/api/products/1").header("Authorization", "Bearer " + t))
+                .andExpect(status().isMethodNotAllowed()).andExpect(jsonPath("$.message").exists());
+        mvc.perform(post("/api/categories").header("Authorization", "Bearer " + t).contentType(MediaType.TEXT_PLAIN).content("x"))
+                .andExpect(status().isUnsupportedMediaType());
+    }
 }

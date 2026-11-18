@@ -48,6 +48,7 @@ public record PageDto<T>(List<T> items, long total, int page, int size, Map<Stri
 
     /** Chuoi tim kiem -> mau LIKE da ha chu thuong; rong thi tra "" (cau truy van bo qua dieu kien). */
     public static String like(String q) {
-        return q == null || q.isBlank() ? "" : "%" + q.trim().toLowerCase() + "%";
+        // bo dau giong cot trong SQL (Fold.L/R) -> tim khong dau; ky tu % _ cua nguoi go duoc hieu la chu thuong
+        return q == null || q.isBlank() ? "" : "%" + Fold.plain(q).replace("%", "").replace("_", "") + "%";
     }
 }

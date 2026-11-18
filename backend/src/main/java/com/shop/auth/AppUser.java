@@ -19,4 +19,21 @@ public class AppUser {
     @Column(nullable = false)
     private String role; // ADMIN | STAFF
     private boolean active = true;
+
+    /** Tang len = moi phien dang nhap cu (moi may) het hieu luc (V7). */
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
+    // ----- xac thuc 2 lop (V6) -----
+    /** Khoa TOTP da ma hoa (SecretBox); co khi dang cai dat (chua bat) hoac da bat. */
+    @Column(name = "totp_secret")
+    private String totpSecret;
+    @Column(name = "totp_enabled", nullable = false)
+    private boolean totpEnabled;
+    /** Buoc 30 giay cua ma TOTP dung gan nhat (chong dung lai ma). */
+    @Column(name = "totp_last_step")
+    private Long totpLastStep;
+    /** Ban bam BCrypt cua ma du phong con lai, moi dong 1 ma. */
+    @Column(name = "recovery_codes", columnDefinition = "text")
+    private String recoveryCodes;
 }

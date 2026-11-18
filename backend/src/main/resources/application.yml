@@ -15,6 +15,10 @@ app:
   jwt:
     secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me}
     expiration-minutes: 480
+    # "Ghi nho dang nhap tren may nay": phien keo dai so ngay nay (khong tich: expiration-minutes)
+    remember-days: ${JWT_REMEMBER_DAYS:7}
+    # "Khong hoi ma 2 lop tren may nay" giu bao nhieu ngay
+    trust-device-days: ${TRUST_DEVICE_DAYS:7}
   seed-admin:
     username: ${ADMIN_USER:admin}
     password: ${ADMIN_PASSWORD:admin123}
