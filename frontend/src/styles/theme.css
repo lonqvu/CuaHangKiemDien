@@ -197,3 +197,15 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
   input, textarea, select,
   .el-input__inner, .el-textarea__inner, .el-select__input, .el-input-number .el-input__inner { font-size: 16px !important; }
 }
+
+/* Trinh duyet tu dien (autofill): Chrome to nen xanh nhat chi o phan input ben trong (hep hon khung) -> trong nhu
+   o xanh long trong o trang. Phu lai bang mau nen o nhap, giu mau chu. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--ink);
+  transition: background-color 600000s 0s;
+}
