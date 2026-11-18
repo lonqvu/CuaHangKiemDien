@@ -72,6 +72,7 @@ jobs:
           (cd frontend && npm ci)
           npm install --no-save --no-package-lock playwright@1.63.0
           npx playwright install --with-deps chromium
+          sudo apt-get install -y -qq poppler-utils # pdftotext: IT / E2E doc noi dung PDF hoa don, phieu thu
       - name: Chay frontend (vite)
         run: (cd frontend && nohup npx vite --port 5173 > ../vite.log 2>&1 &)
       - name: Chay cac bo test (moi bo 1 database trong)

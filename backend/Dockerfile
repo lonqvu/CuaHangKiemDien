@@ -1,9 +1,11 @@
+# syntax=docker/dockerfile:1
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
-RUN mvn -q -B dependency:go-offline
 COPY src ./src
-RUN mvn -q -B -DskipTests package
+# Khong dung 'mvn dependency:go-offline': no bo qua <exclusions> trong pom (itext 2.1.7.js2 cua jasperreports)
+# va doi tai tu kho http cu -> loi. Thu vien Maven giu trong cache cua Docker (BuildKit) -> build lai tren VPS van nhanh.
+RUN --mount=type=cache,target=/root/.m2 mvn -q -B -DskipTests package
 
 FROM eclipse-temurin:21-jre
 # Jasper can fontconfig de do chu khi xuat PDF
