@@ -1,8 +1,10 @@
-# Chay tren VPS (Internet, HTTPS): docker compose -f docker-compose.vps.yml up -d --build
+# Chay tren VPS: docker compose -f docker-compose.vps.yml up -d --build
 # Huong dan day du: docs/trien-khai-vps.md
 #
-#  Internet --443--> caddy (HTTPS tu dong) --> frontend (nginx + giao dien) --/api--> backend --> db
-#  Chi caddy mo cong ra ngoai (80, 443). Backend, database KHONG mo cong -> khong ai truy cap thang tu Internet.
+#  Internet --443--> Caddy cua edugame (giu cong 80/443, HTTPS cho ca nskiemdien.io.vn)
+#           --> frontend (nginx + giao dien, ten "nskiemdien-web" tren mang nskiemdien-edge) --/api--> backend --> db
+#  App nay KHONG mo cong nao ra ngoai. Mang nskiemdien-edge chi co frontend nay + web cua edugame
+#  (khong noi ca mang: 2 project deu co service "backend", noi chung se goi nham).
 #  backup: sao luu database moi ngay vao ./backups, giu 30 ban gan nhat.
 services:
   db:
@@ -41,26 +43,12 @@ services:
   frontend:
     build: ./frontend
     restart: unless-stopped
+    networks:
+      default:
+      edge:
+        aliases: [nskiemdien-web] # Caddy cua edugame: reverse_proxy nskiemdien-web:80
     depends_on:
       - backend
-
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      DOMAIN: ${DOMAIN:?}
-      # trong .env de trong = cho moi IP (van phai dang nhap); xem docs/trien-khai-vps.md muc "Gioi han thiet bi"
-      ALLOWED_IPS: ${ALLOWED_IPS:-0.0.0.0/0 ::/0}
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
 
   backup:
     image: postgres:16
@@ -123,5 +111,10 @@ services:
 
 volumes:
   dbdata:
-  caddy_data:
-  caddy_config:
+
+networks:
+  # Mang dung chung voi Caddy cua edugame. Ca 2 project deu khai bao external -> tao 1 LAN tren VPS, khong phu thuoc
+  # thu tu deploy:   docker network create nskiemdien-edge
+  edge:
+    name: nskiemdien-edge
+    external: true

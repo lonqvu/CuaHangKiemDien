@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { rememberedUsername, useAuth } from '../stores/auth'
@@ -25,6 +25,10 @@ const rules: FormRules = {
   username: [{ required: true, message: 'Nhập tên đăng nhập', trigger: 'blur' }],
   password: [{ required: true, message: 'Nhập mật khẩu', trigger: 'blur' }],
 }
+// O da co chu (go tay hoac trinh duyet tu dien) -> xoa loi "Nhap ..." cu: rule chay luc o con trong (blur / truoc khi
+// trinh duyet dien xong) va khong tu chay lai khi co gia tri -> con chu do du da nhap.
+watch(() => form.username, (v) => { if (v) formRef.value?.clearValidate('username') })
+watch(() => form.password, (v) => { if (v) formRef.value?.clearValidate('password') })
 
 async function submit() {
   error.value = ''
