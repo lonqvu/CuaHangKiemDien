@@ -12,3 +12,5 @@ frontend/dist/
 
 # python cache cua skill
 __pycache__/
+# sao luu database tren VPS (docker-compose.vps.yml)
+backups/

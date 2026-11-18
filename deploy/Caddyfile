@@ -1,0 +1,15 @@
+# Cong vao duy nhat cua VPS: tu xin + tu gia han chung chi HTTPS (Let's Encrypt), chuyen vao frontend (nginx).
+# DOMAIN lay tu .env, vd: banhang.nhomsatkiemdien.vn  hoac (chua co ten mien)  103.20.30.40.sslip.io
+{$DOMAIN} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy frontend:80
+}

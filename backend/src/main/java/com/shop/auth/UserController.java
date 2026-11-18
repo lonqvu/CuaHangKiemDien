@@ -18,9 +18,10 @@ import java.util.List;
 public class UserController {
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
+    private final LoginThrottle throttle;
 
-    public UserController(AppUserRepository users, PasswordEncoder encoder) {
-        this.users = users; this.encoder = encoder;
+    public UserController(AppUserRepository users, PasswordEncoder encoder, LoginThrottle throttle) {
+        this.users = users; this.encoder = encoder; this.throttle = throttle;
     }
 
     public record UserDto(Long id, String username, String fullName, String role, boolean active) {}
@@ -81,14 +82,19 @@ public class UserController {
      */
     @PostMapping("/auth/change-password")
     @Transactional
-    public void changePassword(@Valid @RequestBody ChangePassword r, Authentication auth) {
+    public void changePassword(@Valid @RequestBody ChangePassword r, Authentication auth, jakarta.servlet.http.HttpServletRequest req) {
         String username = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())
                 ? auth.getName() : r.username();
         if (username == null || username.isBlank()) throw ApiException.badRequest("Chưa nhập tên đăng nhập");
-        AppUser u = users.findByUsername(username.trim()).filter(AppUser::isActive)
-                .orElseThrow(() -> ApiException.badRequest("Tên đăng nhập hoặc mật khẩu hiện tại không đúng"));
-        if (!encoder.matches(r.oldPassword(), u.getPasswordHash()))
+        // doi mat khau khong can dang nhap -> cung la cho do mat khau: chung gioi han voi dang nhap
+        String ip = LoginThrottle.clientIp(req);
+        throttle.check(ip, username);
+        AppUser u = users.findByUsername(username.trim()).filter(AppUser::isActive).orElse(null);
+        if (u == null || !encoder.matches(r.oldPassword(), u.getPasswordHash())) {
+            throttle.failed(ip, username);
             throw ApiException.badRequest("Tên đăng nhập hoặc mật khẩu hiện tại không đúng");
+        }
+        throttle.succeeded(ip, username);
         u.setPasswordHash(encoder.encode(r.newPassword()));
     }
 }

@@ -1,0 +1,92 @@
+# Chay tren VPS (Internet, HTTPS): docker compose -f docker-compose.vps.yml up -d --build
+# Huong dan day du: docs/trien-khai-vps.md
+#
+#  Internet --443--> caddy (HTTPS tu dong) --> frontend (nginx + giao dien) --/api--> backend --> db
+#  Chi caddy mo cong ra ngoai (80, 443). Backend, database KHONG mo cong -> khong ai truy cap thang tu Internet.
+#  backup: sao luu database moi ngay vao ./backups, giu 30 ban gan nhat.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shop
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?dat DB_PASSWORD trong .env}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://db:5432/shop
+      DB_USER: shop
+      DB_PASSWORD: ${DB_PASSWORD:?}
+      JWT_SECRET: ${JWT_SECRET:?dat JWT_SECRET trong .env (it nhat 32 ky tu ngau nhien)}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?dat ADMIN_PASSWORD trong .env}
+      CORS_ORIGINS: https://${DOMAIN:?dat DOMAIN trong .env}
+      TZ: Asia/Ho_Chi_Minh
+      # VPS 2 GB RAM: gioi han bo nho Java de con cho Postgres
+      JAVA_TOOL_OPTIONS: -Xmx512m -XX:+UseSerialGC
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: shop
+      PGPASSWORD: ${DB_PASSWORD:?}
+      PGDATABASE: shop
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./backups:/backups
+    # sao luu luc khoi dong roi moi 24 gio; xoa ban cu hon 30 ngay
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 20
+        while true; do
+          f=/backups/shop-$$(date +%Y%m%d-%H%M).dump
+          if pg_dump -Fc -f "$$f.tmp"; then mv "$$f.tmp" "$$f"; echo "sao luu: $$f"; else rm -f "$$f.tmp"; echo "SAO LUU LOI"; fi
+          find /backups -name 'shop-*.dump' -mtime +30 -delete
+          sleep 86400
+        done
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:
+  caddy_data:
+  caddy_config:

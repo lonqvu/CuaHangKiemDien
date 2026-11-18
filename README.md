@@ -25,6 +25,8 @@ Hoac chay tat ca: `cp .env.example .env` (doi gia tri) roi `docker compose up --
 
 > Doi mat khau admin mac dinh (`ADMIN_PASSWORD`) va `JWT_SECRET` truoc khi dua len server that.
 
+**Dua len VPS (dung dien thoai moi luc, co HTTPS, tu sao luu):** `docker compose -f docker-compose.vps.yml up -d --build` - huong dan tung buoc: [docs/trien-khai-vps.md](docs/trien-khai-vps.md).
+
 ## Man hinh (doi chieu app Swing cu)
 Thiet ke theo skill `ui-ux-pro-max`, design system o `design-system/nhom-sat-kiem-dien/MASTER.md`.
 
