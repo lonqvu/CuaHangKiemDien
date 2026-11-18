@@ -38,6 +38,7 @@ public class SecurityConfig {
                 // o luot dispatch loi) va giao dien tuong het phien -> dang xuat nguoi dung
                 .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/login", "/actuator/health", "/error").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll() // anh nen man dang nhap (chua dang nhap)
                 .requestMatchers("/api/auth/change-password").permitAll() // nhu app cu: doi tu man dang nhap
                 .requestMatchers("/api/auth/2fa/**").authenticated() // tu cai xac thuc 2 lop cho tai khoan dang dung
                 .requestMatchers("/api/auth/logout-others").authenticated() // ca nhan vien: dang xuat moi may khac cua minh

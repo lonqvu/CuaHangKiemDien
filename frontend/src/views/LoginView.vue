@@ -7,6 +7,10 @@ import { rememberedUsername, useAuth } from '../stores/auth'
 const auth = useAuth()
 const router = useRouter()
 const formRef = ref<FormInstance>()
+// Anh nen khung trai (quan tri dat o man Tai khoan). Chua dat (404) / loi -> giao dien mac dinh.
+const bgOk = ref(false)
+// ":src" (bien), khong "src=" co dinh: Vue se coi duong dan co dinh la file tinh cua du an va bao loi khi build
+const bgUrl = "/api/public/login-image"
 const saved = rememberedUsername()
 // remember: phien 7 ngay + nho ten; trust: khong hoi ma 2 lop tren may nay 7 ngay
 const form = reactive({ username: saved, password: '', otp: '', remember: !!saved, trust: !!saved })
@@ -48,8 +52,9 @@ async function submit() {
 
 <template>
   <div class="login">
-    <section class="side" aria-hidden="true">
-      <div class="profiles">
+    <section class="side" :class="{ 'has-bg': bgOk }" aria-hidden="true">
+      <img :src="bgUrl" alt="" class="bg" :hidden="!bgOk" @load="bgOk = true" @error="bgOk = false" />
+      <div v-if="!bgOk" class="profiles">
         <span v-for="n in 9" :key="n" />
       </div>
       <div class="side-text">
@@ -91,6 +96,11 @@ async function submit() {
 .profiles span:nth-child(3n + 2) { border-top-color: transparent; }
 .profiles span:nth-child(3n) { border-top-color: transparent; border-right-color: transparent; }
 .profiles span:nth-child(5) { border-color: #94A3B8; border-top-color: transparent; }
+/* anh nen: phu kin khung, lop mo phia duoi de chu doc duoc tren moi anh */
+.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.side.has-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.35) 40%, rgba(15, 23, 42, 0) 70%); }
+.side-text { position: relative; z-index: 1; }
+.side.has-bg .side-text p { color: #E2E8F0; }
 .side-text b { display: block; font-size: 28px; color: #fff; letter-spacing: -0.02em; }
 .side-text p { margin: 8px 0 0; color: var(--steel-400); max-width: 34ch; }
 .form-wrap { display: grid; place-items: center; padding: 32px 24px; }
