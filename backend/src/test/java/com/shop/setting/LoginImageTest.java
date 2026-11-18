@@ -39,7 +39,7 @@ class LoginImageTest {
     void publicGet_adminPutDelete_validation() throws Exception {
         String admin = token("admin", "admin123");
         mvc.perform(delete("/api/settings/login-image").header("Authorization", "Bearer " + admin)).andExpect(status().isOk());
-        mvc.perform(get("/api/public/login-image")).andExpect(status().isNotFound()); // chua dat -> giao dien mac dinh
+        mvc.perform(get("/api/public/login-image")).andExpect(status().isNoContent()); // chua dat -> giao dien mac dinh
 
         // dat anh PNG -> ai cung xem duoc, dung loai, co ETag; hoi lai voi ETag -> 304
         mvc.perform(put("/api/settings/login-image").header("Authorization", "Bearer " + admin).contentType("image/png").content(PNG))
@@ -74,6 +74,6 @@ class LoginImageTest {
 
         // quan tri xoa -> ve mac dinh
         mvc.perform(delete("/api/settings/login-image").header("Authorization", "Bearer " + admin)).andExpect(status().isOk());
-        mvc.perform(get("/api/public/login-image")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/public/login-image")).andExpect(status().isNoContent());
     }
 }

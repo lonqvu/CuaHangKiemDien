@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Anh nen man dang nhap.
- *  GET    /api/public/login-image   : ai cung xem duoc (man dang nhap chua co phien); 404 = chua dat -> giao dien mac dinh
+ *  GET    /api/public/login-image   : ai cung xem duoc (man dang nhap chua co phien); 204 = chua dat -> giao dien mac dinh (khong dung 404: trinh duyet bao loi do o console)
  *  PUT    /api/settings/login-image : quan tri dat anh (than request = file anh JPEG / PNG / WebP, toi da 3 MB)
  *  DELETE /api/settings/login-image : quay ve giao dien mac dinh
  */
@@ -38,7 +38,7 @@ public class LoginImageController {
             if (etag.equals(ifNoneMatch)) return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).<byte[]>build();
             return ResponseEntity.ok().contentType(MediaType.parseMediaType(img.getContentType()))
                     .cacheControl(CacheControl.noCache()).eTag(etag).body(img.getData());
-        }).orElseGet(() -> ResponseEntity.notFound().build());
+        }).orElseGet(() -> ResponseEntity.noContent().cacheControl(CacheControl.noCache()).build());
     }
 
     @GetMapping("/settings/login-image")
