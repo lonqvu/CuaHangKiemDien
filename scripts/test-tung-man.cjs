@@ -492,6 +492,59 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await layout('/password', 'Doi mat khau');
   }
 
+  // ===================== 13. XAC THUC 2 LOP (admin) =====================
+  section = 'Xac thuc 2 lop';
+  {
+    const e0 = errMark();
+    const crypto = require('crypto');
+    const b32 = (str) => { const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; let bits = 0, v = 0; const out = []; for (const ch of str.replace(/\s|=/g, '').toUpperCase()) { v = (v << 5) | A.indexOf(ch); bits += 5; if (bits >= 8) { out.push((v >>> (bits - 8)) & 255); bits -= 8; } } return Buffer.from(out); };
+    // ma 6 so nhu app Google Authenticator (RFC 6238); step: buoc 30 giay (mac dinh: bay gio)
+    const totp = (secret, step = Math.floor(Date.now() / 30000)) => { const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(step)); const h = crypto.createHmac('sha1', b32(secret)).update(b).digest(); const o = h[h.length - 1] & 15; return String(((h.readUInt32BE(o) & 0x7fffffff) % 1e6)).padStart(6, '0'); };
+    await api('POST', '/users', { username: 'ztqt', fullName: 'ZT Quản trị 2', role: 'ADMIN', password: 'ztqt12345' });
+    const c3 = await browser.newContext({ timezoneId: TZ, viewport: { width: 1366, height: 860 } }); const p3 = await c3.newPage();
+    p3.on('pageerror', (e) => errors.push('JS: ' + e.message));
+    const loginUi = async (user, pass, otp) => {
+      await p3.goto(UI + '/login'); await p3.fill('input[autocomplete=username]', user); await p3.fill('input[type=password]', pass);
+      await p3.keyboard.press('Enter'); await p3.waitForTimeout(900);
+      if (otp !== undefined && await p3.locator('input[autocomplete=one-time-code]').count()) { await p3.fill('input[autocomplete=one-time-code]', otp); await p3.keyboard.press('Enter'); await p3.waitForTimeout(900); }
+      return new URL(p3.url()).pathname;
+    };
+    await loginUi('ztqt', 'ztqt12345');
+    check('admin chua bat 2 lop -> thay loi nhac "Bat ngay"', (await p3.locator('.tf-nudge').count()) === 1);
+    await p3.locator('.tf-nudge a:has-text("Bật ngay")').click(); await p3.waitForTimeout(600);
+    await p3.locator('button:has-text("Bật xác thực 2 lớp")').click();
+    await p3.fill('#tf-pass', 'ztqt12345'); await p3.locator('.tf button[type=submit]').click(); await p3.waitForTimeout(800);
+    check('nhap mat khau -> hien ma QR', await p3.locator('img.qr').isVisible());
+    await p3.locator('.manual summary').click();
+    const secret = (await p3.locator('.secret').innerText()).replace(/\s/g, '');
+    await p3.fill('#tf-code', '000000'); await p3.locator('.tf button[type=submit]').click(); await p3.waitForTimeout(600);
+    check('ma sai -> bao loi, chua bat', (await p3.locator('.tf .el-alert--error').count()) === 1 && !(await api('GET', '/users')).find((u) => u.username === 'ztqt').twoFactor);
+    const used = totp(secret);
+    await p3.fill('#tf-code', used); await p3.locator('.tf button[type=submit]').click(); await p3.waitForTimeout(800);
+    const codes = await p3.locator('.codes code').allInnerTexts();
+    check('ma dung -> bat, hien 8 ma du phong', codes.length === 8 && (await api('GET', '/users')).find((u) => u.username === 'ztqt').twoFactor, codes.join(' '));
+    await p3.locator('button:has-text("Đã lưu xong")').click(); await p3.waitForTimeout(300);
+    check('da bat -> het loi nhac', (await p3.locator('.tf-nudge').count()) === 0);
+    await p3.evaluate(() => localStorage.clear());
+    // dang nhap lai: hoi ma
+    await loginUi('ztqt', 'ztqt12345');
+    check('dang nhap dung mat khau -> hoi ma 6 so, chua vao', new URL(p3.url()).pathname === '/login' && (await p3.locator('input[autocomplete=one-time-code]').count()) === 1);
+    await p3.fill('input[autocomplete=one-time-code]', used); await p3.keyboard.press('Enter'); await p3.waitForTimeout(900);
+    check('ma da dung roi -> tu choi', new URL(p3.url()).pathname === '/login' && /không đúng|đã dùng/.test(await p3.locator('.el-alert').innerText()));
+    await p3.fill('input[autocomplete=one-time-code]', totp(secret, Math.floor(Date.now() / 30000) + 1)); await p3.keyboard.press('Enter'); await p3.waitForTimeout(900);
+    check('ma moi -> vao Tong quan', new URL(p3.url()).pathname === '/dashboard');
+    await p3.evaluate(() => localStorage.clear());
+    check('ma du phong -> vao duoc', (await loginUi('ztqt', 'ztqt12345', codes[0])) === '/dashboard');
+    await p3.evaluate(() => localStorage.clear());
+    check('ma du phong dung lai -> khong vao', (await loginUi('ztqt', 'ztqt12345', codes[0])) === '/login');
+    await c3.close();
+    // quan tri khac tat giup
+    await go('/accounts');
+    await page.locator('.el-table__row', { hasText: 'ztqt' }).locator('button:has-text("Tắt 2 lớp")').click(); await boxConfirm();
+    check('quan tri tat 2 lop giup -> tat', !(await api('GET', '/users')).find((u) => u.username === 'ztqt').twoFactor);
+    noErrors(e0, 'Xac thuc 2 lop');
+  }
+
   // ===================== 13. LOAI HANG: xoa bi khoa khi con san pham =====================
   section = 'Loai hang';
   await go('/categories');

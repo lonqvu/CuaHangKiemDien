@@ -19,20 +19,22 @@ public class UserController {
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
     private final LoginThrottle throttle;
+    private final TwoFactorService twoFactor;
 
-    public UserController(AppUserRepository users, PasswordEncoder encoder, LoginThrottle throttle) {
-        this.users = users; this.encoder = encoder; this.throttle = throttle;
+    public UserController(AppUserRepository users, PasswordEncoder encoder, LoginThrottle throttle, TwoFactorService twoFactor) {
+        this.users = users; this.encoder = encoder; this.throttle = throttle; this.twoFactor = twoFactor;
     }
 
-    public record UserDto(Long id, String username, String fullName, String role, boolean active) {}
+    public record UserDto(Long id, String username, String fullName, String role, boolean active, boolean twoFactor) {}
     public record CreateUser(@NotBlank @Size(max = 50) String username, @NotBlank String fullName,
                              @NotBlank @Pattern(regexp = "ADMIN|STAFF") String role, @NotBlank @Size(min = 6) String password) {}
     public record UpdateUser(@NotBlank String fullName, @NotBlank @Pattern(regexp = "ADMIN|STAFF") String role, boolean active) {}
     public record ResetPassword(@NotBlank @Size(min = 6) String password) {}
-    public record ChangePassword(String username, @NotBlank String oldPassword, @NotBlank @Size(min = 6) String newPassword) {}
+    /** otp: can khi doi tu man dang nhap (chua dang nhap) ma tai khoan da bat xac thuc 2 lop. */
+    public record ChangePassword(String username, @NotBlank String oldPassword, @NotBlank @Size(min = 6) String newPassword, String otp) {}
 
     private UserDto dto(AppUser u) {
-        return new UserDto(u.getId(), u.getUsername(), u.getFullName(), u.getRole(), u.isActive());
+        return new UserDto(u.getId(), u.getUsername(), u.getFullName(), u.getRole(), u.isActive(), u.isTotpEnabled());
     }
 
     private AppUser find(Long id) {
@@ -70,6 +72,15 @@ public class UserController {
         return dto(u);
     }
 
+    /** Quan tri tat xac thuc 2 lop giup (nguoi do mat dien thoai + mat ma du phong); ho tu bat lai sau khi dang nhap. */
+    @PostMapping("/users/{id}/2fa/reset")
+    @Transactional
+    public UserDto resetTwoFactor(@PathVariable Long id) {
+        AppUser u = find(id);
+        twoFactor.disable(u);
+        return dto(u);
+    }
+
     @PostMapping("/users/{id}/reset-password")
     @Transactional
     public void resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPassword r) {
@@ -93,6 +104,12 @@ public class UserController {
         if (u == null || !encoder.matches(r.oldPassword(), u.getPasswordHash())) {
             throttle.failed(ip, username);
             throw ApiException.badRequest("Tên đăng nhập hoặc mật khẩu hiện tại không đúng");
+        }
+        // tai khoan bat 2 lop ma doi tu man dang nhap (chua dang nhap): can them ma - lo mat khau cung khong doi duoc
+        boolean loggedIn = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName());
+        if (u.isTotpEnabled() && !loggedIn && !twoFactor.verify(u, r.otp())) {
+            throttle.failed(ip, username);
+            throw ApiException.badRequest("Tài khoản đã bật xác thực 2 lớp: nhập mã xác thực (6 số) đúng");
         }
         throttle.succeeded(ip, username);
         u.setPasswordHash(encoder.encode(r.newPassword()));

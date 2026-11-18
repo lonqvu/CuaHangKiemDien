@@ -4,13 +4,14 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import http from '../api/http'
 import PageHeader from '../components/PageHeader.vue'
+import TwoFactorPanel from '../components/TwoFactorPanel.vue'
 import { useAuth } from '../stores/auth'
 
 // Thay man ChangePassWord cu: doi duoc ca khi chua dang nhap (vao tu man Dang nhap)
 const auth = useAuth()
 const standalone = computed(() => !auth.loggedIn)
 const formRef = ref<FormInstance>()
-const form = reactive({ username: auth.user?.username ?? '', oldPassword: '', newPassword: '', confirm: '' })
+const form = reactive({ username: auth.user?.username ?? '', oldPassword: '', newPassword: '', confirm: '', otp: '' })
 const saving = ref(false)
 const error = ref('')
 const rules: FormRules = {
@@ -28,9 +29,9 @@ async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return
   saving.value = true
   try {
-    await http.post('/auth/change-password', { username: form.username, oldPassword: form.oldPassword, newPassword: form.newPassword })
+    await http.post('/auth/change-password', { username: form.username, oldPassword: form.oldPassword, newPassword: form.newPassword, otp: form.otp || undefined })
     ElMessage.success('Đổi mật khẩu thành công')
-    form.oldPassword = form.newPassword = form.confirm = ''
+    form.oldPassword = form.newPassword = form.confirm = form.otp = ''
   } catch (e: any) {
     error.value = e?.response?.data?.message || 'Không đổi được mật khẩu'
   } finally {
@@ -56,11 +57,15 @@ async function save() {
         <el-form-item label="Nhập lại mật khẩu mới" prop="confirm">
           <el-input v-model="form.confirm" type="password" show-password autocomplete="new-password" />
         </el-form-item>
+        <el-form-item v-if="standalone" label="Mã xác thực 2 lớp (nếu tài khoản đã bật)">
+          <el-input v-model="form.otp" inputmode="numeric" autocomplete="one-time-code" maxlength="11" placeholder="Để trống nếu chưa bật" />
+        </el-form-item>
         <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon style="margin-bottom: 16px" />
         <el-button type="primary" native-type="submit" :loading="saving">Đồng ý</el-button>
         <router-link v-if="standalone" to="/login" class="back">Quay lại đăng nhập</router-link>
       </el-form>
     </div>
+    <TwoFactorPanel v-if="!standalone && auth.isAdmin" />
   </div>
 </template>
 

@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/login", "/actuator/health", "/error").permitAll()
                 .requestMatchers("/api/auth/change-password").permitAll() // nhu app cu: doi tu man dang nhap
+                .requestMatchers("/api/auth/2fa/**").authenticated() // tu cai xac thuc 2 lop cho tai khoan dang dung
                 // Nhan vien: chi ban hang (xem san pham, tim/chon/tao khach, lam + in hoa don).
                 // So no, sao ke, phieu thu, danh sach hoa don, huy hoa don: chi quan tri.
                 .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").authenticated()

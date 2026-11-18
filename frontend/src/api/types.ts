@@ -43,7 +43,7 @@ export interface TopCustomer { customerId: number; customerName: string; orders:
 export interface CategoryStat { category: string; productCount: number; totalQuantity: number; revenue: number }
 export interface CustomerStat { newCustomers: number; returningCustomers: number; totalCustomers: number; returningRate: number }
 export interface MonthRevenue { month: number; revenue: number }
-export interface UserAccount { id: number; username: string; fullName: string; role: 'ADMIN' | 'STAFF'; active: boolean }
+export interface UserAccount { id: number; username: string; fullName: string; role: 'ADMIN' | 'STAFF'; active: boolean; twoFactor: boolean }
 
 // ================= KHO HANG =================
 export interface ProductUnit { unit: string; ratio: number }

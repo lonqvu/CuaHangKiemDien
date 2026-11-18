@@ -39,6 +39,15 @@ async function save() {
   load()
 }
 
+// Nguoi do mat dien thoai + mat ma du phong: tat 2 lop giup, ho dang nhap bang mat khau roi tu bat lai
+async function resetTwoFactor(u: UserAccount) {
+  await ElMessageBox.confirm(`Tắt xác thực 2 lớp của ${u.username}? Dùng khi người đó mất điện thoại và mất mã dự phòng. Họ đăng nhập bằng mật khẩu rồi tự bật lại.`,
+    'Tắt xác thực 2 lớp', { confirmButtonText: 'Tắt 2 lớp', cancelButtonText: 'Không', type: 'warning' })
+  await http.post(`/users/${u.id}/2fa/reset`)
+  ElMessage.success(`Đã tắt xác thực 2 lớp của ${u.username}`)
+  await load()
+}
+
 async function resetPassword(u: UserAccount) {
   const { value } = await ElMessageBox.prompt(`Mật khẩu mới cho ${u.username} (ít nhất 6 ký tự)`, 'Đặt lại mật khẩu', {
     inputType: 'password', inputPattern: /^.{6,}$/, inputErrorMessage: 'Ít nhất 6 ký tự',
@@ -66,10 +75,14 @@ onMounted(load)
       <el-table-column label="Trạng thái" width="120">
         <template #default="{ row }"><span :class="row.active ? 'tone-money' : 'muted'">{{ row.active ? 'Đang dùng' : 'Đã khóa' }}</span></template>
       </el-table-column>
-      <el-table-column min-width="190" align="right">
+      <el-table-column label="Xác thực 2 lớp" width="140">
+        <template #default="{ row }"><span :class="row.twoFactor ? 'tone-money' : 'muted'">{{ row.twoFactor ? 'Đang bật' : 'Chưa bật' }}</span></template>
+      </el-table-column>
+      <el-table-column min-width="260" align="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openForm(row)">Sửa</el-button>
           <el-button link type="primary" @click="resetPassword(row)">Đặt lại mật khẩu</el-button>
+          <el-button v-if="row.twoFactor" link type="danger" @click="resetTwoFactor(row)">Tắt 2 lớp</el-button>
         </template>
       </el-table-column>
     </el-table>

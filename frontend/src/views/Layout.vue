@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import http from '../api/http'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ShoppingCart, Document, User, Goods, Collection, DataLine, UserFilled, Odometer, Key, SwitchButton, Menu as MenuIcon,
@@ -10,6 +11,18 @@ import { useAuth } from '../stores/auth'
 const auth = useAuth()
 const route = useRoute()
 const router = useRouter()
+
+// Nhac quan tri bat xac thuc 2 lop (dong lai thi khong nhac nua trong phien nay)
+const tfDismissed = ref((() => { try { return sessionStorage.getItem('tf.dismissed') === '1' } catch { return false } })())
+const showTfNudge = computed(() => auth.isAdmin && auth.user?.twoFactor === false && !tfDismissed.value && route.path !== '/password')
+function dismissTf() {
+  tfDismissed.value = true
+  try { sessionStorage.setItem('tf.dismissed', '1') } catch { /* trinh duyet chan */ }
+}
+onMounted(async () => {
+  if (!auth.isAdmin) return
+  try { auth.setTwoFactor((await http.get('/auth/2fa')).data.enabled) } catch { /* khong chan giao dien */ }
+})
 const drawer = ref(false)
 const mainEl = ref<HTMLElement>()
 
@@ -90,7 +103,15 @@ function logout() {
         <el-button text :icon="MenuIcon" aria-label="Mở menu" @click="drawer = true" />
         <b>{{ route.meta.title }}</b>
       </div>
-      <main id="main" ref="mainEl" class="content" tabindex="-1"><router-view /></main>
+      <main id="main" ref="mainEl" class="content" tabindex="-1">
+        <el-alert v-if="showTfNudge" type="warning" show-icon class="tf-nudge" @close="dismissTf">
+          <template #title>
+            Tài khoản quản trị chưa bật <b>xác thực 2 lớp</b>. Lộ mật khẩu là người khác vào được.
+            <router-link to="/password" class="tf-link">Bật ngay</router-link>
+          </template>
+        </el-alert>
+        <router-view />
+      </main>
     </div>
   </div>
 </template>
@@ -129,6 +150,8 @@ nav h2 { font-size: 12px; font-weight: 500; color: var(--steel-400); padding: va
 .topbar { display: none; }
 .content { padding: var(--space-2xl); width: 100%; }
 .content:focus { outline: none; }
+.tf-nudge { margin-bottom: var(--space-lg); }
+.tf-link { margin-left: 8px; font-weight: 600; color: inherit; }
 .scrim { display: none; }
 
 @media (max-width: 960px) {

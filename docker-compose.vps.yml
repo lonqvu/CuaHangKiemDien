@@ -88,6 +88,39 @@ services:
       db:
         condition: service_healthy
 
+  # Chep ban sao luu RA NGOAI VPS (Google Drive / OneDrive / Dropbox...) bang rclone - VPS hong / bi xoa van con du lieu.
+  # Cau hinh 1 lan (docs/trien-khai-vps.md muc 6): deploy/rclone/rclone.conf + OFFSITE_REMOTE trong .env.
+  # Cu 6 gio chep ban moi (copy chi chep file chua co); xoa ban tren dich cu hon OFFSITE_KEEP_DAYS ngay (mac dinh 90).
+  offsite:
+    image: rclone/rclone:1.68
+    restart: unless-stopped
+    environment:
+      REMOTE: ${OFFSITE_REMOTE:-}
+      KEEP_DAYS: ${OFFSITE_KEEP_DAYS:-90}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./backups:/backups:ro
+      - ./deploy/rclone:/config/rclone
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$$REMOTE" ]; then
+          echo "CHUA CAU HINH OFFSITE_REMOTE trong .env -> chua chep sao luu ra ngoai VPS (xem docs/trien-khai-vps.md muc 6)"
+          while true; do sleep 86400; done
+        fi
+        sleep 60
+        while true; do
+          if rclone copy /backups "$$REMOTE" --include 'shop-*.dump' --max-age 7d; then
+            echo "$$(date '+%F %T') da chep sao luu len [$$REMOTE], hien co $$(rclone lsf "$$REMOTE" --include 'shop-*.dump' | wc -l) ban"
+          else
+            echo "$$(date '+%F %T') CHEP SAO LUU RA NGOAI LOI - kiem tra ket noi / cau hinh rclone"
+          fi
+          rclone delete "$$REMOTE" --include 'shop-*.dump' --min-age "$${KEEP_DAYS}d" || true
+          sleep 21600
+        done
+    depends_on:
+      - backup
+
 volumes:
   dbdata:
   caddy_data:
