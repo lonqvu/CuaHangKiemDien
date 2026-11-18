@@ -1,9 +1,10 @@
 # CI/CD: moi lan main thay doi (va moi pull request) -> test; main dat het test -> deploy len VPS.
 #
-#  backend   : test Java (H2)                         ┐
-#  frontend  : test + kiem tra kieu + build            ├─> deploy (chi push len main, chi khi da cai Secrets VPS)
-#  giao-dien : IT, E2E, dang nhap, tung man (PostgreSQL)│     SSH vao VPS -> deploy/deploy.sh <commit>:
-#  docker    : build thu image nhu tren VPS            ┘     sao luu DB -> lay code -> build -> kiem tra -> loi thi quay ve
+#  backend   : test Java (H2)                ┐
+#  frontend  : test + kiem tra kieu + build   ├─> deploy (chi push len main, chi khi da cai Secrets VPS)
+#  docker    : build thu image nhu tren VPS   ┘     SSH vao VPS -> deploy/deploy.sh <commit>:
+#                                                   sao luu DB -> lay code -> build -> kiem tra -> loi thi quay ve
+# Test qua giao dien (scripts/*.cjs: IT, E2E, dang nhap, tung man) KHONG chay tren CI (lau) - chay tay khi can.
 #
 # Cai dat deploy: docs/trien-khai-vps.md muc 10 (Secrets VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS...).
 name: CI/CD
@@ -44,68 +45,6 @@ jobs:
       - run: npm ci && npm test && npm run build
         working-directory: frontend
 
-  giao-dien:
-    name: Test qua giao dien (PostgreSQL)
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    services:
-      postgres:
-        image: postgres:16
-        env: { POSTGRES_USER: shop, POSTGRES_PASSWORD: shop, POSTGRES_DB: shop }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U shop" --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      PGPASSWORD: shop
-      TZ: Asia/Ho_Chi_Minh
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 21, cache: maven }
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
-      - name: Build backend
-        run: ./mvnw -B -q -DskipTests package
-        working-directory: backend
-      - name: Cai frontend + Playwright
-        run: |
-          (cd frontend && npm ci)
-          npm install --no-save --no-package-lock playwright@1.63.0
-          npx playwright install --with-deps chromium
-          sudo apt-get install -y -qq poppler-utils # pdftotext: IT / E2E doc noi dung PDF hoa don, phieu thu
-      - name: Chay frontend (vite)
-        run: (cd frontend && nohup npx vite --port 5173 > ../vite.log 2>&1 &)
-      - name: Chay cac bo test (moi bo 1 database trong)
-        run: |
-          set -u
-          fail=0
-          for t in it-toan-he-thong e2e-ban-hang test-dang-nhap test-tung-man; do
-            pkill -f shop-backend || true; sleep 2
-            db="t_${t//-/_}"
-            psql -h localhost -U shop -d postgres -qc "drop database if exists $db" -c "create database $db"
-            DB_URL="jdbc:postgresql://localhost:5432/$db" DB_USER=shop DB_PASSWORD=shop \
-              nohup java -jar backend/target/shop-backend-0.1.0.jar > "backend-$t.log" 2>&1 &
-            for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:8090/api/auth/login && break; sleep 2; done
-            echo "::group::$t"
-            if node "scripts/$t.cjs" > "ket-qua-$t.txt" 2>&1; then r=OK; else r=LOI; fail=1; fi
-            grep -E "^FAIL" "ket-qua-$t.txt" | head -20 || true
-            echo "::endgroup::"
-            echo "$t: $r - $(tail -1 "ket-qua-$t.txt")" | tee -a tong-ket.txt
-          done
-          pkill -f shop-backend || true
-          cat tong-ket.txt >> "$GITHUB_STEP_SUMMARY"
-          exit $fail
-      - name: Luu log khi loi
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: log-test-giao-dien
-          path: |
-            ket-qua-*.txt
-            backend-*.log
-            vite.log
-          retention-days: 7
-
   docker:
     name: Build Docker image (nhu tren VPS)
     runs-on: ubuntu-latest
@@ -121,7 +60,7 @@ jobs:
 
   deploy:
     name: Deploy len VPS
-    needs: [backend, frontend, giao-dien, docker]
+    needs: [backend, frontend, docker]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30

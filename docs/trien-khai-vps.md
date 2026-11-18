@@ -224,13 +224,13 @@ danh sách thì máy đó bị chặn, phải xem lại IP và sửa `ALLOWED_IP
 
 Mỗi lần **main** có thay đổi, GitHub tự chạy workflow `.github/workflows/ci-cd.yml`:
 
-1. **Test:** backend, frontend, các bộ test qua giao diện trên PostgreSQL (IT, E2E, đăng nhập, từng màn), và build thử Docker image.
+1. **Test:** backend, frontend, và build thử Docker image. Các bộ test qua giao diện (`scripts/*.cjs`) không chạy trên CI vì lâu; chạy tay khi cần.
 2. **Đạt hết** thì GitHub SSH vào VPS và chạy `deploy/deploy.sh <commit>`:
    **sao lưu database** → lấy đúng bản vừa test → build và chạy lại → kiểm tra app sống.
    **Không lên được trong 3 phút thì tự quay về bản trước** (bản lỗi không được deploy).
 3. Có test lỗi thì **không deploy**. Pull request chỉ chạy test, không deploy.
 
-Xem kết quả ở tab **Actions** của repo. Test lỗi thì tải phần **Artifacts** `log-test-giao-dien` để xem chi tiết.
+Xem kết quả ở tab **Actions** của repo.
 Chưa cài phần dưới đây thì bước deploy tự **bỏ qua**, test vẫn chạy bình thường.
 
 ### Cài đặt (làm 1 lần)
