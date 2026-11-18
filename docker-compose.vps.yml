@@ -1,7 +1,7 @@
 # Chay tren VPS: docker compose -f docker-compose.vps.yml up -d --build
 # Huong dan day du: docs/trien-khai-vps.md
 #
-#  Internet --443--> Caddy cua edugame (giu cong 80/443, HTTPS cho ca nskiemdien.name.vn)
+#  Internet --443--> Caddy cua edugame (giu cong 80/443, HTTPS cho ca nskiemdien.io.vn)
 #           --> frontend (nginx + giao dien, ten "nskiemdien-web" tren mang nskiemdien-edge) --/api--> backend --> db
 #  App nay KHONG mo cong nao ra ngoai. Mang nskiemdien-edge chi co frontend nay + web cua edugame
 #  (khong noi ca mang: 2 project deu co service "backend", noi chung se goi nham).
