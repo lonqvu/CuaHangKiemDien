@@ -3,11 +3,13 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { CopyDocument, Download, Picture, ChatDotRound } from '@element-plus/icons-vue'
 import http, { errorMessage } from '../api/http'
+import { zaloChatUrl } from '../format'
 
 /*
  * Gui hoa don / bien lai qua Zalo. Zalo khong co API cong khai de web gui file toi 1 nguoi, nen:
  *  - Dien thoai / may tinh bang: bang chia se cua he dieu hanh (Web Share API) kem ANH -> chon Zalo -> chon nguoi nhan.
- *  - May tinh: chep ANH vao clipboard + mo Zalo PC (giao thuc zalo://) -> chon nguoi nhan, Ctrl+V, Enter.
+ *  - May tinh: chep ANH vao clipboard + mo thang khung chat Zalo cua khach (zalo.me/<so di dong>) -> Ctrl+V, Enter.
+ *    Khach khong co so di dong: mo Zalo PC (giao thuc zalo://) -> tu chon nguoi nhan.
  *    Du phong: Zalo Web, tai anh ve, chep noi dung tin nhan.
  * Anh ve tu chinh mau Jasper (giong ban in). imagePath loi (vd chua co bien lai) -> gui tin nhan chu.
  */
@@ -28,6 +30,16 @@ const preview = ref('')
 const copied = ref(false)
 const imageError = ref('')
 const appOpened = ref<boolean | null>(null)
+// khung chat Zalo cua khach (co so di dong); chatOpened: false = trinh duyet chan mo tab -> hien nut bam
+const chatUrl = computed(() => zaloChatUrl(props.phone))
+const chatOpened = ref<boolean | null>(null)
+function openChat() {
+  if (!chatUrl.value) return
+  // khong dung 'noopener' o day: can biet tab co mo duoc khong (bi chan -> null); mo xong thi cat lien ket ngay
+  const w = window.open(chatUrl.value, '_blank')
+  if (w) w.opener = null
+  chatOpened.value = !!w
+}
 
 const mobile = () => {
   const ua = navigator.userAgent
@@ -84,6 +96,7 @@ async function start() {
   copied.value = false
   imageError.value = ''
   appOpened.value = null
+  chatOpened.value = null
   blob.value = null
   if (preview.value) URL.revokeObjectURL(preview.value)
   preview.value = ''
@@ -116,11 +129,12 @@ async function start() {
     }
   }
 
-  // May tinh: chep anh (hoac chu) roi mo Zalo PC
+  // May tinh: chep anh (hoac chu) TRUOC (can trang dang duoc chon), roi mo khung chat cua khach / Zalo PC
   if (blob.value) await copyImage()
   else await navigator.clipboard?.writeText(props.text).then(() => (copied.value = true)).catch(() => {})
   step.value = 'desktop'
-  openZaloApp()
+  if (chatUrl.value) openChat()
+  else openZaloApp()
 }
 
 function close() { emit('update:modelValue', false) }
@@ -141,6 +155,16 @@ const phoneDigits = computed(() => (props.phone ?? '').replace(/\D/g, ''))
 
     <div v-else class="desk">
       <ol class="steps">
+        <template v-if="chatUrl">
+          <li v-if="chatOpened !== false">
+            <b>Đã mở khung chat Zalo với <span class="num">{{ phone }}</span>.</b>
+            Nếu trình duyệt hỏi "Mở Zalo?" hoặc hiện trang Zalo, bấm <b>Mở</b> / <b>Nhắn tin</b>.
+          </li>
+          <li v-else>
+            Trình duyệt chặn tự mở. Bấm <el-button type="primary" size="small" :icon="ChatDotRound" @click="openChat">Mở chat với khách</el-button>
+          </li>
+        </template>
+        <template v-else>
         <li v-if="appOpened !== false">
           <b>Zalo đang mở.</b> Nếu trình duyệt hỏi "Mở Zalo?", bấm <b>Mở</b>.
         </li>
@@ -151,8 +175,9 @@ const phoneDigits = computed(() => (props.phone ?? '').replace(/\D/g, ''))
           Chọn người nhận<template v-if="phoneDigits">: tìm số <b class="num">{{ phone }}</b>
             <el-button link type="primary" :icon="CopyDocument" @click="copyText(phoneDigits, 'số điện thoại')">Chép số</el-button></template>.
         </li>
+        </template>
         <li v-if="blob">
-          <template v-if="copied">Ảnh {{ title.toLowerCase() }} <b>đã được chép</b>. Bấm vào ô soạn tin, nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> rồi <kbd>Enter</kbd>.</template>
+          <template v-if="copied">Ảnh {{ title.charAt(0).toLowerCase() + title.slice(1) }} <b>đã được chép</b>. Bấm vào ô soạn tin, nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd> rồi <kbd>Enter</kbd>.</template>
           <template v-else>Trình duyệt không cho chép ảnh. Bấm <b>Tải ảnh</b> rồi kéo file vào khung chat Zalo.</template>
         </li>
         <li v-else>
@@ -167,7 +192,8 @@ const phoneDigits = computed(() => (props.phone ?? '').replace(/\D/g, ''))
       <pre class="msg">{{ text }}</pre>
 
       <div class="actions">
-        <el-button type="primary" :icon="ChatDotRound" @click="openZaloApp">Mở lại Zalo</el-button>
+        <el-button v-if="chatUrl" type="primary" :icon="ChatDotRound" @click="openChat">Mở chat với khách</el-button>
+        <el-button :type="chatUrl ? 'default' : 'primary'" :icon="chatUrl ? undefined : ChatDotRound" @click="openZaloApp">{{ chatUrl ? 'Mở Zalo (tự chọn người)' : 'Mở lại Zalo' }}</el-button>
         <el-button @click="openZaloWeb">Mở Zalo Web</el-button>
         <el-button v-if="blob" :icon="Picture" @click="copyImage().then((ok) => ok ? ElMessage.success('Đã chép ảnh') : ElMessage.warning('Không chép được ảnh, hãy tải ảnh'))">Chép lại ảnh</el-button>
         <el-button v-if="blob" :icon="Download" @click="download">Tải ảnh</el-button>
