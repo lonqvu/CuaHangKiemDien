@@ -2,12 +2,11 @@
 /*
  * Nhap du lieu tu phan mem cu (man Tai khoan, chi quan tri) - lam het tren web, khong can vao VPS.
  * Chon file du-lieu-cu.json -> may chu nap + doi chieu tung dong roi HUY (kiem tra thu) -> xem bao cao
- * -> khop het moi bam "Nhap du lieu" (nap + doi chieu lai, lech thi tu huy). Chi hien khi he thong chua co du lieu,
- * hoac da nhap (xem lai bao cao).
+ * -> khop het moi bam "Nhap du lieu" (nap + doi chieu lai, lech thi tu huy). He thong da co du lieu -> khoa, ghi ly do.
  */
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
+import { Upload, CircleCheckFilled, CircleCloseFilled, Lock } from '@element-plus/icons-vue'
 import http from '../api/http'
 import { dtShort } from '../format'
 
@@ -28,7 +27,8 @@ const showOdd = ref(false)
 async function load() { status.value = (await http.get('/admin/legacy-import')).data }
 onMounted(load)
 
-const visible = computed(() => !!status.value && (status.value.canImport || !!status.value.last))
+// luon hien cho quan tri: bi khoa (da co du lieu) thi ghi ro ly do, de khong phai doan vi sao khong thay
+const visible = computed(() => !!status.value)
 
 /** Nen gzip tren may truoc khi gui (6 MB -> ~0,6 MB): nhanh tren 4G. Trinh duyet cu khong nen duoc -> gui nguyen. */
 async function prepare(file: File): Promise<Blob> {
@@ -107,6 +107,9 @@ async function doImport() {
       <p v-if="busy" class="muted small">Đang nạp và đối chiếu khoảng 25.000 dòng, mất vài giây đến nửa phút. Đừng đóng trang.</p>
     </template>
 
+    <!-- da co du lieu (khong phai tu lan nhap nay) -> khoa -->
+    <p v-else class="blocked"><el-icon><Lock /></el-icon><span>{{ status?.blockedReason }}</span></p>
+
     <!-- bao cao lan kiem tra / nhap vua chay -->
     <div v-if="result && !status?.last" class="report" :class="result.ok ? 'is-ok' : 'is-bad'">
       <p class="verdict">
@@ -173,5 +176,7 @@ h2 { font-size: 17px; margin: 0 0 4px; }
 }
 .errs p { margin: 0 0 4px; font-size: 14px; }
 .errs ul, .odd { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.55; max-height: 280px; overflow: auto; }
+.blocked { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.55; color: var(--ink-muted); background: var(--steel-50); border-radius: var(--radius-md); padding: var(--space-md); }
+.blocked .el-icon { margin-top: 3px; flex: none; }
 .errs li { color: var(--debt, #B91C1C); }
 </style>

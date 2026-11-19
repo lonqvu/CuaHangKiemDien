@@ -60,11 +60,15 @@ public class LegacyImportService {
         return new Status(reason == null, reason, counts, last);
     }
 
+    private static final Map<String, String> NAMES = Map.of("category", "loại hàng", "product", "sản phẩm", "customer", "khách",
+            "orders", "hóa đơn", "debt_ledger", "dòng sổ nợ", "supplier", "nhà cung cấp", "goods_receipt", "phiếu nhập",
+            "stock_movement", "dòng xuất nhập kho", "stock_count", "phiếu kiểm kê");
+
     private static String blockedReason(Map<String, Integer> counts) {
-        int customers = counts.get("customer"), products = counts.get("product"), orders = counts.get("orders");
-        if (counts.values().stream().allMatch(n -> n == 0)) return null;
-        return "Hệ thống đã có dữ liệu (" + customers + " khách, " + products + " sản phẩm, " + orders
-                + " hóa đơn...). Chỉ nhập được vào hệ thống mới chưa dùng, để không ghi đè dữ liệu đang có.";
+        List<String> has = MUST_BE_EMPTY.stream().filter(t -> counts.get(t) > 0).map(t -> counts.get(t) + " " + NAMES.get(t)).toList();
+        if (has.isEmpty()) return null;
+        return "Hệ thống đã có dữ liệu (" + String.join(", ", has) + "), nên không nhập được, để không ghi đè dữ liệu đang có. "
+                + "Chỉ nhập vào hệ thống mới chưa dùng.";
     }
 
     public Result run(byte[] body, boolean dryRun, String user) {
