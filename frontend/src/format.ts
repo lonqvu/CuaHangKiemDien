@@ -17,7 +17,7 @@ export const dtShort = (s: string | null | undefined) => {
 }
 /** Nhan nghiep vu so kho - dung chung the kho. */
 export const movementLabel: Record<string, string> = {
-  RECEIPT: 'Nhập hàng', RECEIPT_CANCEL: 'Hủy phiếu nhập', SALE: 'Bán hàng', SALE_CANCEL: 'Hủy hóa đơn', COUNT: 'Kiểm kê', ADJUST: 'Điều chỉnh',
+  RECEIPT: 'Nhập hàng', RECEIPT_CANCEL: 'Hủy phiếu nhập', SALE: 'Bán hàng', SALE_CANCEL: 'Hủy hóa đơn', SALE_REVISE: 'Sửa hóa đơn', COUNT: 'Kiểm kê', ADJUST: 'Điều chỉnh',
 }
 /** Duong dan toi chung tu goc cua 1 dong so kho. */
 export const movementLink = (refType: string, refId: number | null) =>

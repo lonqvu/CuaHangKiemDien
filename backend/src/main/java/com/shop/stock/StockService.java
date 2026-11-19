@@ -76,6 +76,7 @@ public class StockService {
         // Chi cac nghiep vu mang gia von rieng moi tinh lai binh quan
         boolean revalue = m.unitCost() != null && switch (m.type()) {
             case RECEIPT, RECEIPT_CANCEL, SALE_CANCEL -> true;
+            case SALE_REVISE -> q.signum() > 0; // sua hoa don giam hang: nhap lai theo gia von da xuat
             case COUNT -> q.signum() > 0;
             default -> false;
         };
@@ -142,6 +143,54 @@ public class StockService {
         for (StockMovement m : done) {
             apply(new Move(m.getProductId(), m.getQty().negate(), m.getUnitCost(), reversal,
                     refType, refId, m.getRefLineId(), m.getRefCode(), note, by));
+        }
+    }
+
+    /** Da xuat (rong) cho 1 hoa don, theo san pham: {so luong, gia tri} (duong = da xuat). Gom ban, huy, sua. */
+    public Map<Long, BigDecimal[]> issuedForOrder(Long orderId) {
+        Map<Long, BigDecimal[]> m = new HashMap<>();
+        for (StockMovement mv : movements.findByRefTypeAndRefIdOrderByIdAsc(REF_ORDER, orderId)) {
+            BigDecimal[] a = m.computeIfAbsent(mv.getProductId(), k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            a[0] = a[0].subtract(mv.getQty());
+            a[1] = a[1].subtract(mv.getValue());
+        }
+        return m;
+    }
+
+    /** Hoa don co xuat kho luc chot khong (hoa don tu truoc khi co kho / du lieu phan mem cu thi khong). */
+    public boolean wasIssued(Long orderId) {
+        return !movements.findByRefTypeAndRefIdAndTypeOrderByIdAsc(REF_ORDER, orderId, StockMovement.Type.SALE).isEmpty();
+    }
+
+    /**
+     * Sua hoa don: xuat them / nhap lai DUNG phan chenh lech so luong tung san pham (diff > 0: xuat them).
+     * Nhap lai theo gia von binh quan da xuat cho hoa don nay.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void adjustOrder(Order o, Map<Long, BigDecimal> diff, String by) {
+        Map<Long, BigDecimal[]> issued = issuedForOrder(o.getId());
+        lockAll(diff.keySet());
+        for (var e : new TreeMap<>(diff).entrySet()) {
+            BigDecimal d = e.getValue().setScale(3, RoundingMode.HALF_UP);
+            if (d.signum() == 0) continue;
+            BigDecimal cost = null;
+            BigDecimal[] a = issued.get(e.getKey());
+            if (d.signum() < 0 && a != null && a[0].signum() > 0) cost = a[1].divide(a[0], 4, RoundingMode.HALF_UP);
+            apply(new Move(e.getKey(), d.negate(), cost, StockMovement.Type.SALE_REVISE, REF_ORDER, o.getId(), null,
+                    o.getCode(), "Sửa hóa đơn", by));
+        }
+    }
+
+    /** Huy hoa don: nhap lai toan bo luong da xuat RONG (sau cac lan sua), theo gia von binh quan da xuat. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void returnOrder(Order o, String note, String by) {
+        Map<Long, BigDecimal[]> issued = issuedForOrder(o.getId());
+        lockAll(issued.keySet());
+        for (var e : new TreeMap<>(issued).entrySet()) {
+            BigDecimal q = e.getValue()[0];
+            if (q.signum() <= 0) continue;
+            BigDecimal cost = e.getValue()[1].divide(q, 4, RoundingMode.HALF_UP);
+            apply(new Move(e.getKey(), q, cost, StockMovement.Type.SALE_CANCEL, REF_ORDER, o.getId(), null, o.getCode(), note, by));
         }
     }
 

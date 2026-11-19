@@ -144,6 +144,7 @@ public class DebtStatementService {
                     + (k.voided().contains(l.getId()) ? " - ĐÃ HỦY" : "") + (note.isEmpty() ? "" : " - " + note);
             case ADJUST -> "Hủy HĐ" + code + (o != null && o.getRefundAmount() != null && o.getRefundAmount().signum() > 0
                     ? " (đã trả lại khách " + money(o.getRefundAmount()) + ")" : "");
+            case REVISE -> "Sửa HĐ" + code + (note.contains("trả lại khách") ? " (" + note.substring(note.indexOf("trả lại khách")) + ")" : "");
             case MANUAL -> note.isEmpty() ? "Điều chỉnh nợ" : "Điều chỉnh: " + note;
             case VOID -> "Hủy phiếu thu " + k.receiptNos().getOrDefault(l.getReversalOf(), "") + (note.isEmpty() ? "" : ": " + note);
         };

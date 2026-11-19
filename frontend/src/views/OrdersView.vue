@@ -12,6 +12,7 @@ import PageHeader from '../components/PageHeader.vue'
 import Pager from '../components/Pager.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ZaloSendDialog from '../components/ZaloSendDialog.vue'
+import OrderReviseDialog from '../components/OrderReviseDialog.vue'
 import { openPdf } from '../api/pdf'
 import { useAuth } from '../stores/auth'
 
@@ -50,14 +51,32 @@ const detail = ref<Order | null>(null)
 const detailLoading = ref(false)
 const detailId = computed(() => (route.params.id ? Number(route.params.id) : null))
 
+// lich su sua hoa don (chi quan tri xem)
+interface Revision { id: number; revisedAt: string; revisedBy: string | null; reason: string | null; debtDelta: number; refund: number; before: string; after: string }
+const revisions = ref<Revision[]>([])
+const openRev = ref<number | null>(null)
+async function loadRevisions(id: number) {
+  revisions.value = auth.isAdmin ? (await http.get<Revision[]>(`/orders/${id}/revisions`).catch(() => ({ data: [] }))).data : []
+}
+
 watch(detailId, async (id) => {
   detail.value = null
+  revisions.value = []
+  openRev.value = null
   if (!id) return
   detailLoading.value = true
-  try { detail.value = (await http.get<Order>(`/orders/${id}`)).data }
+  try { detail.value = (await http.get<Order>(`/orders/${id}`)).data; loadRevisions(id) }
   catch { closeDetail() }
   finally { detailLoading.value = false }
 }, { immediate: true })
+
+// sua hoa don da chot (quan tri)
+const revising = ref(false)
+function onRevised(o: Order) {
+  detail.value = o
+  loadRevisions(o.id)
+  list.load()
+}
 
 function openDetail(r: { id: number }) { router.push({ path: `/orders/${r.id}`, query: route.query }) }
 function closeDetail() {
@@ -235,13 +254,30 @@ onMounted(list.load)
           <div><dt>Khách trả</dt><dd class="num tone-money">{{ num(detail.paidAmount) }}</dd></div>
           <div class="b"><dt>{{ Number(detail.debtAfter) > 0 ? 'Còn nợ' : 'Còn lại' }}</dt>
             <dd class="num" :class="{ 'tone-debt': Number(detail.debtAfter) > 0 }">{{ num(detail.debtAfter) }}</dd></div>
-          <div v-if="Number(detail.refundAmount) > 0" class="b refund"><dt>Đã trả lại khách khi hủy</dt><dd class="num">{{ num(detail.refundAmount) }}</dd></div>
+          <div v-if="Number(detail.refundAmount) > 0" class="b refund"><dt>Đã trả lại khách (hủy / sửa)</dt><dd class="num">{{ num(detail.refundAmount) }}</dd></div>
         </dl>
+        <section v-if="revisions.length" class="revs" aria-label="Lịch sử sửa hóa đơn">
+          <h3>Đã sửa {{ revisions.length }} lần</h3>
+          <div v-for="r in revisions" :key="r.id" class="rev">
+            <button type="button" class="rev-head" :aria-expanded="openRev === r.id" @click="openRev = openRev === r.id ? null : r.id">
+              <span class="num">{{ dtShort(r.revisedAt) }}</span> · {{ r.revisedBy }}
+              <span v-if="r.reason"> · {{ r.reason }}</span>
+              <span v-if="Number(r.debtDelta) !== 0" class="num" :class="Number(r.debtDelta) > 0 ? 'tone-debt' : 'tone-money'">
+                · nợ {{ Number(r.debtDelta) > 0 ? '+' : '' }}{{ num(r.debtDelta) }}</span>
+              <span v-if="Number(r.refund) > 0" class="tone-debt"> · trả lại khách {{ num(r.refund) }}</span>
+            </button>
+            <div v-if="openRev === r.id" class="rev-body">
+              <div><b>Trước</b><pre>{{ r.before }}</pre></div>
+              <div><b>Sau</b><pre>{{ r.after }}</pre></div>
+            </div>
+          </div>
+        </section>
       </template>
     </div>
     <template #footer>
       <div class="foot">
         <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" type="danger" plain @click="cancel(detail!)">Hủy hóa đơn</el-button>
+        <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" plain @click="revising = true">Sửa hóa đơn</el-button>
         <span class="grow" />
         <el-button @click="closeDetail">Đóng</el-button>
         <el-button v-if="detail?.status === 'PAID'" type="success" plain :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
@@ -249,6 +285,7 @@ onMounted(list.load)
       </div>
     </template>
   </el-drawer>
+  <OrderReviseDialog v-if="detail && detail.status === 'PAID'" v-model="revising" :order="detail" @saved="onRevised" />
   <ZaloSendDialog v-if="detail" v-model="zalo" :title="`Hóa đơn ${detail.code}`" :image-path="`/orders/${detail.id}/invoice.png`"
                   :file-name="`${detail.code}.png`" :text="orderMessage(detail)" :phone="detail.customerPhone" />
 </template>
@@ -289,4 +326,12 @@ onMounted(list.load)
 .foot .grow { flex: 1; }
 .foot .el-button + .el-button { margin-left: 0; }
 @media (max-width: 560px) { .meta { grid-template-columns: 1fr; } }
+.revs { margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); }
+.revs h3 { font-size: 14px; margin: 0; }
+.rev { border: 1px solid var(--steel-200); border-radius: var(--radius-md); }
+.rev-head { width: 100%; text-align: left; background: none; border: 0; padding: var(--space-sm) var(--space-md); font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); line-height: 1.5; }
+.rev-head:hover { background: var(--steel-50); }
+.rev-body { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); padding: 0 var(--space-md) var(--space-md); font-size: 13px; }
+.rev-body pre { margin: 4px 0 0; white-space: pre-wrap; font-family: var(--font-sans); font-size: 13px; background: var(--steel-50); border-radius: var(--radius-sm, 6px); padding: var(--space-sm); }
+@media (max-width: 640px) { .rev-body { grid-template-columns: 1fr; } }
 </style>

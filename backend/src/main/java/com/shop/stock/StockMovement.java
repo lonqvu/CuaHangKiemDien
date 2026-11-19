@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Getter @Setter
 public class StockMovement {
     /** RECEIPT nhap hang, RECEIPT_CANCEL huy phieu nhap, SALE ban hang, SALE_CANCEL huy hoa don, COUNT kiem ke, ADJUST xuat huy/dieu chinh. */
-    public enum Type { RECEIPT, RECEIPT_CANCEL, SALE, SALE_CANCEL, COUNT, ADJUST }
+    public enum Type { RECEIPT, RECEIPT_CANCEL, SALE, SALE_CANCEL, COUNT, ADJUST, SALE_REVISE }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -3,7 +3,7 @@ export interface Category { id: number; name: string; productCount: number }
 export interface Customer { id: number; name: string; address: string | null; phone: string | null; debt: number }
 /** Mot dong so cong no, da dien giai san o backend (giong dong tren phieu thu / sao ke). */
 export interface LedgerRow {
-  id: number; type: 'ORDER' | 'PAYMENT' | 'ADJUST' | 'MANUAL' | 'VOID'; description: string
+  id: number; type: 'ORDER' | 'PAYMENT' | 'ADJUST' | 'MANUAL' | 'VOID' | 'REVISE'; description: string
   increase: number | null; decrease: number | null; balanceAfter: number; createdAt: string; createdBy: string | null
   receiptNo: string | null; method: string | null; voided: boolean; canVoid: boolean
   orderId: number | null; orderCode: string | null
@@ -49,7 +49,7 @@ export interface UserAccount { id: number; username: string; fullName: string; r
 export interface ProductUnit { unit: string; ratio: number }
 export interface StockRow { productId: number; name: string; categoryName: string | null; unit: string | null; onHand: number; avgCost: number; value: number; minStock: number; price: number }
 export interface StockSummary { count: number; totalValue: number; lowCount: number; negativeCount: number }
-export type MovementType = 'RECEIPT' | 'RECEIPT_CANCEL' | 'SALE' | 'SALE_CANCEL' | 'COUNT' | 'ADJUST'
+export type MovementType = 'RECEIPT' | 'RECEIPT_CANCEL' | 'SALE' | 'SALE_CANCEL' | 'SALE_REVISE' | 'COUNT' | 'ADJUST'
 export interface StockMovement {
   id: number; productId: number; type: MovementType; qty: number; unitCost: number; value: number; balanceAfter: number; avgCostAfter: number
   refType: 'ORDER' | 'RECEIPT' | 'COUNT' | 'ADJUST'; refId: number | null; refCode: string | null; note: string | null; createdBy: string | null; createdAt: string

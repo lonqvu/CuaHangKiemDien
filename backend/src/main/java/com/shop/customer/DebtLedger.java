@@ -13,9 +13,10 @@ import java.time.LocalDateTime;
 public class DebtLedger {
     /**
      * ORDER: mua hang, PAYMENT: tra no (luc mua hoac thu no), ADJUST: huy hoa don,
-     * MANUAL: nhap no ban dau / dieu chinh no (co ly do), VOID: huy phieu thu (dao nguoc mot PAYMENT).
+     * MANUAL: nhap no ban dau / dieu chinh no (co ly do), VOID: huy phieu thu (dao nguoc mot PAYMENT),
+     * REVISE: sua hoa don da chot (phan chenh lech con no cua hoa don).
      */
-    public enum Type { ORDER, PAYMENT, ADJUST, MANUAL, VOID }
+    public enum Type { ORDER, PAYMENT, ADJUST, MANUAL, VOID, REVISE }
 
     /** Hinh thuc thu tien. */
     public enum Method { CASH, TRANSFER }

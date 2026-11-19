@@ -305,9 +305,8 @@ public class OrderService {
                 debts.apply(c, DebtLedger.Type.ADJUST, e.debtReversal().negate(), o.getId(), note);
             o.setRefundAmount(e.refund());
         }
-        // Nhap tra dung so luong + gia von da xuat (hoa don tu truoc khi co kho thi khong co gi de tra)
-        stock.reverse(StockService.REF_ORDER, o.getId(), StockMovement.Type.SALE, StockMovement.Type.SALE_CANCEL,
-                "Hủy hóa đơn " + o.getCode(), null);
+        // Nhap tra luong da xuat RONG (sau cac lan sua) theo gia von da xuat; hoa don tu truoc khi co kho: khong co gi de tra
+        stock.returnOrder(o, "Hủy hóa đơn " + o.getCode(), null);
         o.setStatus(Order.Status.CANCELLED);
         o.getItems().size();
         return o;

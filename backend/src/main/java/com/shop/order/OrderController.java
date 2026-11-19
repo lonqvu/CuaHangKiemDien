@@ -16,8 +16,9 @@ import java.util.Map;
 @RequestMapping("/api/orders")
 public class OrderController {
     private final OrderService service;
+    private final OrderRevisionService revisions;
 
-    public OrderController(OrderService service) { this.service = service; }
+    public OrderController(OrderService service, OrderRevisionService revisions) { this.service = service; this.revisions = revisions; }
 
     public record ItemDto(Long id, Long productId, String productName, String unit, BigDecimal unitPrice,
                           BigDecimal quantity, int sheets, BigDecimal factor, BigDecimal totalQuantity, BigDecimal lineTotal) {}
@@ -119,4 +120,20 @@ public class OrderController {
 
     @PostMapping("/{id}/cancel")
     public OrderDto cancel(@PathVariable Long id) { return dto(service.cancel(id)); }
+
+    /** Sua hoa don da chot (chi quan tri - SecurityConfig): xem truoc tien / no thay doi, chua luu. */
+    @PostMapping("/{id}/revise-preview")
+    public OrderRevisionService.Effect revisePreview(@PathVariable Long id, @RequestBody OrderRevisionService.ReviseRequest r) {
+        return revisions.preview(id, r);
+    }
+
+    /** Sua hoa don da chot: tinh lai tien, cong no, kho; luu lich su. */
+    @PostMapping("/{id}/revise")
+    public OrderDto revise(@PathVariable Long id, @RequestBody OrderRevisionService.ReviseRequest r) {
+        return dto(revisions.revise(id, r));
+    }
+
+    /** Lich su sua hoa don (moi nhat truoc). */
+    @GetMapping("/{id}/revisions")
+    public List<OrderRevisionService.Revision> revisionHistory(@PathVariable Long id) { return revisions.history(id); }
 }

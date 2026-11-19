@@ -12,6 +12,8 @@ import java.util.List;
 public interface StockMovementRepository extends JpaRepository<StockMovement, Long> {
     Page<StockMovement> findByProductIdOrderByIdDesc(Long productId, Pageable page);
 
+    List<StockMovement> findByRefTypeAndRefIdOrderByIdAsc(String refType, Long refId);
+
     List<StockMovement> findByRefTypeAndRefIdAndTypeOrderByIdAsc(String refType, Long refId, StockMovement.Type type);
 
     @Query("select coalesce(sum(m.qty), 0) from StockMovement m where m.productId = :id")
