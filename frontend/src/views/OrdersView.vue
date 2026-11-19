@@ -239,12 +239,17 @@ onMounted(list.load)
           <div v-if="detail.note" class="wide"><dt>Ghi chú</dt><dd>{{ detail.note }}</dd></div>
         </dl>
         <el-table :data="detail.items" size="small">
-          <el-table-column prop="productName" label="Mặt hàng" min-width="170" />
-          <el-table-column label="Tổng SL" min-width="120" align="right">
+          <el-table-column label="Mặt hàng" min-width="170">
+            <template #default="{ row }">{{ row.productName }}
+              <!-- dien thoai: gop SL x don gia vao duoi ten, chi con 2 cot -> khong bi cat -->
+              <div v-if="narrow" class="muted small num">{{ qty(row.totalQuantity) }} {{ row.unit }} × {{ num(row.unitPrice) }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="!narrow" label="Tổng SL" min-width="120" align="right">
             <template #default="{ row }"><span class="num">{{ qty(row.totalQuantity) }}</span> <span class="muted small">{{ row.unit }}</span></template>
           </el-table-column>
-          <el-table-column label="Đơn giá" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
-          <el-table-column label="Thành tiền" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.lineTotal) }}</span></template></el-table-column>
+          <el-table-column v-if="!narrow" label="Đơn giá" min-width="120" align="right"><template #default="{ row }"><span class="num">{{ num(row.unitPrice) }}</span></template></el-table-column>
+          <el-table-column label="Thành tiền" :min-width="narrow ? 104 : 120" align="right"><template #default="{ row }"><span class="num">{{ num(row.lineTotal) }}</span></template></el-table-column>
         </el-table>
         <dl class="sum">
           <div><dt>Tiền hàng</dt><dd class="num">{{ num(detail.itemsTotal) }}</dd></div>
@@ -276,12 +281,12 @@ onMounted(list.load)
     </div>
     <template #footer>
       <div class="foot">
-        <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" type="danger" plain @click="cancel(detail!)">Hủy hóa đơn</el-button>
-        <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" plain @click="revising = true">Sửa hóa đơn</el-button>
+        <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" class="f-cancel" type="danger" plain @click="cancel(detail!)">Hủy hóa đơn</el-button>
+        <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" class="f-edit" plain @click="revising = true">Sửa hóa đơn</el-button>
         <span class="grow" />
-        <el-button @click="closeDetail">Đóng</el-button>
-        <el-button v-if="detail?.status === 'PAID'" type="success" plain :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
-        <el-button v-if="detail && detail.status !== 'DRAFT'" type="primary" :icon="Printer" @click="print(detail!)">In hóa đơn</el-button>
+        <el-button class="f-close" @click="closeDetail">Đóng</el-button>
+        <el-button v-if="detail?.status === 'PAID'" class="f-zalo" type="success" plain :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
+        <el-button v-if="detail && detail.status !== 'DRAFT'" class="f-print" type="primary" :icon="Printer" @click="print(detail!)">In hóa đơn</el-button>
       </div>
     </template>
   </el-drawer>
@@ -326,6 +331,17 @@ onMounted(list.load)
 .foot .grow { flex: 1; }
 .foot .el-button + .el-button { margin-left: 0; }
 @media (max-width: 560px) { .meta { grid-template-columns: 1fr; } }
+/* dien thoai: nut chia 2 cot, khong tran ngang; nut chinh (In, Zalo) len tren */
+@media (max-width: 640px) {
+  .foot { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+  .foot .grow { display: none; }
+  .foot .el-button { width: 100%; margin: 0; }
+  .foot .f-print { order: 1; }
+  .foot .f-zalo { order: 2; }
+  .foot .f-edit { order: 3; }
+  .foot .f-cancel { order: 4; }
+  .foot .f-close { order: 5; grid-column: 1 / -1; }
+}
 .revs { margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); }
 .revs h3 { font-size: 14px; margin: 0; }
 .rev { border: 1px solid var(--steel-200); border-radius: var(--radius-md); }

@@ -37,4 +37,10 @@ const range = computed(() => {
 /* nut trang du lon de bam (>= 32px, vung bam 44px nho padding) */
 .pager :deep(.el-pager li), .pager :deep(.btn-prev), .pager :deep(.btn-next) { min-width: 34px; height: 34px; line-height: 34px; }
 @media (max-width: 560px) { .size { display: none; } }
+/* man rat hep (iPhone SE 320px): nut sat nhau hon de 7 nut (truoc, 5 trang, sau) vua 1 hang */
+@media (max-width: 380px) {
+  .pager { padding: var(--space-md); }
+  .pager :deep(.el-pagination) { gap: 0; }
+  .pager :deep(.el-pager li), .pager :deep(.btn-prev), .pager :deep(.btn-next) { min-width: 30px; margin: 0 2px; padding: 0 4px; font-size: 13px; }
+}
 </style>
