@@ -44,7 +44,8 @@ public class LegacyImportService {
         this.json = json.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    public record Status(boolean canImport, String blockedReason, Map<String, Integer> counts, LastImport last) {}
+    /** canReset: co du lieu nhung chua nhap du lieu cu lan nao -> coi la du lieu thu, xoa duoc. */
+    public record Status(boolean canImport, String blockedReason, Map<String, Integer> counts, LastImport last, boolean canReset) {}
 
     public record LastImport(String at, String by, String source, String report) {}
 
@@ -57,7 +58,7 @@ public class LegacyImportService {
         String reason = blockedReason(counts);
         LastImport last = jdbc.query("SELECT created_at, created_by, source, report FROM legacy_import_log ORDER BY id DESC",
                 rs -> rs.next() ? new LastImport(rs.getTimestamp(1).toLocalDateTime().toString(), rs.getString(2), rs.getString(3), rs.getString(4)) : null);
-        return new Status(reason == null, reason, counts, last);
+        return new Status(reason == null, reason, counts, last, reason != null && last == null);
     }
 
     private static final Map<String, String> NAMES = Map.of("category", "loại hàng", "product", "sản phẩm", "customer", "khách",
@@ -69,6 +70,38 @@ public class LegacyImportService {
         if (has.isEmpty()) return null;
         return "Hệ thống đã có dữ liệu (" + String.join(", ", has) + "), nên không nhập được, để không ghi đè dữ liệu đang có. "
                 + "Chỉ nhập vào hệ thống mới chưa dùng.";
+    }
+
+    /** Chu phai go dung de xoa (chong bam nham). */
+    public static final String RESET_PHRASE = "XOA DU LIEU THU";
+    /** Thu tu xoa theo khoa ngoai (bang con truoc). Tai khoan, cai dat, anh man dang nhap: giu nguyen. */
+    static final List<String> RESET_ORDER = List.of("stock_count_line", "stock_count", "stock_movement", "stock_balance",
+            "goods_receipt_line", "goods_receipt", "supplier_ledger", "supplier", "debt_ledger", "order_item", "orders",
+            "product_unit", "product", "category", "customer");
+
+    public record ResetResult(Map<String, Integer> deleted) {}
+
+    /**
+     * Xoa du lieu THU (truoc ngay chuyen that) de nhap du lieu phan mem cu. Chi khi CHUA nhap du lieu cu lan nao:
+     * da nhap -> du lieu that, khoa vinh vien. Dem lai so ID / so hoa don tu dau. Tai khoan, mat khau, 2 lop: giu.
+     */
+    public ResetResult resetTestData(String phrase, String user) {
+        if (!RESET_PHRASE.equals(phrase == null ? null : phrase.trim().toUpperCase(Locale.ROOT)))
+            throw ApiException.badRequest("Gõ đúng \"" + RESET_PHRASE + "\" để xác nhận");
+        synchronized (lock) {
+            return tx.execute(st -> {
+                if (jdbc.queryForObject("SELECT COUNT(*) FROM legacy_import_log", Integer.class) > 0)
+                    throw ApiException.conflict("Đã nhập dữ liệu từ phần mềm cũ: đây là dữ liệu thật, không xóa được.");
+                Map<String, Integer> deleted = new LinkedHashMap<>();
+                for (String t : RESET_ORDER) deleted.put(t, jdbc.update("DELETE FROM " + t));
+                for (String t : RESET_ORDER)
+                    if (!t.equals("stock_balance")) jdbc.execute("ALTER TABLE " + t + " ALTER COLUMN id RESTART WITH 1");
+                for (String q : List.of("order_code_seq", "receipt_code_seq", "count_code_seq", "receipt_no_seq"))
+                    jdbc.execute("ALTER SEQUENCE " + q + " RESTART WITH 1");
+                org.slf4j.LoggerFactory.getLogger(LegacyImportService.class).warn("{} da xoa du lieu thu: {}", user, deleted);
+                return new ResetResult(deleted);
+            });
+        }
     }
 
     public Result run(byte[] body, boolean dryRun, String user) {

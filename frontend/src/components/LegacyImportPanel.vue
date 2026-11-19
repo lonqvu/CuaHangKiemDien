@@ -6,14 +6,14 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, CircleCheckFilled, CircleCloseFilled, Lock } from '@element-plus/icons-vue'
+import { Upload, CircleCheckFilled, CircleCloseFilled, Lock, Delete } from '@element-plus/icons-vue'
 import http from '../api/http'
 import { dtShort } from '../format'
 
 interface Line { label: string; before: string; after: string; ok: boolean }
 interface Report { ok: boolean; summary: Line[]; anomalies: string[]; errors: string[]; errorCount: number }
 interface Result { dryRun: boolean; committed: boolean; ok: boolean; source: string; report: Report }
-interface Status { canImport: boolean; blockedReason: string | null; last: { at: string; by: string; source: string; report: string } | null }
+interface Status { canImport: boolean; canReset: boolean; blockedReason: string | null; last: { at: string; by: string; source: string; report: string } | null }
 
 const status = ref<Status | null>(null)
 const busy = ref<'' | 'test' | 'import'>('')
@@ -58,6 +58,28 @@ async function onPick(e: Event) {
   fileName.value = f.name
   body.value = await prepare(f)
   await send(true).catch(() => {}) // loi: interceptor da bao
+}
+
+const RESET_PHRASE = 'XOA DU LIEU THU'
+const resetting = ref(false)
+/** Xoa du lieu thu (chua nhap du lieu cu lan nao) -> he thong trong, nhap duoc. Phai go dung chu xac nhan. */
+async function resetTest() {
+  const { value } = await ElMessageBox.prompt(
+    `${status.value?.blockedReason?.split(', nên')[0]}. Xóa hết các dữ liệu này (khách, công nợ, sản phẩm, loại hàng, hóa đơn, kho, nhà cung cấp) để nhập dữ liệu từ phần mềm cũ? Tài khoản và mật khẩu giữ nguyên. KHÔNG khôi phục được trên web. Gõ ${RESET_PHRASE} để xác nhận.`,
+    'Xóa dữ liệu thử', {
+      confirmButtonText: 'Xóa', cancelButtonText: 'Không', type: 'warning', inputPlaceholder: RESET_PHRASE,
+      confirmButtonClass: 'el-button--danger',
+      inputValidator: (v) => (v ?? '').trim().toUpperCase() === RESET_PHRASE || `Gõ đúng ${RESET_PHRASE}`,
+    })
+  resetting.value = true
+  try {
+    await http.post('/admin/legacy-import/reset', { confirm: value })
+    ElMessage.success('Đã xóa dữ liệu thử. Giờ nhập được dữ liệu từ phần mềm cũ.')
+    result.value = null
+    await load()
+  } finally {
+    resetting.value = false
+  }
 }
 
 async function doImport() {
@@ -108,7 +130,13 @@ async function doImport() {
     </template>
 
     <!-- da co du lieu (khong phai tu lan nhap nay) -> khoa -->
-    <p v-else class="blocked"><el-icon><Lock /></el-icon><span>{{ status?.blockedReason }}</span></p>
+    <template v-else>
+      <p class="blocked"><el-icon><Lock /></el-icon><span>{{ status?.blockedReason }}</span></p>
+      <div v-if="status?.canReset" class="actions">
+        <el-button type="danger" plain :icon="Delete" :loading="resetting" @click="resetTest">Xóa dữ liệu thử</el-button>
+        <span class="muted small">Chỉ dùng khi đây là dữ liệu nhập thử, chưa phải dữ liệu thật.</span>
+      </div>
+    </template>
 
     <!-- bao cao lan kiem tra / nhap vua chay -->
     <div v-if="result && !status?.last" class="report" :class="result.ok ? 'is-ok' : 'is-bad'">

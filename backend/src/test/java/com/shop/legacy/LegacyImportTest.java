@@ -87,6 +87,41 @@ class LegacyImportTest {
     private int count(String t) { return jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Integer.class); }
 
     @Test
+    @Order(0)
+    void xoaDuLieuThu_truocKhiNhap() throws Exception {
+        String admin = token("admin", "admin123");
+        // du lieu thu: 1 loai, 1 san pham, 1 khach co no, 1 hoa don ban chiu
+        mvc.perform(post("/api/categories").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Thử\"}")).andExpect(status().isOk());
+        jdbc.update("INSERT INTO product (name, unit, price) VALUES ('SP thử', 'cái', 1000)");
+        String cust = mvc.perform(post("/api/customers").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Khách thử\",\"initialDebt\":50000}")).andReturn().getResponse().getContentAsString().replaceAll("^\\{\"id\":(\\d+).*", "$1");
+        Long pid = jdbc.queryForObject("SELECT id FROM product WHERE name = 'SP thử'", Long.class);
+        String draft = mvc.perform(post("/api/orders").header("Authorization", "Bearer " + admin))
+                .andReturn().getResponse().getContentAsString().replaceAll("^\\{\"id\":(\\d+).*", "$1");
+        mvc.perform(post("/api/orders/" + draft + "/items").header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"productId\":" + pid + ",\"quantity\":2}")).andExpect(status().isOk());
+        mvc.perform(post("/api/orders/" + draft + "/checkout").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"customerId\":" + cust + ",\"paidAmount\":0}")).andExpect(status().isOk()).andExpect(jsonPath("$.code").value("HD00000001"));
+
+        mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin))
+                .andExpect(jsonPath("$.canImport").value(false)).andExpect(jsonPath("$.canReset").value(true))
+                .andExpect(jsonPath("$.blockedReason").value(org.hamcrest.Matchers.containsString("1 khách")));
+        // go sai chu xac nhan / nhan vien -> khong xoa
+        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confirm\":\"xoa\"}")).andExpect(status().isBadRequest());
+        assertEquals(1, count("customer"));
+
+        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confirm\":\" xoa du lieu thu \"}")).andExpect(status().isOk()).andExpect(jsonPath("$.deleted.orders").value(1));
+        for (String t : LegacyImportService.MUST_BE_EMPTY) assertEquals(0, count(t), t + " phai trong sau khi xoa");
+        assertEquals(0, count("stock_balance"));
+        assertTrue(count("app_user") >= 1, "giu tai khoan");
+        mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin))
+                .andExpect(jsonPath("$.canImport").value(true)).andExpect(jsonPath("$.canReset").value(false));
+    }
+
+    @Test
     @Order(1)
     void quyen_vaFileSai() throws Exception {
         if (users.findByUsername("nv_legacy").isEmpty()) {
@@ -98,6 +133,8 @@ class LegacyImportTest {
         mvc.perform(get("/api/admin/legacy-import")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + staff)).andExpect(status().isForbidden());
         mvc.perform(post("/api/admin/legacy-import").header("Authorization", "Bearer " + staff).content(DATA)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + staff).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confirm\":\"XOA DU LIEU THU\"}")).andExpect(status().isForbidden());
 
         mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.canImport").value(true));
@@ -176,6 +213,11 @@ class LegacyImportTest {
                 .andExpect(jsonPath("$.canImport").value(false)).andExpect(jsonPath("$.last.report").value(org.hamcrest.Matchers.containsString("KHỚP HẾT")));
         mvc.perform(post("/api/admin/legacy-import?dryRun=true").header("Authorization", "Bearer " + admin).content(DATA))
                 .andExpect(status().isConflict());
+        // da nhap du lieu that -> khong xoa duoc nua
+        mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin)).andExpect(jsonPath("$.canReset").value(false));
+        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confirm\":\"XOA DU LIEU THU\"}")).andExpect(status().isConflict());
+        assertEquals(6, count("orders"));
     }
 
     @Test

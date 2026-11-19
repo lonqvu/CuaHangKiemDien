@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
  *  POST /api/admin/legacy-import?dryRun=  : than request = file du-lieu-cu.json (hoac .json.gz)
  *        dryRun=true : nap + doi chieu roi HUY (xem bao cao truoc)
  *        dryRun=false: nap + doi chieu, KHOP HET moi luu; lech -> huy het
+ *  POST /api/admin/legacy-import/reset    : xoa du lieu thu (chua nhap du lieu cu lan nao), go "XOA DU LIEU THU"
  */
 @RestController
 @RequestMapping("/api/admin/legacy-import")
@@ -20,6 +21,14 @@ public class LegacyImportController {
 
     @GetMapping
     public LegacyImportService.Status status() { return service.status(); }
+
+    public record ResetRequest(String confirm) {}
+
+    /** Xoa du lieu thu (chi khi chua nhap du lieu cu lan nao); phai go dung "XOA DU LIEU THU". */
+    @PostMapping("/reset")
+    public LegacyImportService.ResetResult reset(@RequestBody ResetRequest r, Authentication auth) {
+        return service.resetTestData(r.confirm(), auth.getName());
+    }
 
     @PostMapping(consumes = MediaType.ALL_VALUE)
     public LegacyImportService.Result run(@RequestBody byte[] body, @RequestParam(defaultValue = "true") boolean dryRun,
