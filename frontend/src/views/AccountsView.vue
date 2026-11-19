@@ -93,7 +93,7 @@ onMounted(load)
   <LoginImagePanel />
   <LegacyImportPanel />
 
-  <el-dialog v-model="dialog.open" :title="dialog.id ? 'Sửa tài khoản' : 'Thêm tài khoản'" width="440px">
+  <el-dialog v-model="dialog.open" :title="dialog.id ? 'Sửa tài khoản' : 'Thêm tài khoản'" width="min(440px, 94vw)">
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="save">
       <el-form-item label="Tên đăng nhập" prop="username"><el-input v-model="form.username" :disabled="!!dialog.id" autocomplete="off" /></el-form-item>
       <el-form-item label="Họ tên" prop="fullName"><el-input v-model="form.fullName" /></el-form-item>

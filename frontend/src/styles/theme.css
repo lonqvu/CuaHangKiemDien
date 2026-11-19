@@ -209,3 +209,8 @@ input:-webkit-autofill:focus {
   caret-color: var(--ink);
   transition: background-color 600000s 0s;
 }
+
+/* Hop thoai / bang xac nhan khong bao gio rong hon man hinh (dien thoai): tranh phai keo qua lai */
+.el-dialog { max-width: calc(100vw - 16px); }
+.el-message-box { max-width: calc(100vw - 32px); }
+.el-dialog__body { overflow-wrap: anywhere; }

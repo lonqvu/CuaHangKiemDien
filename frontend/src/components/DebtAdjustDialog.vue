@@ -44,7 +44,7 @@ async function save() {
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" :title="`Điều chỉnh nợ: ${customer?.name ?? ''}`" width="460px" @update:model-value="emit('update:modelValue', $event)">
+  <el-dialog :model-value="modelValue" :title="`Điều chỉnh nợ: ${customer?.name ?? ''}`" width="min(460px, 94vw)" @update:model-value="emit('update:modelValue', $event)">
     <el-form label-position="top" @submit.prevent="save">
       <p class="now">Nợ hiện tại: <b class="num">{{ money(customer?.debt) }}</b></p>
       <el-form-item label="Số nợ đúng (₫)" for="adj-debt">

@@ -197,7 +197,7 @@ async function save() {
 .ln .r, .total { text-align: right; }
 .full { width: 100%; }
 .add { align-self: flex-start; }
-.money { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+.money { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
 .money label, .ln label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-muted); }
 .money .wide { grid-column: 1 / -1; }
 .req { color: var(--debt); }
@@ -212,7 +212,7 @@ async function save() {
 .err { margin: 0; color: var(--debt); font-size: 14px; }
 .refund { margin: var(--space-sm) 0 0; font-size: 14px; color: var(--debt); }
 @media (max-width: 760px) {
-  .ln { grid-template-columns: 1fr 1fr; padding: var(--space-md); border: 1px solid var(--steel-200); border-radius: var(--radius-md); }
+  .ln { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--space-md); border: 1px solid var(--steel-200); border-radius: var(--radius-md); }
   .ln .name { grid-column: 1 / -1; }
   .ln .total { text-align: left; align-self: end; }
   .ln > .el-button { justify-self: end; align-self: end; }

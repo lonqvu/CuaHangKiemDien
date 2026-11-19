@@ -148,7 +148,7 @@ function downloadCodes() {
 .manual summary { cursor: pointer; font-size: 13px; color: var(--steel-800); }
 .secret { display: block; margin-top: 6px; font-size: 15px; letter-spacing: 0.04em; word-break: break-all; }
 .code :deep(input) { font-family: var(--font-mono); font-size: 18px; letter-spacing: 0.2em; }
-.codes { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.codes { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .codes code { display: block; padding: 6px 10px; background: var(--steel-50); border-radius: var(--radius-sm, 4px); font-size: 15px; text-align: center; }
 .small { font-size: 12px; }
 .err { margin-top: var(--space-sm); }

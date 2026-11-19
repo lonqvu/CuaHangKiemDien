@@ -715,7 +715,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
 
-    <el-dialog v-model="edit.open" :title="`Sửa: ${edit.name}`" width="440px">
+    <el-dialog v-model="edit.open" :title="`Sửa: ${edit.name}`" width="min(440px, 94vw)">
       <el-form label-position="top" class="edit-grid">
         <el-form-item label="Số lượng" for="e-q"><NumberField id="e-q" v-model="edit.quantity" kind="decimal" /></el-form-item>
         <el-form-item label="Số tấm" for="e-s"><NumberField id="e-s" v-model="edit.sheets" kind="integer" /></el-form-item>
@@ -736,7 +736,7 @@ onBeforeUnmount(() => {
 
     <DebtAdjustDialog v-model="adjustOpen" :customer="customer" @saved="setCustomer" />
 
-    <el-dialog v-model="newProd.open" title="Thêm sản phẩm mới" width="440px" @opened="newProdUnit?.focus()" @closed="afterNewProduct">
+    <el-dialog v-model="newProd.open" title="Thêm sản phẩm mới" width="min(440px, 94vw)" @opened="newProdUnit?.focus()" @closed="afterNewProduct">
       <el-form ref="newProdForm" :model="newProd" label-position="top" @submit.prevent="createProduct">
         <el-form-item label="Tên sản phẩm" prop="name" :rules="[{ required: true, message: 'Nhập tên sản phẩm', trigger: 'blur' }]">
           <el-input v-model="newProd.name" />
@@ -762,7 +762,7 @@ onBeforeUnmount(() => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="newCus.open" title="Thêm khách hàng" width="420px">
+    <el-dialog v-model="newCus.open" title="Thêm khách hàng" width="min(420px, 94vw)">
       <el-form ref="newCusForm" :model="newCus" label-position="top" @submit.prevent="createCustomer">
         <el-form-item label="Tên khách" prop="name" :rules="[{ required: true, message: 'Nhập tên khách', trigger: 'blur' }]">
           <el-input v-model="newCus.name" autofocus />
@@ -802,7 +802,7 @@ onBeforeUnmount(() => {
   .calc { grid-column: 1 / -1 !important; }
   .add { grid-column: 1 / -1 !important; }
 }
-@container (max-width: 420px) { .entry { grid-template-columns: 1fr 1fr; } }
+@container (max-width: 420px) { .entry { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .paybar { display: none; }
 .stockinfo { font-size: 13px; color: var(--ink-muted); margin-left: auto; }
 .stockinfo.over { color: var(--debt); font-weight: 600; }
@@ -891,10 +891,10 @@ kbd.on-dark { color: inherit; background: transparent; border-color: rgba(255, 2
 .state p { margin: 0; }
 .cta { width: 100%; height: 52px; font-size: 16px; }
 .done p { margin: 0 0 var(--space-md); }
-.done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+.done-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); }
 .done-actions .el-button + .el-button { margin-left: 0; }
 .done-actions .wide { grid-column: 1 / -1; }
-.edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-lg); }
+.edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-lg); }
 
 
 /* Duoi 900px: 1 cot, phieu thanh toan xuong duoi + thanh "Tong phai tra" dinh day man de khong phai cuon tim nut */

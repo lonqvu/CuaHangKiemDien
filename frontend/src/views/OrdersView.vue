@@ -318,7 +318,7 @@ onMounted(list.load)
 .tag { font-size: 11px; padding: 0 6px; border-radius: 4px; background: var(--steel-100); color: var(--ink-muted); }
 .small { font-size: 12px; }
 .detail { min-height: 200px; }
-.meta { margin: 0 0 var(--space-xl); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md) var(--space-xl); }
+.meta { margin: 0 0 var(--space-xl); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md) var(--space-xl); }
 .meta .wide { grid-column: 1 / -1; }
 .meta dt { font-size: 13px; color: var(--ink-muted); }
 .meta dd { margin: 0; }
@@ -333,7 +333,7 @@ onMounted(list.load)
 @media (max-width: 560px) { .meta { grid-template-columns: 1fr; } }
 /* dien thoai: nut chia 2 cot, khong tran ngang; nut chinh (In, Zalo) len tren */
 @media (max-width: 640px) {
-  .foot { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+  .foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); }
   .foot .grow { display: none; }
   .foot .el-button { width: 100%; margin: 0; }
   .foot .f-print { order: 1; }
@@ -347,7 +347,7 @@ onMounted(list.load)
 .rev { border: 1px solid var(--steel-200); border-radius: var(--radius-md); }
 .rev-head { width: 100%; text-align: left; background: none; border: 0; padding: var(--space-sm) var(--space-md); font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); line-height: 1.5; }
 .rev-head:hover { background: var(--steel-50); }
-.rev-body { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); padding: 0 var(--space-md) var(--space-md); font-size: 13px; }
+.rev-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); padding: 0 var(--space-md) var(--space-md); font-size: 13px; }
 .rev-body pre { margin: 4px 0 0; white-space: pre-wrap; font-family: var(--font-sans); font-size: 13px; background: var(--steel-50); border-radius: var(--radius-sm, 6px); padding: var(--space-sm); }
 @media (max-width: 640px) { .rev-body { grid-template-columns: 1fr; } }
 </style>
