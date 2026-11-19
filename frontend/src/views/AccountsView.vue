@@ -8,6 +8,7 @@ import type { UserAccount } from '../api/types'
 import { useAuth } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
 import LoginImagePanel from '../components/LoginImagePanel.vue'
+import LegacyImportPanel from '../components/LegacyImportPanel.vue'
 
 // Thay man Account cu. Khoa tai khoan thay vi xoa de giu ten nguoi lap tren hoa don.
 const auth = useAuth()
@@ -90,6 +91,7 @@ onMounted(load)
   </div>
 
   <LoginImagePanel />
+  <LegacyImportPanel />
 
   <el-dialog v-model="dialog.open" :title="dialog.id ? 'Sửa tài khoản' : 'Thêm tài khoản'" width="440px">
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent="save">
