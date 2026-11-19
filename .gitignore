@@ -16,3 +16,7 @@ __pycache__/
 backups/
 # cau hinh rclone (co ma truy cap Google Drive...) - KHONG dua len git
 deploy/rclone/
+tools/chuyen-du-lieu/node_modules/
+tools/chuyen-du-lieu/du-lieu-cu*.json
+*.bak
+chuyen/

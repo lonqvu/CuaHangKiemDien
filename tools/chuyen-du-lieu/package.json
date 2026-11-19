@@ -1,0 +1,9 @@
+{
+  "name": "chuyen-du-lieu",
+  "private": true,
+  "description": "Chuyen du lieu phan mem cu (SQL Server, BackupFile.bak) sang he thong moi (PostgreSQL)",
+  "dependencies": {
+    "mssql": "11.0.1",
+    "pg": "8.13.1"
+  }
+}
