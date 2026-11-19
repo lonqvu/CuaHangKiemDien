@@ -182,11 +182,21 @@ export function parseSegments(text: string): { segments: { quantity: number; she
 }
 
 /** Gom cac dong cung san pham + don gia thanh 1 cum (theo thu tu xuat hien dau tien). */
-export function groupItems<T extends { productId: number; unitPrice: number | string; sheets: number; totalQuantity: number | string; lineTotal: number | string }>(items: T[]) {
+/**
+ * Hang ban theo met (ton...): moi nhap nhieu doan / gop doan. Du lieu that ghi don vi rat khac nhau:
+ * "m", "m2", "m 2", "m²", "md" (met dai), "mét", "mét 2", "mét dài". Hop, cay, cai, kg... khong phai.
+ */
+export function isSheetUnit(unit: string | null | undefined): boolean {
+  const u = (unit ?? '').toLowerCase().normalize('NFC').replace(/\s+/g, '').replace('²', '2')
+  return ['m', 'm2', 'md', 'mét', 'mét2', 'métdài', 'mdài', 'met', 'met2'].includes(u)
+}
+
+export function groupItems<T extends { id?: number; productId: number; unit?: string | null; unitPrice: number | string; sheets: number; totalQuantity: number | string; lineTotal: number | string }>(items: T[]) {
   const groups: { key: string; first: T; items: T[]; sheets: number; totalQuantity: number; lineTotal: number }[] = []
   const byKey = new Map<string, (typeof groups)[number]>()
   for (const it of items) {
-    const key = `${it.productId}:${Number(it.unitPrice)}`
+    // chi gom "doan" cho hang ban theo met; hang khac (hop, cay...) moi dong 1 muc rieng
+    const key = isSheetUnit(it.unit) ? `${it.productId}:${Number(it.unitPrice)}` : `i${it.id ?? Math.random()}`
     let g = byKey.get(key)
     if (!g) { g = { key, first: it, items: [], sheets: 0, totalQuantity: 0, lineTotal: 0 }; byKey.set(key, g); groups.push(g) }
     g.items.push(it)

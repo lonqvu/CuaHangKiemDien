@@ -6,7 +6,7 @@ import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Category, Customer, Order, OrderItem, Page, Product } from '../api/types'
-import { debounce, groupItems, highlight, money, num, parseSegments, plain, previewLine, qty } from '../format'
+import { debounce, groupItems, highlight, isSheetUnit, money, num, parseSegments, plain, previewLine, qty } from '../format'
 import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import NumberField from '../components/NumberField.vue'
 import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
@@ -119,7 +119,7 @@ async function onPickProduct() {
 const listPrice = computed(() => (picked.value ? Number(picked.value.price) : null))
 const priceEdited = computed(() => listPrice.value != null && !!line.productId && Number(line.unitPrice) !== listPrice.value)
 // hang ban theo met (ton, up noc, mang...): con tro vao o "Nhieu doan"; con lai: o So luong
-const isSheet = computed(() => (picked.value?.unit ?? '').trim().toLowerCase() === 'm')
+const isSheet = computed(() => isSheetUnit(picked.value?.unit))
 function focusEntry() {
   if (isSheet.value) segField.value?.focus()
   else qtyField.value?.focus()
