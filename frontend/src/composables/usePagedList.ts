@@ -103,8 +103,10 @@ export function usePagedList<T, S = Record<string, unknown>>(
   if (sync) {
     parse(route!.query)
     // Moi lan URL doi (bam trang, loc, Quay lai/Tien toi) -> doc lai va tai
-    watch(() => [route!.path.replace(/\/\d+$/, ''), JSON.stringify(route!.query)] as const, ([p], [old]) => {
-      if (p !== path || p !== old) return // da roi khoi man nay
+    // Khoa la CHUOI (duong dan bo so id + bo loc): mo / dong chi tiet (/orders <-> /orders/12) khong doi khoa -> khong tai
+    // lai danh sach (truoc day so sanh mang moi moi lan -> moi lan mo / dong chi tiet danh sach nhay 1 cai).
+    watch(() => route!.path.replace(/\/\d+$/, '') + '?' + JSON.stringify(route!.query), (key, old) => {
+      if (!key.startsWith(path + '?') || !old?.startsWith(path + '?')) return // da roi khoi man nay
       parse(route!.query)
       load()
     })
