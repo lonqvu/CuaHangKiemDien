@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Printer, Search, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { CancelEffect, Order, OrderRow, OrderStatus, OrderSummary } from '../api/types'
-import { datePresets, debounce, dt, dtShort, money, num, orderMessage, qty } from '../format'
+import { datePresets, debounce, dt, dtShort, money, num, qty } from '../format'
 import { usePagedList } from '../composables/usePagedList'
 import { useNarrow } from '../composables/useNarrow'
 import PageHeader from '../components/PageHeader.vue'
@@ -291,8 +291,7 @@ onMounted(list.load)
     </template>
   </el-drawer>
   <OrderReviseDialog v-if="detail && detail.status === 'PAID'" v-model="revising" :order="detail" @saved="onRevised" />
-  <ZaloSendDialog v-if="detail" v-model="zalo" :title="`Hóa đơn ${detail.code}`" :image-path="`/orders/${detail.id}/invoice.png`"
-                  :file-name="`${detail.code}.png`" :text="orderMessage(detail)" :phone="detail.customerPhone" />
+  <ZaloSendDialog v-if="detail" v-model="zalo" :title="`Hóa đơn ${detail.code}`" :pdf-path="`/orders/${detail.id}/invoice.pdf`" :file-name="`${detail.code}.pdf`" />
 </template>
 
 <style scoped>

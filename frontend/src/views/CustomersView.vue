@@ -6,7 +6,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Printer, Search, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Customer, CustomerSummary, LedgerRow, OrderRow, PaymentResult } from '../api/types'
-import { debounce, debtMessage, dtShort, isoDate, money, num } from '../format'
+import { debounce, dtShort, isoDate, money, num } from '../format'
 import { usePagedList } from '../composables/usePagedList'
 import { useNarrow } from '../composables/useNarrow'
 import PageHeader from '../components/PageHeader.vue'
@@ -309,9 +309,8 @@ onMounted(list.load)
   </el-drawer>
 
   <ZaloSendDialog v-if="current" v-model="zalo" :title="zaloReceipt ? `Phiếu thu ${zaloReceipt.receiptNo}` : `Công nợ ${current.name}`"
-                  :image-path="zaloReceipt ? `/customers/debt-payments/${zaloReceipt.ledgerId}/receipt.png` : undefined"
-                  :file-name="zaloReceipt ? `PhieuThu_${zaloReceipt.receiptNo}.png` : `CongNo_${current.name}.png`"
-                  :text="debtMessage(current.name, current.debt)" :phone="current.phone" />
+                  :pdf-path="zaloReceipt ? `/customers/debt-payments/${zaloReceipt.ledgerId}/receipt.pdf` : `/customers/${current.id}/statement.pdf`"
+                  :file-name="zaloReceipt ? `PhieuThu_${zaloReceipt.receiptNo}.pdf` : `CongNo_${current.name}.pdf`" />
 
   <!-- thu no xong: so phieu + in / gui Zalo ngay -->
   <el-dialog :model-value="!!paid" title="Đã thu nợ" width="min(440px, 94vw)" @close="paid = null">

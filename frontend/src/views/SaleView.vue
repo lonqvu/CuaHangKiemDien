@@ -6,7 +6,7 @@ import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Category, Customer, Order, OrderItem, Page, Product } from '../api/types'
-import { debounce, groupItems, highlight, money, num, orderMessage, parseSegments, plain, previewLine, qty } from '../format'
+import { debounce, groupItems, highlight, money, num, parseSegments, plain, previewLine, qty } from '../format'
 import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import NumberField from '../components/NumberField.vue'
 import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
@@ -710,8 +710,7 @@ onBeforeUnmount(() => {
           <el-button type="success" size="large" :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
           <el-button size="large" :icon="DocumentAdd" class="wide" @click="startNew">Hóa đơn mới</el-button>
         </div>
-        <ZaloSendDialog v-model="zalo" :title="`Hóa đơn ${done.code}`" :image-path="`/orders/${done.id}/invoice.png`"
-                        :file-name="`${done.code}.png`" :text="orderMessage(done)" :phone="done.customerPhone" />
+        <ZaloSendDialog v-model="zalo" :title="`Hóa đơn ${done.code}`" :pdf-path="`/orders/${done.id}/invoice.pdf`" :file-name="`${done.code}.pdf`" />
       </div>
     </aside>
 

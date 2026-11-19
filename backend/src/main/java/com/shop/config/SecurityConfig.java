@@ -52,6 +52,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/orders/*/cancel-preview").hasRole("ADMIN")
                 .requestMatchers("/api/orders/*/revise", "/api/orders/*/revise-preview", "/api/orders/*/revisions").hasRole("ADMIN") // sua hoa don da chot
                 .requestMatchers("/api/orders/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/share").authenticated() // gui Zalo tu may tinh (nhan vien ban hang cung gui)
                 // Con lai (sua san pham, cong no, bao cao, tai khoan...) la ADMIN
                 .anyRequest().hasRole("ADMIN"))
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
