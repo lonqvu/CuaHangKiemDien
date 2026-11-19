@@ -6,8 +6,9 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, CircleCheckFilled, CircleCloseFilled, Lock, Delete } from '@element-plus/icons-vue'
-import http from '../api/http'
+import { Upload, CircleCheckFilled, CircleCloseFilled, Lock, Delete, Warning } from '@element-plus/icons-vue'
+import http, { errorMessage } from '../api/http'
+import { useAuth } from '../stores/auth'
 import { dtShort } from '../format'
 
 interface Line { label: string; before: string; after: string; ok: boolean }
@@ -60,23 +61,30 @@ async function onPick(e: Event) {
   await send(true).catch(() => {}) // loi: interceptor da bao
 }
 
-const RESET_PHRASE = 'XOA DU LIEU THU'
+// ---- Xoa toan bo du lieu ban hang: can mat khau + ma xac thuc 2 lop (tai khoan phai bat 2 lop)
+const auth = useAuth()
+const resetOpen = ref(false)
 const resetting = ref(false)
-/** Xoa du lieu thu (chua nhap du lieu cu lan nao) -> he thong trong, nhap duoc. Phai go dung chu xac nhan. */
-async function resetTest() {
-  const { value } = await ElMessageBox.prompt(
-    `${status.value?.blockedReason?.split(', nên')[0]}. Xóa hết các dữ liệu này (khách, công nợ, sản phẩm, loại hàng, hóa đơn, kho, nhà cung cấp) để nhập dữ liệu từ phần mềm cũ? Tài khoản và mật khẩu giữ nguyên. KHÔNG khôi phục được trên web. Gõ ${RESET_PHRASE} để xác nhận.`,
-    'Xóa dữ liệu thử', {
-      confirmButtonText: 'Xóa', cancelButtonText: 'Không', type: 'warning', inputPlaceholder: RESET_PHRASE,
-      confirmButtonClass: 'el-button--danger',
-      inputValidator: (v) => (v ?? '').trim().toUpperCase() === RESET_PHRASE || `Gõ đúng ${RESET_PHRASE}`,
-    })
+const resetForm = ref({ password: '', code: '' })
+const resetError = ref('')
+function openReset() {
+  resetForm.value = { password: '', code: '' }
+  resetError.value = ''
+  resetOpen.value = true
+}
+async function doReset() {
+  resetError.value = ''
+  if (!resetForm.value.password || !resetForm.value.code.trim()) { resetError.value = 'Nhập mật khẩu và mã xác thực'; return }
   resetting.value = true
   try {
-    await http.post('/admin/legacy-import/reset', { confirm: value })
-    ElMessage.success('Đã xóa dữ liệu thử. Giờ nhập được dữ liệu từ phần mềm cũ.')
+    await http.post('/admin/legacy-import/reset', resetForm.value, { silent: true } as any)
+    resetOpen.value = false
+    ElMessage.success('Đã xóa toàn bộ dữ liệu bán hàng. Giờ nhập được dữ liệu từ phần mềm cũ.')
     result.value = null
+    fileName.value = ''
     await load()
+  } catch (e: any) {
+    resetError.value = errorMessage(e)
   } finally {
     resetting.value = false
   }
@@ -130,13 +138,7 @@ async function doImport() {
     </template>
 
     <!-- da co du lieu (khong phai tu lan nhap nay) -> khoa -->
-    <template v-else>
-      <p class="blocked"><el-icon><Lock /></el-icon><span>{{ status?.blockedReason }}</span></p>
-      <div v-if="status?.canReset" class="actions">
-        <el-button type="danger" plain :icon="Delete" :loading="resetting" @click="resetTest">Xóa dữ liệu thử</el-button>
-        <span class="muted small">Chỉ dùng khi đây là dữ liệu nhập thử, chưa phải dữ liệu thật.</span>
-      </div>
-    </template>
+    <p v-else class="blocked"><el-icon><Lock /></el-icon><span>{{ status?.blockedReason }}</span></p>
 
     <!-- bao cao lan kiem tra / nhap vua chay -->
     <div v-if="result && !status?.last" class="report" :class="result.ok ? 'is-ok' : 'is-bad'">
@@ -168,6 +170,38 @@ async function doImport() {
         <ul v-if="showOdd" class="odd"><li v-for="a in result.report.anomalies" :key="a">{{ a }}</li></ul>
       </div>
     </div>
+
+    <!-- xoa toan bo du lieu ban hang (de nhap lai): mat khau + ma xac thuc 2 lop -->
+    <div v-if="status?.canReset" class="danger">
+      <div>
+        <b>Xóa toàn bộ dữ liệu bán hàng</b>
+        <p class="muted small">Khách, công nợ, sản phẩm, loại hàng, hóa đơn, kho, nhà cung cấp. Giữ tài khoản, mật khẩu.
+          Dùng khi cần nhập lại dữ liệu từ phần mềm cũ.</p>
+      </div>
+      <el-button v-if="auth.user?.twoFactor" type="danger" plain :icon="Delete" @click="openReset">Xóa dữ liệu</el-button>
+      <p v-else class="small">Cần <router-link to="/password">bật xác thực 2 lớp</router-link> cho tài khoản này trước.</p>
+    </div>
+
+    <el-dialog v-model="resetOpen" title="Xóa toàn bộ dữ liệu bán hàng" width="min(460px, 94vw)" :close-on-click-modal="false">
+      <div class="reset-body">
+        <p class="warn-box"><el-icon><Warning /></el-icon><span>
+          Sẽ xóa {{ status?.blockedReason?.replace(/^Hệ thống đã có dữ liệu \((.*?)\).*$/, '$1') }}.
+          <b>Không khôi phục được trên web</b> (chỉ khôi phục từ bản sao lưu trên máy chủ).</span></p>
+        <el-form label-position="top" @submit.prevent="doReset">
+          <el-form-item label="Mật khẩu của bạn">
+            <el-input v-model="resetForm.password" type="password" show-password autocomplete="current-password" />
+          </el-form-item>
+          <el-form-item label="Mã xác thực (6 số trong app, hoặc mã dự phòng)">
+            <el-input v-model="resetForm.code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" />
+          </el-form-item>
+        </el-form>
+        <p v-if="resetError" class="err" role="alert">{{ resetError }}</p>
+      </div>
+      <template #footer>
+        <el-button @click="resetOpen = false">Không</el-button>
+        <el-button type="danger" :loading="resetting" @click="doReset">Xóa toàn bộ</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -206,5 +240,14 @@ h2 { font-size: 17px; margin: 0 0 4px; }
 .errs ul, .odd { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.55; max-height: 280px; overflow: auto; }
 .blocked { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.55; color: var(--ink-muted); background: var(--steel-50); border-radius: var(--radius-md); padding: var(--space-md); }
 .blocked .el-icon { margin-top: 3px; flex: none; }
+.danger { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); flex-wrap: wrap;
+  border: 1px solid #FECACA; border-radius: var(--radius-md); padding: var(--space-md); }
+.danger b { font-size: 14px; }
+.danger p { margin: 2px 0 0; }
+.reset-body { display: flex; flex-direction: column; gap: var(--space-md); }
+.warn-box { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.55; color: var(--debt, #B91C1C); background: #FEF2F2; border-radius: var(--radius-md); padding: var(--space-md); }
+.warn-box .el-icon { margin-top: 3px; flex: none; }
+.reset-body .el-form-item { margin-bottom: var(--space-sm); }
+.err { margin: 0; color: var(--debt, #B91C1C); font-size: 14px; }
 .errs li { color: var(--debt, #B91C1C); }
 </style>

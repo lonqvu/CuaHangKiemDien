@@ -84,6 +84,31 @@ class LegacyImportTest {
         return out.toByteArray();
     }
 
+    @Autowired com.shop.auth.TwoFactorService twoFactorService;
+    /** ma du phong cua quan tri 'qt_legacy' (moi ma dung 1 lan): [0] dang nhap, [1].. xoa du lieu */
+    static java.util.List<String> rc;
+    static String qtToken;
+
+    /** Quan tri da bat xac thuc 2 lop (tao 1 lan). */
+    private String twoFactorAdmin() throws Exception {
+        if (qtToken != null) return qtToken;
+        AppUser u = new AppUser();
+        u.setUsername("qt_legacy"); u.setPasswordHash(encoder.encode("qt123456")); u.setFullName("QT"); u.setRole("ADMIN");
+        users.save(u);
+        var setup = twoFactorService.setup(u);
+        rc = twoFactorService.enable(u, com.shop.auth.Totp.code(setup.secret(), com.shop.auth.Totp.stepAt(java.time.Instant.now().getEpochSecond())));
+        qtToken = mvc.perform(post("/api/auth/login").header("X-Forwarded-For", "10.9.1.1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"qt_legacy\",\"password\":\"qt123456\",\"otp\":\"" + rc.get(0) + "\"}"))
+                .andReturn().getResponse().getContentAsString().replaceAll(".*\"token\":\"([^\"]+)\".*", "$1");
+        return qtToken;
+    }
+
+    private org.springframework.test.web.servlet.ResultActions reset(String token, String password, String code) throws Exception {
+        return mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + token)
+                .header("X-Forwarded-For", "10.9.2." + (int) (Math.random() * 250)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"" + password + "\",\"code\":\"" + code + "\"}"));
+    }
+
     private int count(String t) { return jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Integer.class); }
 
     @Test
@@ -107,13 +132,16 @@ class LegacyImportTest {
         mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin))
                 .andExpect(jsonPath("$.canImport").value(false)).andExpect(jsonPath("$.canReset").value(true))
                 .andExpect(jsonPath("$.blockedReason").value(org.hamcrest.Matchers.containsString("1 khách")));
-        // go sai chu xac nhan / nhan vien -> khong xoa
-        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"confirm\":\"xoa\"}")).andExpect(status().isBadRequest());
+        // quan tri chua bat 2 lop -> khong xoa duoc
+        reset(admin, "admin123", "123456").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("xác thực 2 lớp")));
+        // quan tri da bat 2 lop: sai mat khau / sai ma -> khong xoa
+        String qt = twoFactorAdmin();
+        reset(qt, "sai-mat-khau", rc.get(1)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Mật khẩu không đúng"));
+        reset(qt, "qt123456", "000000").andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Mã xác thực không đúng"));
         assertEquals(1, count("customer"));
 
-        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"confirm\":\" xoa du lieu thu \"}")).andExpect(status().isOk()).andExpect(jsonPath("$.deleted.orders").value(1));
+        reset(qt, "qt123456", rc.get(1)).andExpect(status().isOk()).andExpect(jsonPath("$.deleted.orders").value(1));
         for (String t : LegacyImportService.MUST_BE_EMPTY) assertEquals(0, count(t), t + " phai trong sau khi xoa");
         assertEquals(0, count("stock_balance"));
         assertTrue(count("app_user") >= 1, "giu tai khoan");
@@ -134,7 +162,7 @@ class LegacyImportTest {
         mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + staff)).andExpect(status().isForbidden());
         mvc.perform(post("/api/admin/legacy-import").header("Authorization", "Bearer " + staff).content(DATA)).andExpect(status().isForbidden());
         mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + staff).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"confirm\":\"XOA DU LIEU THU\"}")).andExpect(status().isForbidden());
+                .content("{\"password\":\"nv123456\",\"code\":\"123456\"}")).andExpect(status().isForbidden());
 
         mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.canImport").value(true));
@@ -213,11 +241,7 @@ class LegacyImportTest {
                 .andExpect(jsonPath("$.canImport").value(false)).andExpect(jsonPath("$.last.report").value(org.hamcrest.Matchers.containsString("KHỚP HẾT")));
         mvc.perform(post("/api/admin/legacy-import?dryRun=true").header("Authorization", "Bearer " + admin).content(DATA))
                 .andExpect(status().isConflict());
-        // da nhap du lieu that -> khong xoa duoc nua
-        mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin)).andExpect(jsonPath("$.canReset").value(false));
-        mvc.perform(post("/api/admin/legacy-import/reset").header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"confirm\":\"XOA DU LIEU THU\"}")).andExpect(status().isConflict());
-        assertEquals(6, count("orders"));
+        mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + admin)).andExpect(jsonPath("$.canReset").value(true));
     }
 
     @Test
@@ -236,5 +260,22 @@ class LegacyImportTest {
         assertTrue(all.contains("HD00000007 ngày giờ"), all);
         assertTrue(all.contains("TỔNG NỢ"), all);          // no chu hung da tang do ban moi
         assertTrue(all.contains("số hóa đơn"), all);       // co them HD00000121
+    }
+
+    @Test
+    @Order(5)
+    void xoaToanBo_sauKhiNhap_canMatKhauVaMa() throws Exception {
+        String qt = twoFactorAdmin();
+        assertTrue(count("orders") > 0);
+        reset(qt, "qt123456", rc.get(1)).andExpect(status().isBadRequest()); // ma du phong da dung -> khong dung lai duoc
+        reset(qt, "qt123456", rc.get(2)).andExpect(status().isOk());
+        for (String t : LegacyImportService.MUST_BE_EMPTY) assertEquals(0, count(t), t + " phai trong");
+        assertEquals(0, count("legacy_import_log"), "xoa ca nhat ky -> nhap lai duoc");
+        assertTrue(users.findByUsername("qt_legacy").isPresent() && users.findByUsername("admin").isPresent(), "giu tai khoan");
+        mvc.perform(get("/api/admin/legacy-import").header("Authorization", "Bearer " + qt))
+                .andExpect(jsonPath("$.canImport").value(true)).andExpect(jsonPath("$.canReset").value(false));
+        // nhap lai duoc
+        mvc.perform(post("/api/admin/legacy-import?dryRun=false").header("Authorization", "Bearer " + qt).content(DATA))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.committed").value(true));
     }
 }
