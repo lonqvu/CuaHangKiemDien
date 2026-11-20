@@ -120,6 +120,7 @@ async function deleteDraft(r: OrderRow) {
 // In lai hoa don bang mau Jasper cu (Bill.jrxml)
 function print(o: Order) { openPdf(`/orders/${o.id}/invoice.pdf`) }
 const zalo = ref(false)
+const zaloRef = ref<InstanceType<typeof ZaloSendDialog>>()
 
 onMounted(list.load)
 </script>
@@ -285,13 +286,13 @@ onMounted(list.load)
         <el-button v-if="detail?.status === 'PAID' && auth.isAdmin" class="f-edit" plain @click="revising = true">Sửa hóa đơn</el-button>
         <span class="grow" />
         <el-button class="f-close" @click="closeDetail">Đóng</el-button>
-        <el-button v-if="detail?.status === 'PAID'" class="f-zalo" type="success" plain :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
+        <el-button v-if="detail?.status === 'PAID'" class="f-zalo" type="success" plain :icon="ChatDotRound" @click="zaloRef?.send()">Gửi Zalo</el-button>
         <el-button v-if="detail && detail.status !== 'DRAFT'" class="f-print" type="primary" :icon="Printer" @click="print(detail!)">In hóa đơn</el-button>
       </div>
     </template>
   </el-drawer>
   <OrderReviseDialog v-if="detail && detail.status === 'PAID'" v-model="revising" :order="detail" @saved="onRevised" />
-  <ZaloSendDialog v-if="detail" v-model="zalo" :title="`Hóa đơn ${detail.code}`" :pdf-path="`/orders/${detail.id}/invoice.pdf`" :file-name="`${detail.code}.pdf`" />
+  <ZaloSendDialog v-if="detail" ref="zaloRef" v-model="zalo" :title="`Hóa đơn ${detail.code}`" :pdf-path="`/orders/${detail.id}/invoice.pdf`" :file-name="`${detail.code}.pdf`" />
 </template>
 
 <style scoped>

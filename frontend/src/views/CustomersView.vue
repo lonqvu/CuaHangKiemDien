@@ -165,9 +165,13 @@ function printStatement() {
 const zalo = ref(false)
 const zaloReceipt = ref<{ ledgerId: number; receiptNo: string } | null>(null)
 const lastReceipt = computed(() => ledger.items.value.find((r) => r.receiptNo && !r.voided) ?? null)
-function openZalo(r?: { ledgerId: number; receiptNo: string } | null) {
-  zaloReceipt.value = r ?? (lastReceipt.value ? { ledgerId: lastReceipt.value.id, receiptNo: lastReceipt.value.receiptNo! } : null)
-  zalo.value = true
+// file gui: phieu thu vua chon, khong thi phieu thu gan nhat, khong co thi sao ke cong no (tai san tren dien thoai)
+const zaloTarget = computed(() => zaloReceipt.value ?? (lastReceipt.value ? { ledgerId: lastReceipt.value.id, receiptNo: lastReceipt.value.receiptNo! } : null))
+const zaloRef = ref<InstanceType<typeof ZaloSendDialog>>()
+async function openZalo(r?: { ledgerId: number; receiptNo: string } | null) {
+  zaloReceipt.value = r ?? null
+  await nextTick()
+  zaloRef.value?.send()
 }
 
 onMounted(list.load)
@@ -308,9 +312,9 @@ onMounted(list.load)
     </template>
   </el-drawer>
 
-  <ZaloSendDialog v-if="current" v-model="zalo" :title="zaloReceipt ? `Phiếu thu ${zaloReceipt.receiptNo}` : `Công nợ ${current.name}`"
-                  :pdf-path="zaloReceipt ? `/customers/debt-payments/${zaloReceipt.ledgerId}/receipt.pdf` : `/customers/${current.id}/statement.pdf`"
-                  :file-name="zaloReceipt ? `PhieuThu_${zaloReceipt.receiptNo}.pdf` : `CongNo_${current.name}.pdf`" />
+  <ZaloSendDialog v-if="current" ref="zaloRef" v-model="zalo" :title="zaloTarget ? `Phiếu thu ${zaloTarget.receiptNo}` : `Công nợ ${current.name}`"
+                  :pdf-path="zaloTarget ? `/customers/debt-payments/${zaloTarget.ledgerId}/receipt.pdf` : `/customers/${current.id}/statement.pdf`"
+                  :file-name="zaloTarget ? `PhieuThu_${zaloTarget.receiptNo}.pdf` : `CongNo_${current.name}.pdf`" />
 
   <!-- thu no xong: so phieu + in / gui Zalo ngay -->
   <el-dialog :model-value="!!paid" title="Đã thu nợ" width="min(440px, 94vw)" @close="paid = null">

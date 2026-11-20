@@ -417,6 +417,7 @@ async function checkout() {
 // In hoa don bang mau Jasper cu (Bill.jrxml) - backend tra ve PDF
 function print() { openPdf(`/orders/${done.value!.id}/invoice.pdf`) }
 const zalo = ref(false)
+const zaloRef = ref<InstanceType<typeof ZaloSendDialog>>()
 
 // Dong tab / tai lai khi hoa don nhap con trong -> xoa luon (keepalive de request van gui khi trang dong)
 function dropEmptyDraft() {
@@ -707,10 +708,10 @@ onBeforeUnmount(() => {
         <p><b>Đã chốt {{ done.code }}.</b> <span v-if="Number(done.debtAfter) > 0">Khách còn nợ <b class="num tone-debt">{{ money(done.debtAfter) }}</b>.</span></p>
         <div class="done-actions">
           <el-button type="primary" size="large" :icon="Printer" @click="print">In hóa đơn</el-button>
-          <el-button type="success" size="large" :icon="ChatDotRound" @click="zalo = true">Gửi Zalo</el-button>
+          <el-button type="success" size="large" :icon="ChatDotRound" @click="zaloRef?.send()">Gửi Zalo</el-button>
           <el-button size="large" :icon="DocumentAdd" class="wide" @click="startNew">Hóa đơn mới</el-button>
         </div>
-        <ZaloSendDialog v-model="zalo" :title="`Hóa đơn ${done.code}`" :pdf-path="`/orders/${done.id}/invoice.pdf`" :file-name="`${done.code}.pdf`" />
+        <ZaloSendDialog ref="zaloRef" v-model="zalo" :title="`Hóa đơn ${done.code}`" :pdf-path="`/orders/${done.id}/invoice.pdf`" :file-name="`${done.code}.pdf`" />
       </div>
     </aside>
 

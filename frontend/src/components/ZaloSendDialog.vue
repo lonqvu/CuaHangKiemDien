@@ -26,6 +26,7 @@ let timer: ReturnType<typeof setTimeout> | undefined
 const INSTALLED_KEY = 'zaloHelperInstalled'
 const installedBefore = () => { try { return localStorage.getItem(INSTALLED_KEY) === '1' } catch { return false } }
 
+
 const mobile = () => {
   const ua = navigator.userAgent
   return (navigator as any).userAgentData?.mobile === true || /Android|iPhone|iPad|iPod/i.test(ua)
@@ -35,9 +36,39 @@ const mobile = () => {
 function close() { emit('update:modelValue', false) }
 
 async function loadPdf() {
+  if (prefetched.value?.path === props.pdfPath) { pdf.value = prefetched.value.blob; return }
   const res = await http.get(props.pdfPath, { responseType: 'blob', silent: true } as any)
   pdf.value = res.data as Blob
 }
+
+// Dien thoai: tai SAN file ngay khi hien hoa don -> bam "Gui Zalo" mo bang chia se NGAY (Safari chi cho chia se
+// trong luc nguoi dung vua bam; cho tai file roi moi chia se thi bi chan) -> khong can hop thoai trung gian.
+const prefetched = shallowRef<{ path: string; blob: Blob } | null>(null)
+watch(() => props.pdfPath, (p) => {
+  prefetched.value = null
+  if (!p || !mobile()) return
+  http.get(p, { responseType: 'blob', silent: true } as any)
+    .then((r) => { if (props.pdfPath === p) prefetched.value = { path: p, blob: r.data as Blob } })
+    .catch(() => { /* bam Gui Zalo se tai lai va bao loi neu co */ })
+}, { immediate: true })
+
+/** Nut "Gui Zalo" o man goi: dien thoai co file san -> bang chia se luon; con lai -> mo hop thoai (may tinh / chua tai xong). */
+async function send() {
+  if (mobile() && prefetched.value?.path === props.pdfPath) {
+    const file = new File([prefetched.value.blob], props.fileName, { type: 'application/pdf' })
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: props.title })
+        return
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return // nguoi dung dong bang chia se
+        // loi khac -> mo hop thoai (co nut Gui Zalo / Tai file)
+      }
+    }
+  }
+  emit('update:modelValue', true)
+}
+defineExpose({ send })
 
 /** May tinh: gui file len may chu (ma 10 phut) -> mo nskd-zalo:// -> tien ich tai file, chay Zalo.exe "file". */
 async function openZaloPc() {
