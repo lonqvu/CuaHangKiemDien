@@ -640,7 +640,7 @@ onBeforeUnmount(() => {
           <el-button v-if="!done" link type="primary" :icon="Plus" @click="newCus.open = true">Khách mới</el-button>
         </div>
         <el-select id="cus" ref="customerSelect" v-model="customer" value-key="id" filterable remote clearable default-first-option :remote-method="searchCustomers"
-                   placeholder="Khách lẻ (trả đủ, không ghi nợ)" :disabled="!!done" style="width: 100%">
+                   placeholder="Tìm khách quen (tên / SĐT)" :disabled="!!done" style="width: 100%">
           <el-option v-for="c in customers" :key="c.id" :value="c" :label="c.name">
             <div class="opt"><span>{{ c.name }} <span class="muted">{{ c.phone }}</span></span>
               <span v-if="Number(c.debt) > 0" class="num tone-debt">nợ {{ num(c.debt) }}</span></div>
