@@ -11,35 +11,60 @@ export const ZALO_SCHEME = 'nskd-zalo'
 
 const PS1 = (origin: string) => `param([string]$Link)
 # Gui Zalo - Nhom Sat Kiem Dien. Duoc goi khi bam "Gui Zalo" tren ${origin}
-$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 $Base = '${origin}'
 function Say([string]$m) { [System.Windows.MessageBox]::Show($m, 'Gửi Zalo') | Out-Null }
+
+# 1. Kiem tra lien ket: chi ma + ten file (chu, so, _ . -) -> khong chay duoc lenh la
+if ($Link -notmatch '^${ZALO_SCHEME}://send/([A-Za-z0-9_-]{20,80})/([A-Za-z0-9_.-]{1,80}\\.(pdf|png))/?$') { Say 'Liên kết gửi Zalo không hợp lệ.'; exit 1 }
+$token = $Matches[1]; $name = $Matches[2]
+
+# 2. Tai file tu chinh trang web
 try {
-  if ($Link -notmatch '^${ZALO_SCHEME}://send/([A-Za-z0-9_-]{20,80})/([A-Za-z0-9_.-]{1,80}\\.(pdf|png))/?$') { Say 'Liên kết gửi Zalo không hợp lệ.'; exit 1 }
-  $token = $Matches[1]; $name = $Matches[2]
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   $dir = Join-Path $env:TEMP 'NhomSatKiemDien'
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   $file = Join-Path $dir $name
-  Invoke-WebRequest -UseBasicParsing -Uri "$Base/api/public/share/$token" -OutFile $file
-  # Tim Zalo PC: cho cai mac dinh, roi danh sach phan mem da cai
-  $cands = @("$env:LOCALAPPDATA\\Programs\\Zalo\\Zalo.exe", "$env:ProgramFiles\\Zalo\\Zalo.exe", "\${env:ProgramFiles(x86)}\\Zalo\\Zalo.exe")
-  foreach ($k in 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*') {
-    Get-ItemProperty $k -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Zalo*' -and $_.InstallLocation } |
-      ForEach-Object { $cands += (Join-Path $_.InstallLocation 'Zalo.exe') }
+  Invoke-WebRequest -UseBasicParsing -Uri "$Base/api/public/share/$token" -OutFile $file -ErrorAction Stop
+} catch { Say ('Tải file lỗi: ' + $_.Exception.Message + "\`n\`nBấm Gửi Zalo lại trên trang web."); exit 1 }
+
+# 3. Tim Zalo PC: cho cai mac dinh -> Zalo dang chay -> danh sach phan mem da cai (tung muc, muc loi thi bo qua)
+function Find-Zalo {
+  foreach ($c in @("$env:LOCALAPPDATA\\Programs\\Zalo\\Zalo.exe", "$env:ProgramFiles\\Zalo\\Zalo.exe", "\${env:ProgramFiles(x86)}\\Zalo\\Zalo.exe")) {
+    try { if ($c -and (Test-Path -LiteralPath $c)) { return $c } } catch {}
   }
-  $zalo = $cands | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
-  if (-not $zalo) {
-    Say "Không tìm thấy Zalo PC trên máy này. Cài Zalo PC (zalo.me/pc) rồi bấm Gửi Zalo lại.\`n\`nFile đã tải về: $file"
-    Start-Process explorer.exe "/select,\`"$file\`""
-    exit 1
+  try {
+    foreach ($pr in @(Get-Process -Name 'Zalo' -ErrorAction SilentlyContinue)) {
+      try { if ($pr.Path -and (Test-Path -LiteralPath $pr.Path)) { return $pr.Path } } catch {}
+    }
+  } catch {}
+  foreach ($root in 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', 'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall') {
+    $keys = @()
+    try { $keys = @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue) } catch {}
+    foreach ($k in $keys) {
+      try {
+        $dn = [string]$k.GetValue('DisplayName')
+        if ($dn -notlike 'Zalo*') { continue }
+        $loc = [string]$k.GetValue('InstallLocation')
+        if ($loc) { $c = Join-Path $loc 'Zalo.exe'; if (Test-Path -LiteralPath $c) { return $c } }
+        $icon = ([string]$k.GetValue('DisplayIcon')).Split(',')[0].Trim('"')
+        if ($icon -like '*.exe' -and (Test-Path -LiteralPath $icon)) { return $icon }
+      } catch {}
+    }
   }
-  # Giong app cu: Zalo.exe "duong dan file" -> Zalo mo bang chon nguoi nhan
-  Start-Process -FilePath $zalo -ArgumentList "\`"$file\`""
-} catch {
-  Say ('Không gửi được: ' + $_.Exception.Message)
+  return $null
 }
+$zalo = $null
+try { $zalo = Find-Zalo } catch {}
+if (-not $zalo) {
+  Say "Không tìm thấy Zalo PC trên máy này. Cài Zalo PC (zalo.me/pc) rồi bấm Gửi Zalo lại.\`n\`nFile đã tải về: $file"
+  Start-Process explorer.exe "/select,\`"$file\`""
+  exit 1
+}
+
+# 4. Giong app cu: Zalo.exe "duong dan file" -> Zalo mo bang chon nguoi nhan
+try { Start-Process -FilePath $zalo -ArgumentList "\`"$file\`"" -ErrorAction Stop }
+catch { Say ('Mở Zalo lỗi (' + $zalo + '): ' + $_.Exception.Message) }
 `
 
 /** Noi dung file cai-gui-zalo.bat (CRLF). Bat chi chua chu khong dau; phan PowerShell (co dau) doc bang UTF-8. */
