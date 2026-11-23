@@ -29,11 +29,14 @@ xuat() {
   local bak; bak="$(realpath "$1")"
   [ -f "$bak" ] || { echo "Khong thay file $1"; exit 1; }
   local out; out="$(dirname "$bak")"
-  local tmp; tmp="$(mktemp -d)"; chmod 777 "$tmp"; cp "$bak" "$tmp/old.bak"; chmod 644 "$tmp/old.bak"
-  local net=chuyen-du-lieu-tam pass="Tam#$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  # TMP_DIR / TMP_NET la bien toan cuc: trap EXIT chay SAU khi ham ket thuc (bien local da mat -> loi 'unbound variable')
+  TMP_DIR="$(mktemp -d)"; chmod 777 "$TMP_DIR"; cp "$bak" "$TMP_DIR/old.bak"; chmod 644 "$TMP_DIR/old.bak"
+  TMP_NET=chuyen-du-lieu-tam
+  local tmp="$TMP_DIR" net="$TMP_NET" pass="Tam#$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  docker info >/dev/null 2>&1 || { echo "Docker chua chay. Bat Docker roi chay lai."; exit 1; }
   docker network create "$net" >/dev/null 2>&1 || true
   docker rm -f chuyen-mssql >/dev/null 2>&1 || true
-  don() { docker rm -f chuyen-mssql >/dev/null 2>&1 || true; docker network rm "$net" >/dev/null 2>&1 || true; rm -rf "$tmp"; }
+  don() { docker rm -f chuyen-mssql >/dev/null 2>&1 || true; docker network rm "${TMP_NET:-}" >/dev/null 2>&1 || true; rm -rf "${TMP_DIR:-/nonexistent}"; }
   trap don EXIT
 
   log "Khoi dong SQL Server tam (lan dau tai image ~1.5 GB)..."
