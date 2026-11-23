@@ -13,11 +13,21 @@ const PS1 = (origin: string) => `param([string]$Link)
 # Gui Zalo - Nhom Sat Kiem Dien. Duoc goi khi bam "Gui Zalo" tren ${origin}
 Add-Type -AssemblyName PresentationFramework
 $Base = '${origin}'
-function Say([string]$m) { [System.Windows.MessageBox]::Show($m, 'Gửi Zalo') | Out-Null }
+function Say([string]$m) { Log ('THONG BAO: ' + $m); [System.Windows.MessageBox]::Show($m, 'Gửi Zalo') | Out-Null }
+# Nhat ky tung buoc (gui cho nguoi cai dat khi loi): %LOCALAPPDATA%\\NhomSatKiemDien\\gui-zalo.log, giu ~300 dong cuoi
+$LogFile = Join-Path $env:LOCALAPPDATA 'NhomSatKiemDien\\gui-zalo.log'
+function Log([string]$m) {
+  try {
+    Add-Content -LiteralPath $LogFile -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $m) -Encoding UTF8
+    $l = @(Get-Content -LiteralPath $LogFile -Encoding UTF8); if ($l.Count -gt 400) { Set-Content -LiteralPath $LogFile -Value $l[-300..-1] -Encoding UTF8 }
+  } catch {}
+}
+Log ('--- Bat dau (phien ban 3). Lien ket: ' + $Link)
 
 # 1. Kiem tra lien ket: chi ma + ten file (chu, so, _ . -) -> khong chay duoc lenh la
 if ($Link -notmatch '^${ZALO_SCHEME}://send/([A-Za-z0-9_-]{20,80})/([A-Za-z0-9_.-]{1,80}\\.(pdf|png))/?$') { Say 'Liên kết gửi Zalo không hợp lệ.'; exit 1 }
 $token = $Matches[1]; $name = $Matches[2]
+Log ('Lien ket hop le, file: ' + $name)
 
 # 2. Tai file tu chinh trang web
 try {
@@ -26,6 +36,7 @@ try {
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   $file = Join-Path $dir $name
   Invoke-WebRequest -UseBasicParsing -Uri "$Base/api/public/share/$token" -OutFile $file -ErrorAction Stop
+  Log ('Tai file xong: ' + $file + ' (' + (Get-Item -LiteralPath $file).Length + ' byte)')
 } catch { Say ('Tải file lỗi: ' + $_.Exception.Message + "\`n\`nBấm Gửi Zalo lại trên trang web."); exit 1 }
 
 # 3. Tim Zalo PC: cho cai mac dinh -> Zalo dang chay -> danh sach phan mem da cai (tung muc, muc loi thi bo qua)
@@ -55,7 +66,8 @@ function Find-Zalo {
   return $null
 }
 $zalo = $null
-try { $zalo = Find-Zalo } catch {}
+try { $zalo = Find-Zalo } catch { Log ('Tim Zalo loi: ' + $_.Exception.Message) }
+Log ('Zalo.exe: ' + $zalo + ' | Zalo dang chay: ' + @(Get-Process -Name 'Zalo' -ErrorAction SilentlyContinue).Count + ' tien trinh')
 if (-not $zalo) {
   Say "Không tìm thấy Zalo PC trên máy này. Cài Zalo PC (zalo.me/pc) rồi bấm Gửi Zalo lại.\`n\`nFile đã tải về: $file"
   Start-Process explorer.exe "/select,\`"$file\`""
@@ -63,8 +75,10 @@ if (-not $zalo) {
 }
 
 # 4. Giong app cu: Zalo.exe "duong dan file" -> Zalo mo bang chon nguoi nhan
-try { Start-Process -FilePath $zalo -ArgumentList "\`"$file\`"" -ErrorAction Stop }
-catch { Say ('Mở Zalo lỗi (' + $zalo + '): ' + $_.Exception.Message) }
+try {
+  $pr = Start-Process -FilePath $zalo -ArgumentList "\`"$file\`"" -PassThru -ErrorAction Stop
+  Log ('Da chay: "' + $zalo + '" "' + $file + '" (PID ' + $pr.Id + ')')
+} catch { Say ('Mở Zalo lỗi (' + $zalo + '): ' + $_.Exception.Message) }
 `
 
 /** Noi dung file cai-gui-zalo.bat (CRLF). Bat chi chua chu khong dau; phan PowerShell (co dau) doc bang UTF-8. */

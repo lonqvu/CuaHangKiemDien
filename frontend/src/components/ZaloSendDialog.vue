@@ -122,6 +122,9 @@ async function sharePhone() {
   }
 }
 
+/** Mo Zalo PC (giao thuc zalo:// Zalo PC dang ky khi cai) - de gui tay khi tien ich loi. */
+function openZaloApp() { window.location.href = 'zalo://' }
+
 function downloadPdf() {
   if (!pdf.value) return
   const a = document.createElement('a')
@@ -153,6 +156,13 @@ onBeforeUnmount(() => clearTimeout(timer))
           <el-button :icon="RefreshRight" @click="openZaloPc">Mở lại Zalo</el-button>
           <el-button link type="primary" @click="step = 'install'">Không thấy Zalo mở?</el-button>
         </div>
+        <div class="manual">
+          <p class="muted small"><b>Gửi tay</b> (khi tiện ích lỗi): tải file hóa đơn, mở Zalo, chọn người nhận rồi <b>kéo file</b> vào khung chat.</p>
+          <div class="row">
+            <el-button size="small" :icon="Download" @click="downloadPdf">Tải file hóa đơn</el-button>
+            <el-button size="small" :icon="ChatDotRound" @click="openZaloApp">Mở Zalo</el-button>
+          </div>
+        </div>
       </template>
 
       <template v-else-if="step === 'install'">
@@ -165,6 +175,15 @@ onBeforeUnmount(() => clearTimeout(timer))
         <div class="row">
           <el-button type="primary" :icon="Download" @click="downloadInstaller">Tải bộ cài</el-button>
           <el-button :icon="RefreshRight" @click="openZaloPc">Thử lại</el-button>
+        </div>
+        <p class="muted small">Đã cài mà vẫn không mở được: gửi người cài đặt file nhật ký
+          <span class="mono">%LOCALAPPDATA%\NhomSatKiemDien\gui-zalo.log</span> (Windows + R, dán đường dẫn, Enter).</p>
+        <div class="manual">
+          <p class="muted small"><b>Gửi tay</b>: tải file hóa đơn, mở Zalo, chọn người nhận rồi <b>kéo file</b> vào khung chat.</p>
+          <div class="row">
+            <el-button size="small" :icon="Download" @click="downloadPdf">Tải file hóa đơn</el-button>
+            <el-button size="small" :icon="ChatDotRound" @click="openZaloApp">Mở Zalo</el-button>
+          </div>
         </div>
       </template>
 
@@ -190,4 +209,5 @@ onBeforeUnmount(() => clearTimeout(timer))
 .row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
 .row .el-button + .el-button { margin-left: 0; }
 .err { color: var(--debt); }
+.manual { border-top: 1px solid var(--steel-200); padding-top: var(--space-md); display: flex; flex-direction: column; gap: var(--space-sm); }
 </style>
