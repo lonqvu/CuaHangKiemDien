@@ -151,7 +151,7 @@ class CheckoutFlowTest {
         var doc = statements.receipt(last.getId());
         var lines = doc.lines();
         assertEquals(5, lines.size());
-        assertEquals("Điều chỉnh: No ban dau", lines.get(0).description());
+        assertEquals("Tăng nợ: No ban dau", lines.get(0).description());
         assertTrue(lines.get(1).description().startsWith("Thu nợ PT"));
         assertTrue(lines.get(2).description().startsWith("Mua HĐ HD"));
         assertTrue(lines.get(3).description().startsWith("Trả khi mua HĐ HD"));

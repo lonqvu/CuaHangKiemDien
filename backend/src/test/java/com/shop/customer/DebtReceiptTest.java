@@ -163,7 +163,7 @@ class DebtReceiptTest {
 
         var doc = statements.receipt(collect(450000).getId());
         assertReconciles(doc, true);
-        assertEquals(List.of("Mua HĐ", "Điều chỉnh: Bớt 50.000 vì hàng lỗi", "Thu nợ"),
+        assertEquals(List.of("Mua HĐ", "Giảm nợ: Bớt 50.000 vì hàng lỗi", "Thu nợ"),
                 doc.lines().stream().map(l -> l.description().replaceAll(" (HD|PT)\\d+.*", "")).toList());
     }
 

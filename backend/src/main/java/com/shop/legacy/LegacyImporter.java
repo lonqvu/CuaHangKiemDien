@@ -27,7 +27,7 @@ import java.util.*;
  */
 @Component
 public class LegacyImporter {
-    static final String OPENING_NOTE = "Số dư chuyển từ phần mềm cũ";
+    public static final String OPENING_NOTE = "Số dư chuyển từ phần mềm cũ";
     static final String CREATED_BY = "Chuyển dữ liệu";
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSS][.SS][.S]");
 

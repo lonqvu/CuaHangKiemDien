@@ -145,9 +145,21 @@ public class DebtStatementService {
             case ADJUST -> "Hủy HĐ" + code + (o != null && o.getRefundAmount() != null && o.getRefundAmount().signum() > 0
                     ? " (đã trả lại khách " + money(o.getRefundAmount()) + ")" : "");
             case REVISE -> "Sửa HĐ" + code + (note.contains("trả lại khách") ? " (" + note.substring(note.indexOf("trả lại khách")) + ")" : "");
-            case MANUAL -> note.isEmpty() ? "Điều chỉnh nợ" : "Điều chỉnh: " + note;
+            case MANUAL -> manual(l, note);
             case VOID -> "Hủy phiếu thu " + k.receiptNos().getOrDefault(l.getReversalOf(), "") + (note.isEmpty() ? "" : ": " + note);
         };
+    }
+
+    /**
+     * Dong dieu chinh tay: ghi ro TANG hay GIAM (khach doc hieu ngay), thay cho chu chung "Dieu chinh".
+     * So du chuyen tu phan mem cu / no ban dau khi tao khach: ghi dung ten, khong phai tang / giam.
+     */
+    private static String manual(DebtLedger l, String note) {
+        if (note.equals(com.shop.legacy.LegacyImporter.OPENING_NOTE))
+            return "Nợ chuyển từ phần mềm cũ (đến " + l.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ")";
+        if (note.equalsIgnoreCase("Nợ ban đầu")) return "Nợ ban đầu";
+        String kind = l.getAmount().signum() >= 0 ? "Tăng nợ" : "Giảm nợ";
+        return note.isEmpty() ? kind : kind + ": " + note;
     }
 
     /**

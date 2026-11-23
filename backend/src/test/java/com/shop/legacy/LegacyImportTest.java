@@ -209,6 +209,8 @@ class LegacyImportTest {
         assertEquals(0, new BigDecimal("349862778").compareTo(jdbc.queryForObject("SELECT debt FROM customer WHERE id = 1030", BigDecimal.class)));
         assertEquals(2, count("debt_ledger"));
         assertEquals("Số dư chuyển từ phần mềm cũ", jdbc.queryForObject("SELECT note FROM debt_ledger WHERE customer_id = 1030", String.class));
+        mvc.perform(get("/api/customers/1030/debt-ledger").header("Authorization", "Bearer " + admin))
+                .andExpect(jsonPath("$.items[0].description").value(org.hamcrest.Matchers.startsWith("Nợ chuyển từ phần mềm cũ (đến ")));
 
         // khach le "con no" -> tra du; khach le co no cu -> bo khoi tong, ghi chu
         var m = jdbc.queryForMap("SELECT paid_amount, debt_after, previous_debt, total_payable, note FROM orders WHERE code = 'HD00000100'");
