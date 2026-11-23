@@ -66,7 +66,7 @@ class OrderRevisionTest {
     @BeforeEach
     void setup() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("admin", null));
-        ton = product("Ton sua " + System.nanoTime(), "m2", "100000");
+        ton = product("Ton sua " + System.nanoTime(), "md", "100000");
         hop = product("Hop sua " + System.nanoTime(), "cay", "200000");
         vit = product("Vit sua " + System.nanoTime(), "tui", "50000");
         Supplier s = new Supplier();

@@ -191,6 +191,18 @@ export function isSheetUnit(unit: string | null | undefined): boolean {
   return ['m', 'm2', 'md', 'mét', 'mét2', 'métdài', 'mdài', 'met', 'met2'].includes(u)
 }
 
+/** Hang tinh tien theo m2 (ton, nhua): kho tinh theo met dai (SL x so tam), bat buoc co so tam. */
+export function isAreaUnit(unit: string | null | undefined): boolean {
+  const u = (unit ?? '').toLowerCase().normalize('NFC').replace(/\s+/g, '').replace('²', '2')
+  return ['m2', 'mét2', 'met2'].includes(u)
+}
+
+/** Don vi hien cho TON KHO: hang m2 -> "md" (so met cuon / tam thuc te), con lai giu nguyen. */
+export const stockUnit = (unit: string | null | undefined) => (isAreaUnit(unit) ? 'md' : (unit ?? ''))
+
+/** So luong hang xuat that cua 1 dong (khop backend): SL x so tam; he so chi de tinh tien. */
+export const stockQty = (quantity: number, sheets: number) => (sheets > 0 ? quantity * sheets : quantity)
+
 export function groupItems<T extends { id?: number; productId: number; unit?: string | null; unitPrice: number | string; sheets: number; totalQuantity: number | string; lineTotal: number | string }>(items: T[]) {
   const groups: { key: string; first: T; items: T[]; sheets: number; totalQuantity: number; lineTotal: number }[] = []
   const byKey = new Map<string, (typeof groups)[number]>()

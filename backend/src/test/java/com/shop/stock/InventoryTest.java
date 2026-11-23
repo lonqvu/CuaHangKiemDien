@@ -91,12 +91,13 @@ class InventoryTest {
     }
 
     @Test
-    void checkout_deductsTotalQuantity_recordsCost_cancelReturnsExactly() {
+    void checkout_deductsMetersCut_notFactor_recordsCost_cancelReturnsExactly() {
         receive(ton, "100", "70000", "7000000");
-        Order o = sell(ton, "3", 10);                // 3m x 10 tam x 1.08 = 32.4 m
-        eq("67.6", onHand(ton));
+        Order o = sell(ton, "3", 10);                // tinh tien 3m x 10 tam x 1.08 = 32.4; kho tru so met cat = 3 x 10 = 30
+        eq("32.4", orders.get(o.getId()).getItems().get(0).getTotalQuantity());
+        eq("70", onHand(ton));
         Order saved = orders.get(o.getId());
-        eq("2268000", saved.getItems().get(0).getCostTotal()); // 32.4 x 70.000
+        eq("2100000", saved.getItems().get(0).getCostTotal()); // 30 m x 70.000
 
         orders.cancel(o.getId());
         eq("100", onHand(ton));
@@ -169,5 +170,24 @@ class InventoryTest {
         pool.shutdown();
         eq("76", onHand(thep));                      // 100 - 8 x 3
         assertLedgerMatches(thep);
+    }
+
+    @Test
+    void hangM2_batBuocSoTam_kieuHeSoKhongAnhHuongKho() {
+        Product nhua = product("Nhua test " + System.nanoTime(), "m2", "90000");
+        receive(nhua, "200", "50000", "0");                  // 200 met tam nhua
+        Order o = orders.createDraft("nv");
+        var ex = assertThrows(com.shop.common.ApiException.class,
+                () -> orders.addItem(o.getId(), new OrderService.ItemRequest(nhua.getId(), new BigDecimal("10"), 0, null, null)));
+        assertTrue(ex.getMessage().contains("số tấm"), ex.getMessage());
+        // 4m x 19 tam, kho tam 0,4 -> tinh tien 30,4 m2; kho tru 76 m
+        orders.addItem(o.getId(), new OrderService.ItemRequest(nhua.getId(), new BigDecimal("4"), 19, new BigDecimal("0.4"), null));
+        orders.checkout(o.getId(), new OrderService.CheckoutRequest(null, "Khach le", null, null, null, new BigDecimal("999999999"), null));
+        eq("30.4", orders.get(o.getId()).getItems().get(0).getTotalQuantity());
+        eq("124", onHand(nhua));
+        assertLedgerMatches(nhua);
+        // hang khong co so tam (cay): tru dung SL
+        Order o2 = sell(thep, "7", 0);
+        eq("-7", onHand(thep));
     }
 }

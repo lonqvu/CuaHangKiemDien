@@ -32,7 +32,7 @@ public class StockService {
     private final String saleQtyMode;
 
     public StockService(StockBalanceRepository balances, StockMovementRepository movements,
-                        @Value("${app.stock.sale-quantity:total}") String saleQtyMode) {
+                        @Value("${app.stock.sale-quantity:without-factor}") String saleQtyMode) {
         this.balances = balances; this.movements = movements; this.saleQtyMode = saleQtyMode;
     }
 
@@ -112,7 +112,11 @@ public class StockService {
         return movements.save(mv);
     }
 
-    /** So luong xuat kho cua 1 dong hoa don, theo cau hinh app.stock.sale-quantity. */
+    /**
+     * So luong xuat kho cua 1 dong hoa don. Mac dinh (without-factor): SL x so tam - dung so met / so cai hang hut that;
+     * he so (kho ton 1,08, kho tam nhua 0,4...) chi de tinh dien tich tinh tien, khong phai hang xuat.
+     * Hang tinh tien theo m2 (ton, nhua): ton kho tinh theo met dai. "total": tru theo Tong SL (nhan ca he so) nhu cu.
+     */
     public BigDecimal saleQty(OrderItem i) {
         if ("without-factor".equalsIgnoreCase(saleQtyMode))
             return i.getSheets() > 0 ? i.getQuantity().multiply(BigDecimal.valueOf(i.getSheets())) : i.getQuantity();

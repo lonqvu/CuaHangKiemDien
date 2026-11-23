@@ -6,7 +6,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Search } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { StockCount, StockCountLine } from '../api/types'
-import { dtShort, num, qty } from '../format'
+import { dtShort, num, qty, stockUnit } from '../format'
 
 /*
  * Phieu kiem ke: nhap so dem tung mat hang (tu luu sau 1 giay), ghi so -> kho dieu chinh bang chenh lech.
@@ -116,7 +116,7 @@ onMounted(load)
       <el-table :data="shown" row-key="id" :empty-text="q || onlyDiff ? 'Không có dòng khớp' : 'Phiếu trống'">
         <el-table-column prop="productName" label="Sản phẩm" min-width="220" />
         <el-table-column :label="draft ? 'Sổ sách (hiện tại)' : 'Sổ sách lúc ghi'" min-width="150" align="right">
-          <template #default="{ row }"><span class="num">{{ row.systemQty == null ? '—' : qty(row.systemQty) }}</span> <span class="muted small">{{ row.unit }}</span></template>
+          <template #default="{ row }"><span class="num">{{ row.systemQty == null ? '—' : qty(row.systemQty) }}</span> <span class="muted small">{{ stockUnit(row.unit) }}</span></template>
         </el-table-column>
         <el-table-column label="Đếm thực tế" min-width="150" align="right">
           <template #default="{ row }">

@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus'
 import { Search, Van, Checked } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Category, ProductUnit, StockMovement, StockRow, StockSummary } from '../api/types'
-import { debounce, dtShort, money, movementLabel, movementLink, num, qty } from '../format'
+import { debounce, dtShort, money, movementLabel, movementLink, num, qty, stockUnit } from '../format'
 import { usePagedList } from '../composables/usePagedList'
 import { useNarrow } from '../composables/useNarrow'
 import PageHeader from '../components/PageHeader.vue'
@@ -77,7 +77,7 @@ async function saveAdjust() {
   try {
     const signed = adj.dir === 'out' ? -adj.qty : adj.qty
     current.value = (await http.post<StockRow>(`/stock/${currentId.value}/adjust`, { qty: signed, reason: adj.reason })).data
-    ElMessage.success(`Đã ${adj.dir === 'out' ? 'xuất' : 'nhập'} ${qty(adj.qty)} ${current.value.unit ?? ''}. Tồn còn ${qty(current.value.onHand)}`)
+    ElMessage.success(`Đã ${adj.dir === 'out' ? 'xuất' : 'nhập'} ${qty(adj.qty)} ${stockUnit(current.value.unit)}. Tồn còn ${qty(current.value.onHand)}`)
     adj.open = false
     moves.set({ page: 1 })
     list.load()
@@ -145,7 +145,7 @@ onMounted(async () => {
       </el-table-column>
       <el-table-column prop="onHand" label="Tồn" min-width="150" align="right" sortable="custom">
         <template #default="{ row }">
-          <span class="num" :class="{ 'tone-danger': Number(row.onHand) < 0 }">{{ qty(row.onHand) }}</span> <span class="muted small">{{ row.unit }}</span>
+          <span class="num" :class="{ 'tone-danger': Number(row.onHand) < 0 }">{{ qty(row.onHand) }}</span> <span class="muted small">{{ stockUnit(row.unit) }}</span>
           <div v-if="status(row)" class="badge" :class="status(row)!.cls">{{ status(row)!.text }}</div>
         </template>
       </el-table-column>
@@ -182,7 +182,7 @@ onMounted(async () => {
       <div class="head">
         <div class="big">
           <span class="muted">Tồn hiện tại</span>
-          <b class="num" :class="{ 'tone-danger': Number(current.onHand) < 0 }">{{ qty(current.onHand) }} <small>{{ current.unit }}</small></b>
+          <b class="num" :class="{ 'tone-danger': Number(current.onHand) < 0 }">{{ qty(current.onHand) }} <small>{{ stockUnit(current.unit) }}</small></b>
           <span class="muted small">Giá vốn {{ Number(current.avgCost) ? money(Math.round(Number(current.avgCost))) : 'chưa có' }} · giá trị {{ money(current.value) }}</span>
         </div>
         <div class="side">
@@ -194,10 +194,10 @@ onMounted(async () => {
       <form class="min" @submit.prevent="saveMin">
         <label for="min">Tồn tối thiểu</label>
         <NumberField id="min" v-model="minForm" kind="decimal" class="num-input" />
-        <span class="muted small">{{ current.unit }}. Tồn bằng hoặc thấp hơn mức này thì báo "Sắp hết". Để 0 nếu không cần báo.</span>
+        <span class="muted small">{{ stockUnit(current.unit) }}. Tồn bằng hoặc thấp hơn mức này thì báo "Sắp hết". Để 0 nếu không cần báo.</span>
         <el-button native-type="submit" size="small">Lưu</el-button>
       </form>
-      <p v-if="units.length" class="muted small">Quy đổi khi nhập: <span v-for="(u, i) in units" :key="u.unit">{{ i ? ', ' : '' }}1 {{ u.unit }} = {{ qty(u.ratio) }} {{ current.unit }}</span></p>
+      <p v-if="units.length" class="muted small">Quy đổi khi nhập: <span v-for="(u, i) in units" :key="u.unit">{{ i ? ', ' : '' }}1 {{ u.unit }} = {{ qty(u.ratio) }} {{ stockUnit(current.unit) }}</span></p>
 
       <h3 class="title">Thẻ kho <span class="muted">({{ moves.total.value }} dòng)</span></h3>
       <el-table v-loading="moves.loading.value" :data="moves.items.value" size="small" empty-text="Chưa có nhập xuất nào">
@@ -228,7 +228,7 @@ onMounted(async () => {
           <el-radio-button value="in">Nhập thêm</el-radio-button>
         </el-radio-group>
       </el-form-item>
-      <el-form-item :label="`Số lượng (${current?.unit ?? ''})`">
+      <el-form-item :label="`Số lượng (${stockUnit(current?.unit)})`">
         <NumberField v-model="adj.qty" kind="decimal" class="num-input" />
       </el-form-item>
       <el-form-item label="Lý do">

@@ -70,7 +70,8 @@ Doi chieu tung cong thuc voi app cu: [`docs/doi-chieu-nghiep-vu.md`](docs/doi-ch
 Mo hinh giong cong no: **so kho bat bien** (`stock_movement`, chi them, huy = ghi nguoc) + **so du** (`stock_balance`), cap nhat cung transaction.
 Bat bien: `on_hand = SUM(stock_movement.qty)` (co test).
 - **Don vi ton = don vi ban** cua san pham (m, cay, kg...). Ban hang tru **Tong SL** (SL x tam x he so).
-  Neu he so 1,08 chi de tinh tien (khong phai hang xuat that): dat `STOCK_SALE_QTY=without-factor` -> tru SL x so tam.
+  Mac dinh tru kho = SL x so tam (so met / so cai hang xuat that); he so (kho ton, kho tam nhua) chi de tinh tien.
+  Hang tinh theo m2 (ton, nhua): ton kho theo met dai (md), ban bat buoc co so tam. Muon tru theo Tong SL (nhan he so) nhu cu: `STOCK_SALE_QTY=total`.
 - **Don vi quy doi khi nhap** (man San pham): 1 kg = 0,318 m, 1 bo = 10 cay... Phieu nhap tu quy ra don vi goc, **sua duoc theo so do thuc te**;
   so da quy doi luu tren phieu nen sua ty le sau nay khong lam sai so cu.
 - **Gia von binh quan di dong** (nhu KiotViet): tinh lai moi lan nhap; xuat theo binh quan hien tai. Ton dang <= 0 ma nhap -> binh quan = gia nhap.

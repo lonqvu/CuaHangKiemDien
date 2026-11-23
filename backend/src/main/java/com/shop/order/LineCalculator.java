@@ -14,6 +14,19 @@ public final class LineCalculator {
 
     private LineCalculator() {}
 
+    /**
+     * Hang tinh tien theo m2 (ton, nhua...): kho tinh theo met dai = SL x so tam -> bat buoc co so tam.
+     * Don vi du lieu that: "m2", "m 2", "m²", "mét 2".
+     */
+    public static boolean isAreaUnit(String unit) {
+        if (unit == null) return false;
+        String u = java.text.Normalizer.normalize(unit, java.text.Normalizer.Form.NFC).toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("\\s+", "").replace('²', '2');
+        return u.equals("m2") || u.equals("mét2") || u.equals("met2");
+    }
+
+    public static final String AREA_NEEDS_SHEETS = "Hàng tính theo m² (tôn, nhựa): nhập số tấm (ít nhất 1) để kho trừ đúng số mét đã cắt";
+
     /** Neu co so tam ma khong nhap he so thi dung 1.08 (giong hanh vi man hinh cu). */
     public static BigDecimal normalizeFactor(int sheets, BigDecimal factor) {
         if (factor == null) factor = BigDecimal.ZERO;

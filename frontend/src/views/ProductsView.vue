@@ -5,7 +5,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search, Delete } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Category, Product, ProductUnit } from '../api/types'
-import { debounce, num, qty } from '../format'
+import { debounce, num, qty, stockUnit } from '../format'
 import { usePagedList } from '../composables/usePagedList'
 import PageHeader from '../components/PageHeader.vue'
 import NumberField from '../components/NumberField.vue'
@@ -169,7 +169,7 @@ onMounted(() => { list.load(); loadCategories() })
           <el-input v-model="u.unit" placeholder="kg, bó, cuộn" aria-label="Tên đơn vị quy đổi" class="u-name" />
           <span>=</span>
           <NumberField v-model="u.ratio" kind="decimal" :precision="6" aria-label="Tỷ lệ quy đổi" class="u-ratio" />
-          <span class="muted">{{ form.unit || 'đơn vị gốc' }}</span>
+          <span class="muted">{{ stockUnit(form.unit) || 'đơn vị gốc' }}</span>
           <el-button text type="danger" :icon="Delete" :aria-label="`Bỏ đơn vị ${u.unit}`" @click="units.splice(i, 1)" />
         </div>
         <el-button size="small" :icon="Plus" @click="units.push({ unit: '', ratio: 1 })">Thêm đơn vị quy đổi</el-button>

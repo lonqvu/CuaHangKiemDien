@@ -153,6 +153,7 @@ public class OrderService {
                 .orElseThrow(() -> ApiException.badRequest("Sản phẩm không tồn tại hoặc đã ngừng bán"));
         int sheets = r.sheets() == null ? 0 : r.sheets();
         if (sheets < 0) throw ApiException.badRequest("Số tấm không hợp lệ");
+        if (sheets == 0 && LineCalculator.isAreaUnit(p.getUnit())) throw ApiException.badRequest(LineCalculator.AREA_NEEDS_SHEETS);
         BigDecimal factor = LineCalculator.normalizeFactor(sheets, r.factor());
         BigDecimal price = r.unitPrice() != null ? r.unitPrice() : p.getPrice();
         if (price.signum() < 0) throw ApiException.badRequest("Đơn giá không hợp lệ");

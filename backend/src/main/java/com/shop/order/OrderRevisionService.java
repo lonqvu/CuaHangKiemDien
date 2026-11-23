@@ -185,6 +185,8 @@ public class OrderRevisionService {
             if (it.quantity() == null || it.quantity().signum() <= 0) throw ApiException.badRequest(w + "số lượng phải lớn hơn 0");
             int sheets = it.sheets() == null ? 0 : it.sheets();
             if (sheets < 0) throw ApiException.badRequest(w + "số tấm không hợp lệ");
+            // dong moi / doi san pham: hang m2 phai co so tam (dong cu giu nguyen nhu da ban)
+            if (sheets == 0 && !sameProduct && LineCalculator.isAreaUnit(unit)) throw ApiException.badRequest(w + LineCalculator.AREA_NEEDS_SHEETS);
             BigDecimal factor = LineCalculator.normalizeFactor(sheets, it.factor());
             BigDecimal price = it.unitPrice() != null ? it.unitPrice() : old != null && sameProduct ? old.getUnitPrice()
                     : products.findById(pid).map(Product::getPrice).orElse(null);

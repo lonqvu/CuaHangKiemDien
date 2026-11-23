@@ -7,7 +7,7 @@ import type { FormInstance } from 'element-plus'
 import { Plus, Delete, Check } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Page, Product, ProductUnit, Receipt, Supplier } from '../api/types'
-import { dtShort, highlight, money, num, qty } from '../format'
+import { dtShort, highlight, money, num, qty, stockUnit } from '../format'
 import EmptyState from '../components/EmptyState.vue'
 import { useNarrow } from '../composables/useNarrow'
 import { useRemotePick } from '../composables/useRemotePick'
@@ -258,7 +258,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
                 <el-option v-for="p in optionsFor(row)" :key="p.id" :value="p.id" :label="p.name">
                   <div class="opt">
                     <span><template v-for="(seg, i) in highlight(p.name, productQuery)" :key="i"><mark v-if="seg.m">{{ seg.t }}</mark><template v-else>{{ seg.t }}</template></template></span>
-                    <span class="muted num">tồn {{ p.onHand == null ? '—' : qty(p.onHand) }} {{ p.unit }}</span>
+                    <span class="muted num">tồn {{ p.onHand == null ? '—' : qty(p.onHand) }} {{ stockUnit(p.unit) }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -269,7 +269,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
         <el-table-column v-if="editable || !narrow" label="Đơn vị nhập" width="120">
           <template #default="{ row }">
             <el-select v-if="editable && row.productId" v-model="row.inputUnit" aria-label="Đơn vị nhập" @change="row.qtyOverride = undefined">
-              <el-option :value="row.baseUnit" :label="row.baseUnit" />
+              <el-option :value="row.baseUnit" :label="stockUnit(row.baseUnit)" />
               <el-option v-for="u in row.units" :key="u.unit" :value="u.unit" :label="u.unit" />
             </el-select>
             <span v-else>{{ row.inputUnit }}</span>
@@ -295,7 +295,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
               <NumberField v-if="editable && row.inputUnit !== row.baseUnit" v-model="row.qtyOverride" kind="decimal" nullable class="n"
                            :placeholder="qty(baseQty(row))" aria-label="Số lượng thực tế theo đơn vị gốc" />
               <span v-else class="num">{{ qty(baseQty(row)) }}</span>
-              <span class="muted small">&nbsp;{{ row.baseUnit }}</span>
+              <span class="muted small">&nbsp;{{ stockUnit(row.baseUnit) }}</span>
               <div v-if="row.inputUnit !== row.baseUnit" class="muted small">
                 {{ row.qtyOverride ? 'đo thực tế' : `= ${qty(row.inputQty)} × ${qty(ratioOf(row))}` }}
               </div>
@@ -306,7 +306,7 @@ onMounted(() => { searchProducts(''); searchSuppliers(''); load() })
           <template #default="{ row }">
             <template v-if="row.productId">
               <b class="num">{{ num(lineTotal(row)) }}</b>
-              <div class="muted small num">{{ num(Math.round(unitCost(row))) }} ₫/{{ row.baseUnit }}</div>
+              <div class="muted small num">{{ num(Math.round(unitCost(row))) }} ₫/{{ stockUnit(row.baseUnit) }}</div>
             </template>
           </template>
         </el-table-column>

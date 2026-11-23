@@ -6,7 +6,7 @@ import type { FormInstance } from 'element-plus'
 import { Plus, Edit, Delete, Printer, DocumentAdd, ChatDotRound } from '@element-plus/icons-vue'
 import http from '../api/http'
 import type { Category, Customer, Order, OrderItem, Page, Product } from '../api/types'
-import { debounce, groupItems, highlight, isSheetUnit, money, num, parseSegments, plain, previewLine, qty } from '../format'
+import { debounce, groupItems, highlight, isAreaUnit, isSheetUnit, money, num, parseSegments, plain, previewLine, qty, stockQty, stockUnit } from '../format'
 import ZaloSendDialog from '../components/ZaloSendDialog.vue'
 import NumberField from '../components/NumberField.vue'
 import DebtAdjustDialog from '../components/DebtAdjustDialog.vue'
@@ -109,7 +109,7 @@ async function onPickProduct() {
   line.unitPrice = Number(last?.unitPrice ?? picked.value?.price ?? 0)
   // hang ban theo m: So luong / So tam bat dau tu 0 (giong sau khi them dong) - lan nao chon cung hien nhu nhau
   // hang khac (vit, son...): luon bat dau So luong 1 nhu luc moi vao man (truoc: vua them dong khac roi chon thi la 0)
-  Object.assign(line, isSheet.value ? { quantity: 0, sheets: 0, factor: 0 } : { quantity: 1, sheets: 0, factor: 0 })
+  Object.assign(line, isSheet.value ? { quantity: 0, sheets: baseSheets(), factor: 0 } : { quantity: 1, sheets: 0, factor: 0 })
   justAdded = false
   singleTouched.value = false
   await nextTick()
@@ -120,6 +120,10 @@ const listPrice = computed(() => (picked.value ? Number(picked.value.price) : nu
 const priceEdited = computed(() => listPrice.value != null && !!line.productId && Number(line.unitPrice) !== listPrice.value)
 // hang ban theo met (ton, up noc, mang...): con tro vao o "Nhieu doan"; con lai: o So luong
 const isSheet = computed(() => isSheetUnit(picked.value?.unit))
+// hang tinh tien theo m2 (ton, nhua): bat buoc so tam -> dien san 1; doan khong ghi so tam ("4,7") = 1 tam
+const isArea = computed(() => isAreaUnit(picked.value?.unit))
+const baseSheets = () => (isArea.value ? 1 : 0)
+const segSheets = (n: number) => n || baseSheets()
 function focusEntry() {
   if (isSheet.value) segField.value?.focus()
   else qtyField.value?.focus()
@@ -138,9 +142,9 @@ function onSubmit() { return segsActive.value ? addSegments() : addItem() }
 const segParsed = computed(() => parseSegments(segText.value))
 const segFactor = computed(() => line.factor || 1.08) // he so dang nhap (neu co), mac dinh 1,08 nhu khi go so tam
 const segPreview = computed(() => {
-  const rows = segParsed.value.segments.map((g) => previewLine(g.quantity, g.sheets, g.sheets ? segFactor.value : 0, line.unitPrice || 0))
+  const rows = segParsed.value.segments.map((g) => previewLine(g.quantity, segSheets(g.sheets), segSheets(g.sheets) ? segFactor.value : 0, line.unitPrice || 0))
   return {
-    sheets: segParsed.value.segments.reduce((a, g) => a + g.sheets, 0),
+    sheets: segParsed.value.segments.reduce((a, g) => a + segSheets(g.sheets), 0),
     totalQuantity: rows.reduce((a, r) => a + r.totalQuantity, 0),
     lineTotal: rows.reduce((a, r) => a + r.lineTotal, 0),
   }
@@ -158,10 +162,10 @@ async function addSegments() {
   }
   busy.value = true
   try {
-    const body = segParsed.value.segments.map((g) => ({ productId: line.productId, quantity: g.quantity, sheets: g.sheets, factor: g.sheets ? segFactor.value : 0, unitPrice: line.unitPrice }))
+    const body = segParsed.value.segments.map((g) => ({ productId: line.productId, quantity: g.quantity, sheets: segSheets(g.sheets), factor: segSheets(g.sheets) ? segFactor.value : 0, unitPrice: line.unitPrice }))
     order.value = (await http.post<Order>(`/orders/${order.value.id}/items/batch`, body)).data
     segText.value = ''
-    Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
+    Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: 0 })
     await nextTick()
     segField.value?.focus()
   } finally {
@@ -205,6 +209,7 @@ function resetLine() {
 // Ly do khong them duoc dong dang nhap (hien ngay duoi o nhap, khong cho bam Them)
 const lineProblem = computed(() => {
   if (!line.productId || !(line.quantity > 0)) return '' // chua nhap SL: khong bao do, bam Them se nhac
+  if (isArea.value && !(line.sheets > 0)) return 'Hàng tính theo m²: nhập số tấm (ít nhất 1) để kho trừ đúng số mét đã cắt.'
   if (preview.value.totalQuantity === 0)
     return line.sheets ? 'Tổng SL bằng 0, kiểm tra lại hệ số.' : 'Số tấm đang là 0 nhưng hệ số khác 0 nên Tổng SL = 0. Xóa hệ số hoặc nhập số tấm.'
   return ''
@@ -235,7 +240,7 @@ async function addItem() {
     order.value = (await http.post<Order>(`/orders/${order.value.id}/items`, { ...line })).data
     // Giu san pham + don gia de nhap tiep doan khac cung mat hang (ton: 4,7 m, 4,5 m, 3 m...).
     // So luong ve 0 de lo bam Enter them lan nua khong tao dong trung.
-    Object.assign(line, { quantity: 0, sheets: 0, factor: 0 })
+    Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: 0 })
     singleTouched.value = false
     await nextTick()
     qtyField.value?.focus()
@@ -512,7 +517,7 @@ onBeforeUnmount(() => {
             <span v-if="segText.trim()" class="segs-preview" aria-live="polite">
               <span v-if="segParsed.error" class="line-problem">{{ segParsed.error }}</span>
               <template v-else>
-                {{ segParsed.segments.length }} đoạn<template v-if="segPreview.sheets"> · {{ segPreview.sheets }} tấm</template> · <b class="num">{{ qty(segPreview.totalQuantity) }}</b> m
+                {{ segParsed.segments.length }} đoạn<template v-if="segPreview.sheets"> · {{ segPreview.sheets }} tấm</template> · <b class="num">{{ qty(segPreview.totalQuantity) }}</b> {{ isArea ? "m²" : picked?.unit }}<template v-if="isArea"> (kho trừ <span class="num">{{ qty(segParsed.segments.reduce((a, g) => a + g.quantity * segSheets(g.sheets), 0)) }}</span> md)</template>
                 · <b class="num">{{ money(segPreview.lineTotal) }}</b>
                 <span v-if="segPreview.sheets" class="muted small"> (hệ số {{ qty(segFactor) }})</span>
               </template>
@@ -553,7 +558,7 @@ onBeforeUnmount(() => {
           <span class="muted">Thành tiền</span>
           <b class="num">{{ money(preview.lineTotal) }}</b>
           <span v-if="picked && picked.onHand != null" class="stockinfo" :class="{ over: preview.totalQuantity > Number(picked.onHand) }">
-            {{ preview.totalQuantity > Number(picked.onHand) ? 'Vượt tồn kho' : 'Tồn' }}: <b class="num">{{ qty(picked.onHand) }}</b> {{ picked.unit }}
+            {{ stockQty(line.quantity || 0, line.sheets || 0) > Number(picked.onHand) ? 'Vượt tồn kho' : 'Tồn' }}: <b class="num">{{ qty(picked.onHand) }}</b> {{ stockUnit(picked.unit) }}
           </span>
           <span v-if="lineProblem" class="line-problem" role="alert">{{ lineProblem }}</span>
           <span v-else-if="line.productId && order.items.length" class="muted small keep-hint">Esc: chọn sản phẩm khác</span>
