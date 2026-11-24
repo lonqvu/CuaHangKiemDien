@@ -109,7 +109,7 @@ async function onPickProduct() {
   line.unitPrice = Number(last?.unitPrice ?? picked.value?.price ?? 0)
   // hang ban theo m: So luong / So tam bat dau tu 0 (giong sau khi them dong) - lan nao chon cung hien nhu nhau
   // hang khac (vit, son...): luon bat dau So luong 1 nhu luc moi vao man (truoc: vua them dong khac roi chon thi la 0)
-  Object.assign(line, isSheet.value ? { quantity: 0, sheets: baseSheets(), factor: 0 } : { quantity: 1, sheets: 0, factor: 0 })
+  Object.assign(line, isSheet.value ? { quantity: 0, sheets: baseSheets(), factor: baseFactor() } : { quantity: 1, sheets: 0, factor: 0 })
   justAdded = false
   singleTouched.value = false
   await nextTick()
@@ -123,6 +123,8 @@ const isSheet = computed(() => isSheetUnit(picked.value?.unit))
 // hang tinh tien theo m2 (ton, nhua): bat buoc so tam -> dien san 1; doan khong ghi so tam ("4,7") = 1 tam
 const isArea = computed(() => isAreaUnit(picked.value?.unit))
 const baseSheets = () => (isArea.value ? 1 : 0)
+// he so dien san 1,08 (thay vi 0 - de hieu nham la 'khong nhan'); hang khac de 0 (cay, cai: co he so thi Tong SL = 0)
+const baseFactor = () => (isArea.value ? 1.08 : 0)
 const segSheets = (n: number) => n || baseSheets()
 function focusEntry() {
   if (isSheet.value) segField.value?.focus()
@@ -165,7 +167,7 @@ async function addSegments() {
     const body = segParsed.value.segments.map((g) => ({ productId: line.productId, quantity: g.quantity, sheets: segSheets(g.sheets), factor: segSheets(g.sheets) ? segFactor.value : 0, unitPrice: line.unitPrice }))
     order.value = (await http.post<Order>(`/orders/${order.value.id}/items/batch`, body)).data
     segText.value = ''
-    Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: 0 })
+    Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: baseFactor() })
     await nextTick()
     segField.value?.focus()
   } finally {
@@ -240,7 +242,7 @@ async function addItem() {
     order.value = (await http.post<Order>(`/orders/${order.value.id}/items`, { ...line })).data
     // Giu san pham + don gia de nhap tiep doan khac cung mat hang (ton: 4,7 m, 4,5 m, 3 m...).
     // So luong ve 0 de lo bam Enter them lan nua khong tao dong trung.
-    Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: 0 })
+    Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: baseFactor() })
     singleTouched.value = false
     await nextTick()
     qtyField.value?.focus()
