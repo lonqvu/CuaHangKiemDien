@@ -38,3 +38,8 @@ test('chi hang ban theo met moi gom doan; hop / cay / cai moi lan them la 1 dong
   assert.deepEqual(groupItems([it(1, 'cây', 201), it(2, 'cây', 20)]).map((g) => g.items.length), [1, 1])
   assert.deepEqual(groupItems([it(1, 'md', 4.7), it(2, 'md', 4.5)]).map((g) => g.items.length), [2])
 })
+
+test('noi doan bang dau + (2.3x3+4x2+5), tron voi dau cach, dau cham / phay deu duoc', () => {
+  for (const t of ['2.3x3+4x2+5', '2,3x3+4x2+5', '2.3x3 + 4x2 + 5', '2,3x3+4x2 5']) assert.deepEqual(segs(t), [[2.3, 3], [4, 2], [5, 0]], t)
+  assert.equal(parseSegments('2.3x3+4y2').segments.length, 0)
+})

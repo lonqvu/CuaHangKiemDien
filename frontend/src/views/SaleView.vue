@@ -519,10 +519,10 @@ onBeforeUnmount(() => {
           </el-select>
         </div>
         <div v-if="isSheet && !done" class="f segs">
-          <label for="segs">Nhiều đoạn <span class="muted small">mét×tấm (vd 4,7x2), cách nhau dấu cách · Enter thêm hết · để trống + Enter / Tab: nhập từng dòng</span></label>
+          <label for="segs">Nhiều đoạn <span class="muted small">mét×tấm, nối bằng dấu + (vd 2,3x3+4x2+5) hoặc dấu cách · Enter thêm hết · để trống + Enter / Tab: nhập từng dòng</span></label>
           <div class="segs-row">
             <el-input id="segs" ref="segField" v-model="segText" autocomplete="off" :disabled="singleActive"
-                      :placeholder="singleActive ? 'Đang nhập từng dòng (Số lượng / Số tấm)' : 'vd: 4,7x2 4,5x2 3x1'"
+                      :placeholder="singleActive ? 'Đang nhập từng dòng (Số lượng / Số tấm)' : 'vd: 2,3x3+4x2+5'"
                       @keydown.enter.prevent.stop="addSegments" />
             <span class="seg-k"><label for="ks">Hệ số</label>
               <NumberField id="ks" v-model="line.factor" kind="decimal" :step="0.01" :precision="4" :disabled="!!done" :class="{ area: isArea }" /></span>
