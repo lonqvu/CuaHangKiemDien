@@ -552,7 +552,7 @@ onBeforeUnmount(() => {
         <div class="f">
           <label for="k">Hệ số</label>
           <!-- dang nhap nhieu doan: he so sua o o canh Nhieu doan (cung 1 gia tri) -->
-          <NumberField id="k" :model-value="segsActive ? null : line.factor" :nullable="segsActive" :placeholder="segsActive ? '↓' : undefined"
+          <NumberField id="k" :model-value="segsActive ? null : line.factor" :nullable="segsActive" :placeholder="segsActive ? '—' : undefined"
                        kind="decimal" :step="0.01" :precision="4" :disabled="!!done || segsActive" @update:model-value="(v: number | null) => (line.factor = v ?? 0)" />
         </div>
         <div class="f">
@@ -563,10 +563,7 @@ onBeforeUnmount(() => {
           </label>
           <NumberField id="p" v-model="line.unitPrice" kind="integer" :step="1000" :disabled="!!done" />
         </div>
-        <div v-if="segsActive" class="calc muted small" aria-live="polite">
-          Đang nhập nhiều đoạn: Số lượng / Số tấm bị khóa. Xóa ô Nhiều đoạn để nhập từng dòng.
-        </div>
-        <div v-else class="calc" aria-live="polite">
+        <div v-if="!segsActive" class="calc" aria-live="polite">
           <span class="muted">Tổng SL</span>
           <b class="num">{{ qty(preview.totalQuantity) }}</b>
           <span v-if="line.sheets" class="muted small">= {{ qty(line.quantity) }} × {{ line.sheets }} tấm × {{ qty(preview.factor) }}</span>
