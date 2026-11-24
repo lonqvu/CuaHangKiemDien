@@ -41,11 +41,13 @@ const picked = computed<Product | null>(() => products.value.find((p: Product) =
 
 // App cu: go so tam khac 0 thi he so tu dien 1.08 (ProductDialog); man sua dong (ModifyProduct) dien 1
 // Xoa so tam ve 0 thi he so cung ve 0: neu khong, cong thuc cu (so tam 0, he so != 0) cho Tong SL = 0 -> dong 0 d
+// Hang ban theo met (ton m2 / md): he so theo loai hang (1,08 / 1), giu nguyen khi doi so tam (gui di da tu bo neu khong co tam).
 watch(() => line.sheets, (v, old) => {
+  if (isSheet.value) { if (v && !line.factor) line.factor = defaultFactor(); return }
   if (v && v !== old) line.factor = 1.08
   else if (!v && old) line.factor = 0
 })
-const preview = computed(() => previewLine(line.quantity || 0, line.sheets || 0, line.factor || 0, line.unitPrice || 0))
+const preview = computed(() => previewLine(line.quantity || 0, line.sheets || 0, effFactor(line.sheets || 0), line.unitPrice || 0))
 
 // ---------- hoa don nhap ----------
 async function startNew() {
@@ -123,8 +125,15 @@ const isSheet = computed(() => isSheetUnit(picked.value?.unit))
 // hang tinh tien theo m2 (ton, nhua): bat buoc so tam -> dien san 1; doan khong ghi so tam ("4,7") = 1 tam
 const isArea = computed(() => isAreaUnit(picked.value?.unit))
 const baseSheets = () => (isArea.value ? 1 : 0)
-// he so dien san 1,08 (thay vi 0 - de hieu nham la 'khong nhan'); hang khac de 0 (cay, cai: co he so thi Tong SL = 0)
-const baseFactor = () => (isArea.value ? 1.08 : 0)
+// He so mac dinh: ton / nhua (m2) 1,08; hang ban theo met dai (md: suon, xoi...) 1 = KHONG nhan; hang khac 0.
+// (backend: co so tam ma he so 0 -> tu dung 1,08 -> hang md phai gui 1 thi moi khong bi nhan nham)
+const defaultFactor = () => (isArea.value ? 1.08 : isSheet.value ? 1 : 0)
+const baseFactor = defaultFactor
+/** He so thuc gui di / tinh xem truoc: hang ban theo met, khong co so tam -> 0 (SL chinh la so met / m2). */
+function effFactor(sheets: number) {
+  if (!isSheet.value) return line.factor || 0
+  return sheets > 0 ? (line.factor || defaultFactor()) : 0
+}
 const segSheets = (n: number) => n || baseSheets()
 function focusEntry() {
   if (isSheet.value) segField.value?.focus()
@@ -142,7 +151,7 @@ function touchSingle() { singleTouched.value = true }
 // Enter / nut Them: dang nhap nhieu doan thi them cac doan, khong thi them 1 dong
 function onSubmit() { return segsActive.value ? addSegments() : addItem() }
 const segParsed = computed(() => parseSegments(segText.value))
-const segFactor = computed(() => line.factor || 1.08) // he so dang nhap (neu co), mac dinh 1,08 nhu khi go so tam
+const segFactor = computed(() => line.factor || defaultFactor()) // he so o canh Nhieu doan (ton 1,08; md 1)
 const segPreview = computed(() => {
   const rows = segParsed.value.segments.map((g) => previewLine(g.quantity, segSheets(g.sheets), segSheets(g.sheets) ? segFactor.value : 0, line.unitPrice || 0))
   return {
@@ -239,7 +248,7 @@ async function addItem() {
   }
   busy.value = true
   try {
-    order.value = (await http.post<Order>(`/orders/${order.value.id}/items`, { ...line })).data
+    order.value = (await http.post<Order>(`/orders/${order.value.id}/items`, { ...line, factor: effFactor(line.sheets || 0) })).data
     // Giu san pham + don gia de nhap tiep doan khac cung mat hang (ton: 4,7 m, 4,5 m, 3 m...).
     // So luong ve 0 de lo bam Enter them lan nua khong tao dong trung.
     Object.assign(line, { quantity: 0, sheets: baseSheets(), factor: baseFactor() })
@@ -515,13 +524,16 @@ onBeforeUnmount(() => {
             <el-input id="segs" ref="segField" v-model="segText" autocomplete="off" :disabled="singleActive"
                       :placeholder="singleActive ? 'Đang nhập từng dòng (Số lượng / Số tấm)' : 'vd: 4,7x2 4,5x2 3x1'"
                       @keydown.enter.prevent.stop="addSegments" />
+            <span class="seg-k"><label for="ks">Hệ số</label>
+              <NumberField id="ks" v-model="line.factor" kind="decimal" :step="0.01" :precision="4" :disabled="!!done" :class="{ area: isArea }" /></span>
             <span v-if="singleActive" class="muted small">Xóa Số lượng / Số tấm (hoặc thêm xong) để nhập nhiều đoạn</span>
             <span v-if="segText.trim()" class="segs-preview" aria-live="polite">
               <span v-if="segParsed.error" class="line-problem">{{ segParsed.error }}</span>
               <template v-else>
                 {{ segParsed.segments.length }} đoạn<template v-if="segPreview.sheets"> · {{ segPreview.sheets }} tấm</template> · <b class="num">{{ qty(segPreview.totalQuantity) }}</b> {{ isArea ? "m²" : picked?.unit }}<template v-if="isArea"> (kho trừ <span class="num">{{ qty(segParsed.segments.reduce((a, g) => a + g.quantity * segSheets(g.sheets), 0)) }}</span> md)</template>
                 · <b class="num">{{ money(segPreview.lineTotal) }}</b>
-                <span v-if="segPreview.sheets" class="muted small"> (hệ số {{ qty(segFactor) }})</span>
+                <span v-if="segPreview.sheets && Number(segFactor) !== 1" class="k-chip">hệ số {{ qty(segFactor) }}</span>
+                <span v-else-if="segPreview.sheets" class="k-chip plain">không nhân hệ số</span>
               </template>
             </span>
           </div>
@@ -539,7 +551,9 @@ onBeforeUnmount(() => {
         </div>
         <div class="f">
           <label for="k">Hệ số</label>
-          <NumberField id="k" v-model="line.factor" kind="decimal" :step="0.01" :precision="4" :disabled="!!done" />
+          <!-- dang nhap nhieu doan: he so sua o o canh Nhieu doan (cung 1 gia tri) -->
+          <NumberField id="k" :model-value="segsActive ? null : line.factor" :nullable="segsActive" :placeholder="segsActive ? '↓' : undefined"
+                       kind="decimal" :step="0.01" :precision="4" :disabled="!!done || segsActive" @update:model-value="(v: number | null) => (line.factor = v ?? 0)" />
         </div>
         <div class="f">
           <label for="p">Đơn giá
@@ -827,6 +841,12 @@ onBeforeUnmount(() => {
 .segs-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
 .segs-row .el-input { flex: 0 1 320px; }
 .segs-preview { font-size: 14px; }
+.seg-k { display: inline-flex; align-items: center; gap: 6px; }
+.seg-k label { font-size: 13px; font-weight: 600; }
+.segs-row .seg-k .el-input { flex: 0 0 90px; width: 90px; }
+.seg-k .area :deep(.el-input__wrapper) { box-shadow: 0 0 0 1px #F59E0B inset; background: #FFFBEB; }
+.k-chip { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 4px; font-size: 12px; font-weight: 600; background: #FEF3C7; color: #92400E; }
+.k-chip.plain { background: var(--steel-100, #E2E8F0); color: var(--ink); }
 .segs label .small { font-weight: 400; font-size: 12px; }
 .name-wrap { display: inline-block; vertical-align: top; max-width: calc(100% - 24px); }
 .one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
